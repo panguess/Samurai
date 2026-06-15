@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สั่งสินค้า</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+
+    /* Loading */
+    #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 12px; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: #0f6e56; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    #errorScreen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 12px; padding: 2rem; text-align: center; }
+    #errorScreen h2 { font-size: 20px; color: #993c1d; }
+    #errorScreen p { font-size: 14px; color: #666; }
+
+    /* App */
+    #app { display: none; max-width: 600px; margin: 0 auto; padding-bottom: 100px; }
+
+    /* Header */
+    .header { background: #0f6e56; color: #fff; padding: 1.25rem 1rem; }
+    .header-label { font-size: 11px; opacity: 0.75; margin-bottom: 3px; }
+    .header-name { font-size: 22px; font-weight: 600; }
+    .header-sub { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+    /* Tabs */
+    .tabs { display: flex; background: #fff; border-bottom: 1px solid #e8e8e8; }
+    .tab { flex: 1; padding: 12px; text-align: center; font-size: 13px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; }
+    .tab.active { color: #0f6e56; border-bottom-color: #0f6e56; font-weight: 500; }
+
+    /* Products */
+    .product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 12px; }
+    .product-card { background: #fff; border-radius: 12px; overflow: hidden; border: 2px solid transparent; transition: border-color 0.15s; }
+    .product-card.selected { border-color: #0f6e56; }
+    .product-img { width: 100%; aspect-ratio: 1; object-fit: cover; background: #f0f0f0; display: block; }
+    .product-img-placeholder { width: 100%; aspect-ratio: 1; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+    .product-body { padding: 10px; }
+    .product-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+    .product-price { font-size: 13px; color: #0f6e56; margin-bottom: 8px; }
+    .qty-row { display: flex; align-items: center; gap: 8px; }
+    .qty-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid #ddd; background: #f5f5f5; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: #333; }
+    .qty-btn:hover { background: #e8e8e8; }
+    .qty-num { font-size: 14px; font-weight: 500; min-width: 18px; text-align: center; }
+
+    /* Cart bar */
+    .cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e8e8e8; padding: 12px 16px; display: none; z-index: 100; }
+    .cart-bar.show { display: block; }
+    .cart-inner { max-width: 600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cart-info { font-size: 12px; color: #888; }
+    .cart-total { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .btn-order { padding: 10px 24px; background: #0f6e56; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-order:hover { background: #085041; }
+
+    /* History */
+    .history-list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .order-card { background: #fff; border-radius: 12px; padding: 14px; }
+    .order-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .order-id { font-size: 12px; font-weight: 500; font-family: monospace; color: #333; }
+    .order-date { font-size: 11px; color: #aaa; margin-top: 2px; }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+    .badge-pending { background: #faeeda; color: #854f0b; }
+    .badge-delivered { background: #eaf3de; color: #3b6d11; }
+    .badge-confirmed { background: #e6f1fb; color: #185fa5; }
+    .order-items { font-size: 12px; color: #888; margin-bottom: 6px; line-height: 1.6; }
+    .order-note { font-size: 11px; color: #888; background: #f8f8f8; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+    .order-total { font-size: 14px; font-weight: 600; color: #0f6e56; }
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #aaa; font-size: 14px; }
+
+    /* Confirm screen */
+    #confirmScreen { display: none; min-height: 100vh; background: #f5f5f5; }
+    .confirm-header { background: #0f6e56; color: #fff; padding: 1.25rem 1rem; display: flex; align-items: center; gap: 12px; }
+    .btn-back { background: none; border: none; color: #fff; cursor: pointer; font-size: 20px; padding: 0; }
+    .confirm-header h2 { font-size: 18px; font-weight: 500; }
+    .confirm-body { max-width: 600px; margin: 0 auto; padding: 16px; }
+    .confirm-card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .confirm-card h3 { font-size: 13px; color: #888; margin-bottom: 10px; }
+    .confirm-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .confirm-row:last-child { border: none; font-weight: 600; font-size: 14px; }
+    .confirm-oid { font-size: 11px; color: #aaa; font-family: monospace; margin-bottom: 12px; }
+    .note-label { font-size: 13px; font-weight: 500; margin-bottom: 8px; color: #333; }
+    .note-sub { font-size: 11px; color: #aaa; font-weight: 400; margin-left: 4px; }
+    textarea { width: 100%; min-height: 90px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 10px; font-size: 13px; font-family: inherit; color: #333; resize: vertical; line-height: 1.6; }
+    textarea:focus { outline: none; border-color: #0f6e56; }
+    textarea::placeholder { color: #bbb; }
+    .btn-confirm { width: 100%; padding: 14px; background: #0f6e56; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    .btn-confirm:hover { background: #085041; }
+    .btn-confirm:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* Success screen */
+    #successScreen { display: none; min-height: 100vh; background: #f5f5f5; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; }
+    .success-icon { font-size: 56px; margin-bottom: 1rem; }
+    .success-oid { font-size: 13px; font-family: monospace; color: #0f6e56; font-weight: 500; margin: 8px 0; }
+    .success-msg { font-size: 14px; color: #666; line-height: 1.7; margin-bottom: 1.5rem; }
+    .success-note { background: #fff; border-radius: 10px; padding: 12px; font-size: 12px; color: #666; text-align: left; margin-bottom: 1.5rem; line-height: 1.6; }
+    .success-note strong { color: #333; display: block; margin-bottom: 4px; }
+    .btn-row { display: flex; gap: 8px; justify-content: center; }
+    .btn-ghost { padding: 10px 20px; background: #fff; border: 1px solid #ddd; border-radius: 10px; font-size: 13px; cursor: pointer; color: #333; }
+    .btn-ghost:hover { background: #f5f5f5; }
+    .btn-green { padding: 10px 20px; background: #0f6e56; border: none; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; color: #fff; }
+    .btn-green:hover { background: #085041; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p style="font-size:13px;color:#888">กำลังโหลด...</p>
+</div>
+
+<div id="errorScreen">
+  <h2>ไม่พบข้อมูลลูกค้า</h2>
+  <p>ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ</p>
+</div>
+
+<div id="app">
+  <div class="header">
+    <div class="header-label">ยินดีต้อนรับ</div>
+    <div class="header-name" id="customerName">—</div>
+    <div class="header-sub">เลือกสินค้าที่ต้องการสั่งได้เลยครับ</div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('shop')" id="tabShop">🛒 สั่งสินค้า</div>
+    <div class="tab" onclick="switchTab('history')" id="tabHistory">📋 ประวัติการสั่ง</div>
+  </div>
+  <div id="shopTab">
+    <div class="product-grid" id="productGrid"></div>
+  </div>
+  <div id="historyTab" style="display:none">
+    <div class="history-list" id="historyList"></div>
+  </div>
+  <div class="cart-bar" id="cartBar">
+    <div class="cart-inner">
+      <div>
+        <div class="cart-info" id="cartInfo">0 รายการ</div>
+        <div class="cart-total" id="cartTotal">฿0</div>
+      </div>
+      <button class="btn-order" onclick="showConfirm()">สั่งซื้อ →</button>
+    </div>
+  </div>
+</div>
+
+<div id="confirmScreen">
+  <div class="confirm-header">
+    <button class="btn-back" onclick="backToShop()">←</button>
+    <h2>ยืนยันคำสั่งซื้อ</h2>
+  </div>
+  <div class="confirm-body">
+    <div class="confirm-card">
+      <div class="confirm-oid" id="confirmOid"></div>
+      <h3>รายการสินค้า</h3>
+      <div id="confirmItems"></div>
+    </div>
+    <div class="confirm-card">
+      <div class="note-label">โน้ตถึงร้าน <span class="note-sub">(ไม่บังคับ)</span></div>
+      <textarea id="orderNote" placeholder="เช่น ขอแพ็คแยกถุง, ส่งช่วงบ่าย, หรือข้อความอื่นๆ..."></textarea>
+    </div>
+    <button class="btn-confirm" id="btnConfirm" onclick="placeOrder()">✓ ยืนยันสั่งซื้อ</button>
+  </div>
+</div>
+
+<div id="successScreen">
+  <div class="success-icon">✅</div>
+  <h2 style="font-size:22px;font-weight:600;margin-bottom:4px">สั่งซื้อสำเร็จ!</h2>
+  <div class="success-oid" id="successOid"></div>
+  <p class="success-msg">ระบบได้รับคำสั่งซื้อแล้ว<br>เจ้าหน้าที่จะติดต่อกลับเร็วๆ นี้ครับ</p>
+  <div class="success-note" id="successNote" style="display:none">
+    <strong>📝 โน้ตที่ส่งไป</strong>
+    <span id="successNoteText"></span>
+  </div>
+  <div class="btn-row">
+    <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
+    <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
+  </div>
+</div>
+
+<script>
+  const API = 'https://script.google.com/macros/s/AKfycbylv9_osmJ57NbT16TrncQyzhtgc-GVRmQtpXO4QSW7Qo5qr563aPZteZ-wMWX01T0c/exec';
+  let customer = null;
+  let products = [];
+  let cart = {};
+  let pendingOid = '';
+
+  async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (!ref) { showError(); return; }
+    try {
+      const res = await fetch(`${API}?action=getCustomer&id=${ref}`);
+      const data = await res.json();
+      if (data.error) { showError(); return; }
+      customer = data;
+      document.getElementById('customerName').textContent = customer.name;
+      document.title = `สั่งสินค้า - ${customer.name}`;
+      await loadProducts();
+      show('app');
+    } catch(e) { showError(); }
+  }
+
+  async function loadProducts() {
+    const res = await fetch(`${API}?action=getProducts&group=${customer.product_group}`);
+    products = await res.json();
+    renderProducts();
+  }
+
+  function renderProducts() {
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = '';
+    products.forEach(p => {
+      const qty = cart[p.product_id] ? cart[p.product_id].qty : 0;
+      const div = document.createElement('div');
+      div.className = 'product-card' + (qty > 0 ? ' selected' : '');
+      div.id = 'pc' + p.product_id;
+      const imgHtml = p.image_url
+        ? `<img class="product-img" src="${p.image_url}" alt="${p.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : '';
+      const placeholder = `<div class="product-img-placeholder" ${p.image_url ? 'style="display:none"' : ''}>🛍️</div>`;
+      div.innerHTML = `
+        ${imgHtml}${placeholder}
+        <div class="product-body">
+          <div class="product-name">${p.name}</div>
+          <div class="product-price">฿${Number(p.price).toLocaleString()}</div>
+          <div class="qty-row">
+            <button class="qty-btn" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button>
+            <span class="qty-num" id="qty${p.product_id}">${qty}</span>
+            <button class="qty-btn" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button>
+          </div>
+        </div>`;
+      grid.appendChild(div);
+    });
+  }
+
+  function chg(id, delta, name, price) {
+    const cur = cart[id] ? cart[id].qty : 0;
+    const nv = Math.max(0, cur + delta);
+    if (nv === 0) delete cart[id];
+    else cart[id] = { qty: nv, name, price: Number(price) };
+    const el = document.getElementById('qty' + id);
+    if (el) el.textContent = nv;
+    const pc = document.getElementById('pc' + id);
+    if (pc) pc.classList.toggle('selected', nv > 0);
+    updateCart();
+  }
+
+  function updateCart() {
+    const items = Object.values(cart);
+    const tq = items.reduce((s, i) => s + i.qty, 0);
+    const tp = items.reduce((s, i) => s + i.qty * i.price, 0);
+    const bar = document.getElementById('cartBar');
+    bar.classList.toggle('show', tq > 0);
+    document.getElementById('cartInfo').textContent = tq + ' รายการที่เลือก';
+    document.getElementById('cartTotal').textContent = '฿' + tp.toLocaleString();
+  }
+
+  function genOid() {
+    const d = new Date();
+    const ds = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+    return 'ORD-' + ds + '-' + Math.floor(Math.random()*9000+1000);
+  }
+
+  function showConfirm() {
+    pendingOid = genOid();
+    document.getElementById('confirmOid').textContent = 'Order ID: ' + pendingOid;
+    document.getElementById('orderNote').value = '';
+    const items = Object.values(cart);
+    const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+    let html = items.map(i =>
+      `<div class="confirm-row"><span>${i.name} × ${i.qty}</span><span>฿${(i.qty*i.price).toLocaleString()}</span></div>`
+    ).join('');
+    html += `<div class="confirm-row"><span>ยอดรวม</span><span>฿${total.toLocaleString()}</span></div>`;
+    document.getElementById('confirmItems').innerHTML = html;
+    hide('app'); hide('successScreen');
+    document.getElementById('confirmScreen').style.display = 'block';
+  }
+
+  function backToShop() {
+    document.getElementById('confirmScreen').style.display = 'none';
+    show('app');
+  }
+
+  async function placeOrder() {
+    const btn = document.getElementById('btnConfirm');
+    btn.disabled = true;
+    btn.textContent = 'กำลังส่ง...';
+    const items = Object.values(cart);
+    const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+    const note = document.getElementById('orderNote').value.trim();
+    const itemsText = items.map(i => `${i.name} x${i.qty}`).join(', ');
+    try {
+      await fetch(API, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'createOrder',
+          customer_id: customer.customer_id,
+          customer_name: customer.name,
+          items: itemsText,
+          total,
+          note
+        })
+      });
+      cart = {};
+      document.getElementById('confirmScreen').style.display = 'none';
+      document.getElementById('successOid').textContent = pendingOid;
+      const sn = document.getElementById('successNote');
+      if (note) {
+        document.getElementById('successNoteText').textContent = note;
+        sn.style.display = 'block';
+      } else { sn.style.display = 'none'; }
+      document.getElementById('successScreen').style.display = 'flex';
+    } catch(e) {
+      alert('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    }
+    btn.disabled = false;
+    btn.textContent = '✓ ยืนยันสั่งซื้อ';
+  }
+
+  async function goHistory() {
+    document.getElementById('successScreen').style.display = 'none';
+    show('app');
+    switchTab('history');
+  }
+
+  function goShop() {
+    document.getElementById('successScreen').style.display = 'none';
+    show('app');
+    switchTab('shop');
+    renderProducts();
+    updateCart();
+  }
+
+  async function switchTab(tab) {
+    document.getElementById('tabShop').classList.toggle('active', tab === 'shop');
+    document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+    document.getElementById('shopTab').style.display = tab === 'shop' ? 'block' : 'none';
+    document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('cartBar').classList.toggle('show', tab === 'shop' && Object.keys(cart).length > 0);
+    if (tab === 'history') await loadHistory();
+  }
+
+  async function loadHistory() {
+    const list = document.getElementById('historyList');
+    list.innerHTML = '<div class="empty-state">กำลังโหลด...</div>';
+    try {
+      const res = await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+      const orders = await res.json();
+      if (!orders.length) {
+        list.innerHTML = '<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';
+        return;
+      }
+      list.innerHTML = orders.map(o => `
+        <div class="order-card">
+          <div class="order-top">
+            <div>
+              <div class="order-id">${o.order_id}</div>
+              <div class="order-date">${o.timestamp ? new Date(o.timestamp).toLocaleString('th-TH') : ''}</div>
+            </div>
+            <span class="badge badge-${o.status}">${statusLabel(o.status)}</span>
+          </div>
+          <div class="order-items">${o.items}</div>
+          ${o.note ? `<div class="order-note">📝 ${o.note}</div>` : ''}
+          <div class="order-total">฿${Number(o.total).toLocaleString()}</div>
+        </div>`).join('');
+    } catch(e) {
+      list.innerHTML = '<div class="empty-state">โหลดข้อมูลไม่ได้ กรุณาลองใหม่</div>';
+    }
+  }
+
+  function statusLabel(s) {
+    return { pending: 'รอดำเนินการ', confirmed: 'ยืนยันแล้ว', delivered: 'ส่งมอบแล้ว' }[s] || s;
+  }
+
+  function show(id) { document.getElementById(id).style.display = 'block'; document.getElementById('loading').style.display = 'none'; }
+  function hide(id) { document.getElementById(id).style.display = 'none'; }
+  function showError() { document.getElementById('loading').style.display = 'none'; document.getElementById('errorScreen').style.display = 'flex'; }
+
+  init();
+</script>
+</body>
+</html>
