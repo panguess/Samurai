@@ -684,11 +684,21 @@ async function submitSlip(){
   const vr=document.getElementById('verifyResult');
   vr.innerHTML='';
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:pendingOid,image_base64:currentSlipBase64,mime_type:currentSlipMime})});
-    await new Promise(r=>setTimeout(r,1500));
-    const res=await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:pendingOid})});
-    vr.innerHTML='<div class="verify-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI กำลังอ่านสลิป... กรุณารอสักครู่แล้วกลับมาเช็คสถานะครับ</div>';
-    showToast('ส่งสลิปแล้ว รอ verify ครับ');
+    // Step 1: Upload to ImgBB
+    const formData=new FormData();
+    formData.append('key','be42b929c1810f8bfa52d0e1bd3648f1');
+    formData.append('image',currentSlipBase64);
+    const imgbbRes=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:formData});
+    const imgbbData=await imgbbRes.json();
+    if(!imgbbData.success) throw new Error('ImgBB upload failed');
+    const slipUrl=imgbbData.data.url;
+    // Step 2: Send URL to Apps Script
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:pendingOid,slip_url:slipUrl})});
+    await new Promise(r=>setTimeout(r,2000));
+    // Step 3: Trigger Claude AI verify
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:pendingOid})});
+    vr.innerHTML='<div class="verify-box verify-ok">ส่งหลักฐานเรียบร้อยแล้ว ✓<br><span style="font-size:11px">ระบบกำลังตรวจสอบ กลับมาเช็คสถานะได้เร็วๆ นี้ครับ</span></div>';
+    showToast('ส่งสลิปแล้ว ✓');
   }catch(e){
     vr.innerHTML='<div class="verify-box verify-fail">เกิดข้อผิดพลาด กรุณาลองใหม่</div>';
   }
