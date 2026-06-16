@@ -339,8 +339,8 @@
     <div class="tab" onclick="switchOwnerTab('delivery')" id="ownerTab2">📦 การจัดส่ง</div>
   </div>
   <div class="owner-stats">
-    <div class="o-stat"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ออเดอร์วันนี้</div></div>
-    <div class="o-stat"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify</div></div>
+    <div class="o-stat" id="filterAll" onclick="setPayFilter('all')" style="cursor:pointer"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ทั้งหมด</div></div>
+    <div class="o-stat" id="filterVerify" onclick="setPayFilter('slip_uploaded')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify 🔍</div></div>
     <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">ยอดรวม</div></div>
   </div>
   <div class="owner-section-title" id="ownerListTitle">รายการรอตรวจสอบ</div>
@@ -747,12 +747,20 @@ function switchOwnerTab(tab){
   renderOwnerList();
 }
 
+function setPayFilter(f){
+  payFilter=f;
+  document.getElementById('filterAll').style.border=f==='all'?'2px solid #C8401A':'2px solid transparent';
+  document.getElementById('filterVerify').style.border=f==='slip_uploaded'?'2px solid #185FA5':'2px solid transparent';
+  renderOwnerList();
+}
 function renderOwnerList(){
   const list=document.getElementById('ownerList');
   if(!allOwnerOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
   
   if(ownerCurrentTab==='payment'){
-    list.innerHTML=allOwnerOrders.map(o=>{
+    const payOrders=payFilter==='all'?allOwnerOrders:allOwnerOrders.filter(o=>o.payment_status===payFilter);
+    if(!payOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
+    list.innerHTML=payOrders.map(o=>{
       const items=parseItems(o.items);
       const hasSlip=o.slip_url&&o.slip_url!=='';
       const isVerified=o.payment_status==='verified';
