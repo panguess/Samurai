@@ -853,49 +853,6 @@ function hide(id){const el=document.getElementById(id);if(el)el.style.display='n
 function showError(){document.getElementById('loading').style.display='none';document.getElementById('errorScreen').style.display='flex';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
-// Slip upload
-let currentSlipBase64='';let currentSlipMime='';
-function previewSlip(e){
-  const file=e.target.files[0];if(!file)return;
-  currentSlipMime=file.type;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    document.getElementById('uploadBox').style.display='none';
-    document.getElementById('slipPreviewImg').src=ev.target.result;
-    document.getElementById('slipPreviewWrap').style.display='block';
-    currentSlipBase64=ev.target.result.split(',')[1];
-  };
-  reader.readAsDataURL(file);
-}
-
-async function submitSlip(){
-  const btn=document.getElementById('btnVerifySlip');
-  btn.innerHTML='<i class="ti ti-loader" aria-hidden="true"></i> กำลังส่งและตรวจสอบ...';
-  btn.disabled=true;
-  const vr=document.getElementById('verifyResult');
-  vr.innerHTML='';
-  try{
-    // Step 1: Upload to ImgBB
-    const formData=new FormData();
-    formData.append('key','be42b929c1810f8bfa52d0e1bd3648f1');
-    formData.append('image',currentSlipBase64);
-    const imgbbRes=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:formData});
-    const imgbbData=await imgbbRes.json();
-    if(!imgbbData.success) throw new Error('ImgBB upload failed');
-    const slipUrl=imgbbData.data.url;
-    // Step 2: Send URL to Apps Script
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:pendingOid,slip_url:slipUrl})});
-    await new Promise(r=>setTimeout(r,2000));
-    // Step 3: Trigger Claude AI verify
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:pendingOid})});
-    vr.innerHTML='<div class="verify-box verify-ok">ส่งหลักฐานเรียบร้อยแล้ว ✓<br><span style="font-size:11px">ระบบกำลังตรวจสอบ กลับมาเช็คสถานะได้เร็วๆ นี้ครับ</span></div>';
-    showToast('ส่งสลิปแล้ว ✓');
-  }catch(e){
-    vr.innerHTML='<div class="verify-box verify-fail">เกิดข้อผิดพลาด กรุณาลองใหม่</div>';
-  }
-  btn.innerHTML='<i class="ti ti-send" aria-hidden="true"></i> ส่งหลักฐานการชำระเงิน';
-  btn.disabled=false;
-}
 
 // Owner
 
@@ -1063,19 +1020,6 @@ async function ownerReject(orderId){
     <div class="btn-row">
       <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
       <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
-    </div>
-    <div class="s-card slip-section">
-      <div class="s-card-title">แนบสลิปการโอน <span class="ai-badge">ตรวจสอบอัตโนมัติ</span></div>
-      <input type="file" id="slipInput" accept="image/*" style="display:none" onchange="previewSlip(event)">
-      <div class="upload-box" id="uploadBox" onclick="document.getElementById('slipInput').click()">
-        <div class="upload-icon">📎</div>
-        <div class="upload-text">แตะเพื่อเลือกรูปสลิป</div>
-      </div>
-      <div id="slipPreviewWrap" style="display:none">
-        <img id="slipPreviewImg" class="slip-img" src="" alt="slip">
-        <button class="btn-verify-slip" id="btnVerifySlip" onclick="submitSlip()">ส่งหลักฐานการชำระเงิน</button>
-        <div id="verifyResult"></div>
-      </div>
     </div>
     <div class="copy-toast" id="copyToast">คัดลอกแล้ว ✓</div>
     <div style="text-align:center;font-size:11px;color:#aaa;margin-top:4px">ซามูไรไส้กรอก 🌭</div>
