@@ -486,6 +486,7 @@ function goHome(){
   document.getElementById('feedbackSection').style.display='none';
   document.getElementById('reviewSection').style.display='none';
   document.getElementById('cartBar').classList.remove('show');
+  if(typeof trackRefreshInterval!=='undefined'&&trackRefreshInterval){clearInterval(trackRefreshInterval);trackRefreshInterval=null;}
 }
 
 let currentRating=0;
@@ -582,6 +583,7 @@ async function loadPaySection(){
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
 }
 
+let trackRefreshInterval=null;
 async function loadTrackSection(){
   const list=document.getElementById('trackList');
   list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
@@ -591,6 +593,17 @@ async function loadTrackSection(){
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
     list.innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+  // Auto-refresh ทุก 15 วินาที เมื่ออยู่หน้า track
+  if(trackRefreshInterval) clearInterval(trackRefreshInterval);
+  trackRefreshInterval=setInterval(async()=>{
+    const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
+    if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
+    try{
+      const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+      const orders=await res.json();
+      if(orders.length) document.getElementById('trackList').innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
+    }catch(e){}
+  },10000);
 }
 
 async function loadProducts(){
@@ -707,7 +720,7 @@ function buildHistoryCard(o){
   const items=parseItems(o.items);
   const ps=o.payment_status||'pending';
   const ds=o.delivery_status||'';
-  const isDoneDelivery=ds==='done'||o.status==='done';
+  const isDoneDelivery=ds==='done'||o.status==='done'||String(ds).toLowerCase().trim()==='done'||String(o.status).toLowerCase().trim()==='done';
   const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
   let badge='';
   if(isDoneDelivery&&ps==='verified') badge=`<span class="badge badge-verified">จัดเสร็จ · ชำระแล้ว ✓</span>`;
