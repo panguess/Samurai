@@ -204,7 +204,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const API='https://script.google.com/macros/s/AKfycbylv9_osmJ57NbT16TrncQyzhtgc-GVRmQtpXO4QSW7Qo5qr563aPZteZ-wMWX01T0c/exec';
+const API='https://script.google.com/macros/s/AKfycbx5xqC4USrG9cjKeNzdegvi2d_BKgM4hq-YfIDzeqUVaiWyoLGN9igxDU5yB6SahGiX/exec';
 const ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
 const adminQtys={};
@@ -293,7 +293,7 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await fetch(API,{method:'POST',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
     cart={};
     document.getElementById('confirmScreen').style.display='none';
     document.getElementById('successOid').textContent=pendingOid;
@@ -387,7 +387,7 @@ async function saveEdit(){
   const newNote=document.getElementById('editNote').value.trim();
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await fetch(API,{method:'POST',body:JSON.stringify({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote})});
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote})});
     closeEditModal();showToast('บันทึกเรียบร้อยแล้ว ✓');await loadHistory();
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
@@ -475,7 +475,7 @@ async function saveAdminEdit(orderId){
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await fetch(API,{method:'POST',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||''})});
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||''})});
     order.items=itemsText;order.total=newTotal;
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
@@ -483,7 +483,7 @@ async function saveAdminEdit(orderId){
 
 async function markDone(orderId){
   try{
-    await fetch(API,{method:'POST',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'done'})});
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'done'})});
     const order=allAdminOrders.find(o=>o.order_id===orderId);if(order)order.status='done';
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
