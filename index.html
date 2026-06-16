@@ -349,14 +349,14 @@
 
 <script>
 const API='https://script.google.com/macros/s/AKfycbw1m5qkP4vME2smTqyz3ZLMCEoMhP5Dpd2_dmaeZhw7LPx5g5QqR5XDA8lt-ZNO3nR2/exec';
-const ADMIN_KEY='shop123';
-const OWNER_KEY='owner123';
+var ADMIN_KEY='shop123';
+var OWNER_KEY='owner123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
-const adminQtys={};
-const params=new URLSearchParams(window.location.search);
-const isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
-const customerRef=params.get('ref');
-const isOwner=params.get('owner')==='true'&&params.get('key')===OWNER_KEY;
+var adminQtys={};
+var params=new URLSearchParams(window.location.search);
+var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
+var customerRef=params.get('ref');
+var isOwner=params.get('owner')==='true'&&params.get('key')===OWNER_KEY;
 window.onload=()=>{if(isOwner)initOwner();else if(isAdmin)initAdmin();else if(customerRef)initCustomer();else showError();};
 
 async function initCustomer(){
