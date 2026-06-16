@@ -90,13 +90,41 @@
     .confirm-oid{font-size:11px;color:#aaa;font-family:monospace;margin-bottom:12px}
     .btn-confirm{width:100%;padding:14px;background:#C8401A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer}
     .btn-confirm:disabled{background:#aaa;cursor:not-allowed}
-    #successScreen{display:none;min-height:100vh;background:#f5f3f0;align-items:center;justify-content:center;flex-direction:column;padding:2rem;text-align:center}
-    .success-icon{font-size:56px;margin-bottom:1rem}
-    .success-oid{font-size:13px;font-family:monospace;color:#C8401A;font-weight:500;margin:8px 0}
-    .success-msg{font-size:14px;color:#666;line-height:1.7;margin-bottom:1.5rem}
-    .btn-row{display:flex;gap:8px;justify-content:center}
+    #successScreen{display:none;min-height:100vh;background:#f5f3f0;flex-direction:column}
+    .success-top{text-align:center;padding:1.5rem 1.5rem 0;background:#C8401A;color:#fff}
+    .success-icon{font-size:48px;margin-bottom:8px}
+    .success-oid{font-size:11px;font-family:monospace;opacity:0.85;margin-top:4px}
+    .success-title{font-size:22px;font-weight:700;margin-bottom:4px}
+    .success-body{padding:12px;display:flex;flex-direction:column;gap:10px;max-width:600px;width:100%;margin:0 auto;padding-bottom:100px}
+    .s-card{background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:1rem}
+    .s-card-title{font-size:12px;color:#888;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .s-item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5ede8;font-size:13px;color:#333}
+    .s-item-row:last-child{border:none}
+    .s-total-row{display:flex;justify-content:space-between;padding:10px 0 0;font-size:16px;font-weight:700;color:#C8401A;border-top:2px solid #f5ede8;margin-top:4px}
+    .pay-card{background:#fff;border-radius:14px;border:2px solid #C8401A;padding:1rem}
+    .pay-title{font-size:12px;color:#712B13;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .bank-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .bank-logo{width:36px;height:36px;border-radius:8px;background:#4e2e8a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
+    .bank-name{font-size:13px;font-weight:500;color:#333}
+    .bank-type{font-size:11px;color:#888;margin-top:1px}
+    .acc-box{background:#fdf5f2;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .acc-num{font-size:18px;font-weight:700;color:#C8401A;letter-spacing:1px;font-family:monospace}
+    .acc-name{font-size:11px;color:#888;margin-top:3px}
+    .btn-copy{font-size:11px;padding:6px 12px;background:#C8401A;color:#fff;border:none;border-radius:6px;cursor:pointer}
+    .amount-box{background:#C8401A;border-radius:10px;padding:12px;text-align:center}
+    .amount-label{font-size:11px;color:rgba(255,255,255,0.8);margin-bottom:4px}
+    .amount-num{font-size:28px;font-weight:700;color:#fff}
+    .status-row-s{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5ede8}
+    .status-row-s:last-child{border:none}
+    .sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#e0d8d4}
+    .sdot-on{background:#C8401A}
+    .s-label{font-size:13px;color:#1a1a1a}
+    .s-sub{font-size:11px;color:#aaa;margin-top:1px}
+    .s-time{font-size:11px;color:#C8401A;margin-left:auto;font-weight:500}
+    .copy-toast{background:#1a0a06;color:#fff;padding:7px 14px;border-radius:8px;font-size:12px;text-align:center;display:none;margin-top:8px}
     .btn-ghost{padding:10px 20px;background:#fff;border:1px solid #ddd;border-radius:10px;font-size:13px;cursor:pointer}
     .btn-green{padding:10px 20px;background:#C8401A;border:none;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;color:#fff}
+    .btn-row{display:flex;gap:8px;justify-content:center}
     .admin-header{background:#1a0a06;color:#fff;padding:1.25rem 1rem}
     .admin-header h1{font-size:20px;font-weight:500}
     .admin-header p{font-size:12px;opacity:0.7;margin-top:4px}
@@ -168,13 +196,51 @@
 </div>
 
 <div id="successScreen">
-  <div class="success-icon">✅</div>
-  <h2 style="font-size:22px;font-weight:600;margin-bottom:4px">สั่งซื้อสำเร็จ!</h2>
-  <div class="success-oid" id="successOid"></div>
-  <p class="success-msg">ระบบได้รับคำสั่งซื้อแล้ว<br>เจ้าหน้าที่จะดำเนินการเร็วๆ นี้ครับ</p>
-  <div class="btn-row">
-    <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
-    <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
+  <div class="success-top">
+    <div class="success-icon">✅</div>
+    <div class="success-title">สั่งซื้อสำเร็จ!</div>
+    <div class="success-oid" id="successOid"></div>
+    <div style="height:1.25rem"></div>
+  </div>
+  <div class="success-body">
+    <div class="s-card">
+      <div class="s-card-title"><i class="ti ti-shopping-bag" style="font-size:14px" aria-hidden="true"></i>สรุปรายการ</div>
+      <div id="successItems"></div>
+      <div class="s-total-row"><span>ยอดที่ต้องโอน</span><span id="successTotal">฿0</span></div>
+    </div>
+    <div class="pay-card">
+      <div class="pay-title"><i class="ti ti-credit-card" style="font-size:14px" aria-hidden="true"></i>โอนชำระเงินได้เลย</div>
+      <div class="bank-row">
+        <div class="bank-logo">SCB</div>
+        <div>
+          <div class="bank-name">ธนาคารไทยพาณิชย์</div>
+          <div class="bank-type">บัญชีออมทรัพย์</div>
+        </div>
+      </div>
+      <div class="acc-box">
+        <div>
+          <div class="acc-num">123456789</div>
+          <div class="acc-name">บุษราพร โชคดีสิริกุล</div>
+        </div>
+        <button class="btn-copy" onclick="copyAcc()">คัดลอก</button>
+      </div>
+      <div class="amount-box">
+        <div class="amount-label">ยอดโอน</div>
+        <div class="amount-num" id="successAmount">฿0</div>
+      </div>
+      <div class="copy-toast" id="copyToast">คัดลอกเลขบัญชีแล้ว ✓</div>
+    </div>
+    <div class="s-card">
+      <div class="s-card-title"><i class="ti ti-clock-hour-4" style="font-size:14px" aria-hidden="true"></i>สถานะออเดอร์</div>
+      <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว</div><div class="s-sub">ระบบได้รับออเดอร์ของคุณแล้ว</div></div><div class="s-time" id="successTime"></div></div>
+      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">กำลังจัดสินค้า</div><div class="s-sub">ลูกน้องร้านกำลังจัดของให้</div></div></div>
+      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">จัดสินค้าสำเร็จ</div><div class="s-sub">สินค้าพร้อมส่งมอบ</div></div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
+      <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#aaa;margin-top:4px">ซามูไรไส้กรอก 🌭</div>
   </div>
 </div>
 
@@ -296,12 +362,19 @@ async function placeOrder(){
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
     cart={};
     document.getElementById('confirmScreen').style.display='none';
-    document.getElementById('successOid').textContent=pendingOid;
+    document.getElementById('successOid').textContent=pendingOid+' · '+new Date().toLocaleDateString('th-TH');
+    const sItems=Object.values(cart);
+    document.getElementById('successItems').innerHTML=sItems.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>฿${(i.qty*i.price).toLocaleString()}</span></div>`).join('');
+    const sTotal=sItems.reduce((s,i)=>s+i.qty*i.price,0);
+    document.getElementById('successTotal').textContent='฿'+sTotal.toLocaleString();
+    document.getElementById('successAmount').textContent='฿'+sTotal.toLocaleString();
+    document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
     document.getElementById('successScreen').style.display='flex';
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
 }
 
+function copyAcc(){navigator.clipboard.writeText('123456789').catch(()=>{});const t=document.getElementById('copyToast');t.style.display='block';setTimeout(()=>t.style.display='none',2000);}
 function goHistory(){document.getElementById('successScreen').style.display='none';show('app');switchTab('history');}
 function goShop(){document.getElementById('successScreen').style.display='none';show('app');switchTab('shop');renderProducts();updateCart();}
 
