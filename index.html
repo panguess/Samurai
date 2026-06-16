@@ -360,15 +360,13 @@ async function placeOrder(){
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
-    cart={};
     document.getElementById('confirmScreen').style.display='none';
     document.getElementById('successOid').textContent=pendingOid+' · '+new Date().toLocaleDateString('th-TH');
-    const sItems=Object.values(cart);
-    document.getElementById('successItems').innerHTML=sItems.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>฿${(i.qty*i.price).toLocaleString()}</span></div>`).join('');
-    const sTotal=sItems.reduce((s,i)=>s+i.qty*i.price,0);
-    document.getElementById('successTotal').textContent='฿'+sTotal.toLocaleString();
-    document.getElementById('successAmount').textContent='฿'+sTotal.toLocaleString();
+    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>฿${(i.qty*i.price).toLocaleString()}</span></div>`).join('');
+    document.getElementById('successTotal').textContent='฿'+total.toLocaleString();
+    document.getElementById('successAmount').textContent='฿'+total.toLocaleString();
     document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
+    cart={};
     document.getElementById('successScreen').style.display='flex';
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
