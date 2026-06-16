@@ -760,15 +760,15 @@ function switchAdminTab(tab){
 
 function renderAdminOrders(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
-  const filtered=allAdminOrders.filter(o=>adminCurrentTab==='pending'?o.delivery_status!=='done':o.delivery_status==='done');
-  const pendingCount=allAdminOrders.filter(o=>o.delivery_status!=='done').length;
+  const filtered=allAdminOrders.filter(o=>adminCurrentTab==='pending'?o.delivery_status!=='done'&&o.status!=='done':o.delivery_status==='done'||o.status==='done');
+  const pendingCount=allAdminOrders.filter(o=>o.delivery_status!=='done'&&o.status!=='done').length;
   document.getElementById('adminSubtitle').textContent='รอจัด '+pendingCount+' รายการ';
   const list=document.getElementById('adminList');
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${adminCurrentTab==='pending'?'ไม่มีรายการรอจัด 🎉':'ยังไม่มีรายการที่จัดแล้ว'}</div>`;return;}
   list.innerHTML=filtered.map(o=>{
     const items=parseItems(o.items);
     if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
-    const isPending=o.status==='pending';
+    const isPending=o.delivery_status!=='done'&&o.status!=='done';
     const itemsHtml=items.map((item,idx)=>{
       const prod=prodMap[item.name]||{};
       const imgHtml=prod.image_url
@@ -823,7 +823,8 @@ async function saveAdminEdit(orderId){
 async function markDone(orderId){
   try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
-    const order=allAdminOrders.find(o=>o.order_id===orderId);if(order)order.delivery_status='done';
+    const order=allAdminOrders.find(o=>o.order_id===orderId);
+    if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
