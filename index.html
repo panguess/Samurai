@@ -268,86 +268,89 @@
 <div id="errorScreen"><h2>ไม่พบข้อมูล</h2><p>ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ</p></div>
 
 <div id="app">
-  <div class="header">
-    <div class="header-name" id="customerName">—</div>
-    <div class="header-sub">เลือกสินค้าที่ต้องการสั่งได้เลยครับ</div><div style="font-size:11px;opacity:0.6;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2)">ซามูไรไส้กรอก 🌭</div>
-  </div>
-  <div class="tabs">
-    <div class="tab active" onclick="switchTab('shop')" id="tabShop">🛒 สั่งสินค้า</div>
-    <div class="tab" onclick="switchTab('history')" id="tabHistory">📋 ประวัติการสั่ง</div>
-  </div>
-  <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
-  <div id="historyTab" style="display:none"><div class="history-list" id="historyList"></div></div>
-  <div class="cart-bar" id="cartBar">
-    <div class="cart-inner">
-      <div><div class="cart-info" id="cartInfo">0 รายการ</div><div class="cart-total" id="cartTotal">฿0</div></div>
-      <button class="btn-order" onclick="showConfirm()">สั่งซื้อ →</button>
+  <!-- Homepage -->
+  <div id="homeScreen">
+    <div class="home-top">
+      <div class="home-logo">🌭</div>
+      <div class="home-name">ซามูไรไส้กรอก</div>
+      <div class="home-customer" id="customerName">สวัสดีครับ</div>
+    </div>
+    <div class="home-body">
+      <button class="big-btn big-btn-red" onclick="goSection('shop')">
+        <div class="bb-icon bb-icon-1">🛒</div>
+        <div style="flex:1">
+          <div class="bb-title">สั่งสินค้า</div>
+          <div class="bb-sub">เลือกสินค้าและสั่งซื้อได้เลยครับ</div>
+        </div>
+        <div class="bb-arrow">›</div>
+      </button>
+      <button class="big-btn big-btn-white" onclick="goSection('pay')">
+        <div class="bb-icon bb-icon-2">💳</div>
+        <div style="flex:1">
+          <div class="bb-title" style="color:#e65100">ชำระเงิน</div>
+          <div class="bb-sub">โอนเงินค้างชำระหรือแนบสลิปยืนยัน</div>
+          <span class="bb-badge" id="pendingPayBadge" style="display:none">ค้างชำระ</span>
+        </div>
+        <div class="bb-arrow">›</div>
+      </button>
+      <button class="big-btn big-btn-white" onclick="goSection('track')">
+        <div class="bb-icon bb-icon-3">📦</div>
+        <div style="flex:1">
+          <div class="bb-title" style="color:#185FA5">ติดตามสถานะ</div>
+          <div class="bb-sub">ดูสถานะออเดอร์และประวัติการสั่ง</div>
+        </div>
+        <div class="bb-arrow">›</div>
+      </button>
+      <div style="text-align:center;font-size:11px;color:#aaa;margin-top:8px">ซามูไรไส้กรอก 🌭</div>
     </div>
   </div>
-</div>
-
-<div id="confirmScreen">
-  <div class="confirm-header">
-    <button class="back-btn" onclick="backToShop()">← กลับ</button>
-    <h2>ยืนยันคำสั่งซื้อ</h2>
-  </div>
-  <div class="confirm-body">
-    <div class="confirm-card">
-      <div class="confirm-oid" id="confirmOid"></div>
-      <h3>รายการสินค้า</h3>
-      <div id="confirmItems"></div>
-    </div>
-    <div class="confirm-card">
-      <div style="font-size:13px;font-weight:500;margin-bottom:8px">โน้ตถึงร้าน <span style="font-size:11px;color:#aaa;font-weight:400">(ไม่บังคับ)</span></div>
-      <textarea id="orderNote" placeholder="เช่น ขอแพ็คแยกถุง, ส่งช่วงบ่าย..."></textarea>
-    </div>
-    <button class="btn-confirm" id="btnConfirm" onclick="placeOrder()">✓ ยืนยันสั่งซื้อ</button>
-  </div>
-</div>
-
-<div id="successScreen">
-  <div class="success-top">
-    <div class="success-icon">✅</div>
-    <div class="success-title">สั่งซื้อสำเร็จ!</div>
-    <div class="success-oid" id="successOid"></div>
-    <div style="height:1.25rem"></div>
-  </div>
-  <div class="success-body">
-    <div class="s-card">
-      <div class="s-card-title"><i class="ti ti-shopping-bag" style="font-size:14px" aria-hidden="true"></i>รายการที่สั่ง</div>
-      <div id="successItems"></div>
-    </div>
-    <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <i class="ti ti-clock-hour-4" style="font-size:16px;color:#C8401A" aria-hidden="true"></i>
-        <span style="font-size:13px;font-weight:600;color:#C8401A">รอลูกน้องจัดสินค้าก่อนนะครับ</span>
-      </div>
-      <div style="font-size:12px;color:#993C1D;line-height:1.7">
-        ยอดชำระจะแจ้งให้ทราบหลังจากลูกน้องจัดของเสร็จแล้ว<br>
-        เผื่อสินค้าบางรายการไม่ครบ จะได้คิดราคาที่ถูกต้องครับ
+  <!-- Shop Section -->
+  <div id="shopSection" style="display:none">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0;line-height:1">←</button>
+        <div class="header-name" style="font-size:18px">สั่งสินค้า</div>
       </div>
     </div>
-    <div class="s-card">
-      <div class="s-card-title"><i class="ti ti-clock-hour-4" style="font-size:14px" aria-hidden="true"></i>สถานะออเดอร์</div>
-      <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว</div><div class="s-sub">ระบบได้รับออเดอร์ของคุณแล้ว</div></div><div class="s-time" id="successTime"></div></div>
-      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">กำลังจัดสินค้า</div><div class="s-sub">ลูกน้องร้านกำลังจัดของให้</div></div></div>
-      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">แจ้งยอดชำระ</div><div class="s-sub">จัดเสร็จแล้วจะแจ้งยอดให้ชำระ</div></div></div>
+    <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
+    <div class="cart-bar" id="cartBar">
+      <div class="cart-inner">
+        <div>
+          <div class="cart-info" id="cartInfo">0 รายการ</div>
+          <div class="cart-total-val" id="cartTotalVal">฿0</div>
+        </div>
+        <button class="btn-order" onclick="showConfirm()">สั่งซื้อ →</button>
+      </div>
     </div>
-    <button onclick="goHistory()" style="width:100%;padding:12px;background:#C8401A;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">← แก้ไขรายการสินค้า</button>
-    <div class="btn-row">
-      <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
-      <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
-    </div>
-    <div style="text-align:center;font-size:11px;color:#aaa;margin-top:8px">ซามูไรไส้กรอก 🌭</div>
   </div>
-</div>
-
-<div class="modal-overlay" id="editModal" style="display:none">
-  <div class="modal">
-    <div class="modal-header"><h3>แก้ไขคำสั่งซื้อ</h3><button class="btn-close" onclick="closeEditModal()">×</button></div>
-    <div class="modal-body" id="editModalBody"></div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeEditModal()">ยกเลิก</button>
+  <!-- Pay Section -->
+  <div id="paySection" style="display:none">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0;line-height:1">←</button>
+        <div class="header-name" style="font-size:18px">ชำระเงิน</div>
+      </div>
+    </div>
+    <div class="history-list" id="payList"></div>
+  </div>
+  <!-- Track Section -->
+  <div id="trackSection" style="display:none">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0;line-height:1">←</button>
+        <div class="header-name" style="font-size:18px">ติดตามสถานะ</div>
+      </div>
+    </div>
+    <div class="history-list" id="trackList"></div>
+  </div>
+  <!-- Edit Modal -->
+  <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-end;justify-content:center">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="font-size:16px;font-weight:600">แก้ไขรายการสินค้า</h3>
+        <button onclick="closeEditModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa">✕</button>
+      </div>
+      <div id="editModalBody"></div>
       <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
     </div>
   </div>
