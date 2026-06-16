@@ -6,36 +6,36 @@
   <title>สั่งสินค้า</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a}
+    body{font-family:'Segoe UI',sans-serif;background:#f5f3f0;color:#1a1a1a}
     #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px}
-    .spinner{width:36px;height:36px;border:3px solid #e0e0e0;border-top-color:#0f6e56;border-radius:50%;animation:spin 0.8s linear infinite}
+    .spinner{width:36px;height:36px;border:3px solid #e0e0e0;border-top-color:#C8401A;border-radius:50%;animation:spin 0.8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     #errorScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:2rem;text-align:center}
     #errorScreen h2{font-size:20px;color:#993c1d}
     #app,#adminApp{display:none;max-width:600px;margin:0 auto;padding-bottom:100px}
-    .header{background:#0f6e56;color:#fff;padding:1.25rem 1rem}
+    .header{background:#C8401A;color:#fff;padding:1.25rem 1rem}
     .header-name{font-size:22px;font-weight:600}
     .header-sub{font-size:13px;opacity:0.8;margin-top:4px}
     .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
     .tab{flex:1;padding:12px;text-align:center;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent}
-    .tab.active{color:#0f6e56;border-bottom-color:#0f6e56;font-weight:500}
+    .tab.active{color:#C8401A;border-bottom-color:#C8401A;font-weight:500}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
     .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
-    .product-card.selected{border-color:#0f6e56}
+    .product-card.selected{border-color:#C8401A}
     .product-img{width:100%;aspect-ratio:1;object-fit:cover;background:#f0f0f0;display:block}
     .product-img-placeholder{width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:40px}
     .product-body{padding:10px}
     .product-name{font-size:14px;font-weight:500;margin-bottom:3px}
-    .product-price{font-size:13px;color:#0f6e56;margin-bottom:8px}
+    .product-price{font-size:13px;color:#C8401A;margin-bottom:8px}
     .qty-row{display:flex;align-items:center;gap:8px}
-    .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+    .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .qty-num{font-size:14px;font-weight:500;min-width:18px;text-align:center}
     .cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;padding:12px 16px;display:none;z-index:100}
     .cart-bar.show{display:block}
     .cart-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
     .cart-info{font-size:12px;color:#888}
     .cart-total{font-size:18px;font-weight:600}
-    .btn-order{padding:10px 24px;background:#0f6e56;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer}
+    .btn-order{padding:10px 24px;background:#C8401A;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer}
     .history-list,.admin-list{padding:12px;display:flex;flex-direction:column;gap:10px}
     .order-card{background:#fff;border-radius:12px;padding:14px;border:0.5px solid #e8e8e8}
     .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
@@ -47,11 +47,11 @@
     .order-items-list{margin-bottom:8px}
     .item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
     .item-row:last-child{border:none}
-    .item-qty{color:#0f6e56;font-weight:500}
+    .item-qty{color:#C8401A;font-weight:500}
     .order-note{font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px}
     .order-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
-    .order-total{font-size:14px;font-weight:600;color:#0f6e56}
-    .btn-edit{font-size:12px;padding:6px 14px;background:none;border:1px solid #0f6e56;color:#0f6e56;border-radius:8px;cursor:pointer}
+    .order-total{font-size:14px;font-weight:600;color:#C8401A}
+    .btn-edit{font-size:12px;padding:6px 14px;background:none;border:1px solid #C8401A;color:#C8401A;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
     .empty-state{text-align:center;padding:3rem 1rem;color:#aaa;font-size:14px}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:200}
@@ -72,14 +72,14 @@
     .note-section{background:#f8f8f8;border-radius:12px;padding:12px}
     .note-label{font-size:12px;color:#888;margin-bottom:6px}
     textarea{width:100%;min-height:72px;padding:10px;border:1px solid #e0e0e0;border-radius:10px;font-size:13px;font-family:inherit;resize:none}
-    textarea:focus{outline:none;border-color:#0f6e56}
-    .edit-total{font-size:15px;font-weight:600;color:#0f6e56;text-align:right;padding:4px 0}
+    textarea:focus{outline:none;border-color:#C8401A}
+    .edit-total{font-size:15px;font-weight:600;color:#C8401A;text-align:right;padding:4px 0}
     .modal-footer{padding:12px 16px;border-top:1px solid #f0f0f0;display:flex;gap:8px;position:sticky;bottom:0;background:#fff}
-    .btn-cancel{flex:1;padding:12px;background:#f5f5f5;border:none;border-radius:10px;font-size:14px;cursor:pointer}
-    .btn-save{flex:2;padding:12px;background:#0f6e56;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}
+    .btn-cancel{flex:1;padding:12px;background:#f5f3f0;border:none;border-radius:10px;font-size:14px;cursor:pointer}
+    .btn-save{flex:2;padding:12px;background:#C8401A;border:none;border-radius:10px;font-size:14px;font-weight:500;color:#fff;cursor:pointer}
     .btn-save:disabled{background:#aaa;cursor:not-allowed}
-    #confirmScreen{display:none;min-height:100vh;background:#f5f5f5}
-    .confirm-header{background:#0f6e56;color:#fff;padding:1.25rem 1rem;display:flex;align-items:center;gap:12px}
+    #confirmScreen{display:none;min-height:100vh;background:#f5f3f0}
+    .confirm-header{background:#C8401A;color:#fff;padding:1.25rem 1rem;display:flex;align-items:center;gap:12px}
     .confirm-header h2{font-size:18px;font-weight:500}
     .back-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:14px;opacity:0.85}
     .confirm-body{max-width:600px;margin:0 auto;padding:16px}
@@ -88,16 +88,16 @@
     .confirm-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
     .confirm-row.total{border:none;font-weight:600;font-size:14px;padding-top:10px}
     .confirm-oid{font-size:11px;color:#aaa;font-family:monospace;margin-bottom:12px}
-    .btn-confirm{width:100%;padding:14px;background:#0f6e56;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer}
+    .btn-confirm{width:100%;padding:14px;background:#C8401A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer}
     .btn-confirm:disabled{background:#aaa;cursor:not-allowed}
-    #successScreen{display:none;min-height:100vh;background:#f5f5f5;align-items:center;justify-content:center;flex-direction:column;padding:2rem;text-align:center}
+    #successScreen{display:none;min-height:100vh;background:#f5f3f0;align-items:center;justify-content:center;flex-direction:column;padding:2rem;text-align:center}
     .success-icon{font-size:56px;margin-bottom:1rem}
-    .success-oid{font-size:13px;font-family:monospace;color:#0f6e56;font-weight:500;margin:8px 0}
+    .success-oid{font-size:13px;font-family:monospace;color:#C8401A;font-weight:500;margin:8px 0}
     .success-msg{font-size:14px;color:#666;line-height:1.7;margin-bottom:1.5rem}
     .btn-row{display:flex;gap:8px;justify-content:center}
     .btn-ghost{padding:10px 20px;background:#fff;border:1px solid #ddd;border-radius:10px;font-size:13px;cursor:pointer}
-    .btn-green{padding:10px 20px;background:#0f6e56;border:none;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;color:#fff}
-    .admin-header{background:#1a1a2e;color:#fff;padding:1.25rem 1rem}
+    .btn-green{padding:10px 20px;background:#C8401A;border:none;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;color:#fff}
+    .admin-header{background:#1a0a06;color:#fff;padding:1.25rem 1rem}
     .admin-header h1{font-size:20px;font-weight:500}
     .admin-header p{font-size:12px;opacity:0.7;margin-top:4px}
     .admin-order-card{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;overflow:hidden}
@@ -105,8 +105,8 @@
     .admin-customer{font-size:15px;font-weight:500}
     .admin-order-id{font-size:11px;color:#aaa;font-family:monospace;margin-top:2px}
     .admin-order-time{font-size:11px;color:#aaa;margin-top:2px}
-    .btn-done{padding:8px 16px;background:#0f6e56;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer}
-    .btn-done:hover{background:#085041}
+    .btn-done{padding:8px 16px;background:#C8401A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer}
+    .btn-done:hover{background:#A03015}
     .admin-items-list{padding:8px 12px}
     .admin-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5}
     .admin-item-row:last-child{border:none}
@@ -114,12 +114,12 @@
     .admin-item-img-placeholder{width:52px;height:52px;border-radius:8px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
     .admin-item-name{font-size:13px;font-weight:500;flex:1}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
-    .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f5f5;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-    .admin-qty-num{font-size:14px;font-weight:600;min-width:20px;text-align:center;color:#0f6e56}
+    .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+    .admin-qty-num{font-size:14px;font-weight:600;min-width:20px;text-align:center;color:#C8401A}
     .admin-order-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #f0f0f0;background:#fafafa}
-    .admin-total{font-size:14px;font-weight:600;color:#0f6e56}
-    .admin-note{padding:8px 12px;font-size:12px;color:#888;background:#fff8e1;border-top:1px solid #f0e68c}
-    .btn-save-admin{font-size:12px;padding:6px 12px;background:#1a1a2e;color:#fff;border:none;border-radius:8px;cursor:pointer}
+    .admin-total{font-size:14px;font-weight:600;color:#C8401A}
+    .admin-note{padding:8px 12px;font-size:12px;color:#888;background:#fdf5f2;border-top:1px solid #f0e68c}
+    .btn-save-admin{font-size:12px;padding:6px 12px;background:#1a0a06;color:#fff;border:none;border-radius:8px;cursor:pointer}
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap}
     .toast.show{opacity:1}
   </style>
@@ -132,7 +132,7 @@
 <div id="app">
   <div class="header">
     <div class="header-name" id="customerName">—</div>
-    <div class="header-sub">เลือกสินค้าที่ต้องการสั่งได้เลยครับ</div>
+    <div class="header-sub">เลือกสินค้าที่ต้องการสั่งได้เลยครับ</div><div style="font-size:11px;opacity:0.6;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2)">ซามูไรไส้กรอก 🌭</div>
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab('shop')" id="tabShop">🛒 สั่งสินค้า</div>
@@ -435,7 +435,7 @@ function renderAdminOrders(){
       const imgHtml=prod.image_url
         ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none">🛍️</div>`
         :`<div class="admin-item-img-placeholder">🛍️</div>`;
-      return`<div class="admin-item-row">${imgHtml}<div class="admin-item-name">${item.name}</div>${isPending?`<div class="admin-item-qty-row"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#0f6e56;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row">${imgHtml}<div class="admin-item-name">${item.name}</div>${isPending?`<div class="admin-item-qty-row"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#C8401A;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     return`<div class="admin-order-card">
       <div class="admin-order-top">
