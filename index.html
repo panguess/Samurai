@@ -269,53 +269,24 @@
   </div>
   <div class="success-body">
     <div class="s-card">
-      <div class="s-card-title"><i class="ti ti-shopping-bag" style="font-size:14px" aria-hidden="true"></i>สรุปรายการ</div>
+      <div class="s-card-title"><i class="ti ti-shopping-bag" style="font-size:14px" aria-hidden="true"></i>รายการที่สั่ง</div>
       <div id="successItems"></div>
-      <div class="s-total-row"><span>ยอดที่ต้องโอน</span><span id="successTotal">฿0</span></div>
     </div>
-    <div class="pay-card">
-      <div class="pay-title"><i class="ti ti-credit-card" style="font-size:14px" aria-hidden="true"></i>โอนชำระเงินได้เลย</div>
-      <div class="bank-row">
-        <div class="bank-logo">SCB</div>
-        <div>
-          <div class="bank-name">ธนาคารไทยพาณิชย์</div>
-          <div class="bank-type">บัญชีออมทรัพย์</div>
-        </div>
+    <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <i class="ti ti-clock-hour-4" style="font-size:16px;color:#C8401A" aria-hidden="true"></i>
+        <span style="font-size:13px;font-weight:600;color:#C8401A">รอลูกน้องจัดสินค้าก่อนนะครับ</span>
       </div>
-      <div class="acc-box">
-        <div>
-          <div class="acc-num">123456789</div>
-          <div class="acc-name">บุษราพร โชคดีสิริกุล</div>
-        </div>
-        <button class="btn-copy" onclick="copyAcc()">คัดลอก</button>
+      <div style="font-size:12px;color:#993C1D;line-height:1.7">
+        ยอดชำระจะแจ้งให้ทราบหลังจากลูกน้องจัดของเสร็จแล้ว<br>
+        เผื่อสินค้าบางรายการไม่ครบ จะได้คิดราคาที่ถูกต้องครับ
       </div>
-      <div class="amount-box">
-        <div class="amount-label">ยอดโอน</div>
-        <div class="amount-num" id="successAmount">฿0</div>
-      </div>
-      <div class="copy-toast" id="copyToast">คัดลอกเลขบัญชีแล้ว ✓</div>
     </div>
     <div class="s-card">
       <div class="s-card-title"><i class="ti ti-clock-hour-4" style="font-size:14px" aria-hidden="true"></i>สถานะออเดอร์</div>
       <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว</div><div class="s-sub">ระบบได้รับออเดอร์ของคุณแล้ว</div></div><div class="s-time" id="successTime"></div></div>
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">กำลังจัดสินค้า</div><div class="s-sub">ลูกน้องร้านกำลังจัดของให้</div></div></div>
-      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">จัดสินค้าสำเร็จ</div><div class="s-sub">สินค้าพร้อมส่งมอบ</div></div></div>
-    </div>
-    <div class="s-card slip-section">
-      <div class="s-card-title"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i>แนบสลิปการโอน <span class="ai-badge">ตรวจสอบอัตโนมัติ</span></div>
-      <input type="file" id="slipInput" accept="image/*" style="display:none" onchange="previewSlip(event)">
-      <div class="upload-box" id="uploadBox" onclick="document.getElementById('slipInput').click()">
-        <div class="upload-icon"><i class="ti ti-photo" aria-hidden="true"></i></div>
-        <div class="upload-text">แตะเพื่อเลือกรูปสลิป</div>
-        <div class="upload-sub">JPG, PNG</div>
-      </div>
-      <div id="slipPreviewWrap" style="display:none">
-        <img id="slipPreviewImg" class="slip-img" src="" alt="slip">
-        <button class="btn-verify-slip" id="btnVerifySlip" onclick="submitSlip()">
-          <i class="ti ti-send" style="font-size:14px" aria-hidden="true"></i>ส่งหลักฐานการชำระเงิน
-        </button>
-        <div id="verifyResult"></div>
-      </div>
+      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">แจ้งยอดชำระ</div><div class="s-sub">จัดเสร็จแล้วจะแจ้งยอดให้ชำระ</div></div></div>
     </div>
     <div class="btn-row">
       <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
@@ -470,9 +441,7 @@ async function placeOrder(){
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
     document.getElementById('confirmScreen').style.display='none';
     document.getElementById('successOid').textContent=pendingOid+' · '+new Date().toLocaleDateString('th-TH');
-    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>฿${(i.qty*i.price).toLocaleString()}</span></div>`).join('');
-    document.getElementById('successTotal').textContent='฿'+total.toLocaleString();
-    document.getElementById('successAmount').textContent='฿'+total.toLocaleString();
+    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>x${i.qty}</span></div>`).join('');
     document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
     cart={};
     document.getElementById('successScreen').style.display='flex';
