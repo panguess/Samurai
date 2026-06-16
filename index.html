@@ -54,6 +54,33 @@
     .btn-edit{font-size:12px;padding:6px 14px;background:none;border:1px solid #C8401A;color:#C8401A;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
     .empty-state{text-align:center;padding:3rem 1rem;color:#aaa;font-size:14px}
+    .badge-verified{background:#EAF3DE;color:#3B6D11}
+    .badge-rejected{background:#FCEAEA;color:#A32D2D}
+    .badge-slip{background:#E6F1FB;color:#185FA5}
+    .badge-pay{background:#fff3e0;color:#e65100}
+    .tl{display:flex;flex-direction:column;gap:0;margin:8px 0}
+    .tr{display:flex;align-items:flex-start;gap:8px;padding:4px 0}
+    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+    .d-on{background:#C8401A}.d-off{background:#e0d8d4}.d-pay{background:#e65100}.d-blue{background:#185FA5}
+    .tlabel{font-size:12px;color:#333;flex:1}.tlabel.muted{color:#aaa}
+    .ttime{font-size:10px;color:#C8401A;font-weight:500;white-space:nowrap}
+    .info-box{background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px;color:#185FA5}
+    .warn-box-h{background:#FCEAEA;border:1px solid #F09595;border-radius:8px;padding:8px 10px;margin:6px 0}
+    .ok-box-h{background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px;color:#3B6D11}
+    .pay-box{background:#fff3e0;border:1px solid #ffb74d;border-radius:10px;padding:12px;margin:8px 0}
+    .pay-title{font-size:13px;font-weight:600;color:#e65100;margin-bottom:4px}
+    .pay-sub{font-size:11px;color:#bf360c;margin-bottom:8px;line-height:1.5}
+    .bank-box{background:#fff;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .bank-num{font-size:15px;font-weight:700;color:#e65100;letter-spacing:1px;font-family:monospace}
+    .bank-name-s{font-size:10px;color:#888;margin-top:2px}
+    .bank-scb{font-size:10px;background:#4e2e8a;color:#fff;padding:2px 7px;border-radius:4px;margin-bottom:3px;display:inline-block}
+    .total-pay{background:#e65100;border-radius:8px;padding:10px;text-align:center;color:#fff}
+    .total-pay-label{font-size:10px;opacity:0.85;margin-bottom:2px}
+    .total-pay-num{font-size:20px;font-weight:700}
+    .slip-upload-inline{margin-top:8px;display:none}
+    .upload-box{border:2px dashed #f5c4b3;border-radius:10px;padding:1rem;text-align:center;background:#fdf5f2;cursor:pointer;margin:6px 0}
+    .slip-img-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin:4px 0}
+    .btn-slip-send{width:100%;padding:10px;background:#C8401A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:200}
     .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow-y:auto}
     .modal-header{padding:16px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1}
@@ -470,23 +497,102 @@ async function loadHistory(){
     const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
     const orders=await res.json();
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
-    list.innerHTML=orders.map(o=>{
-      const items=parseItems(o.items);
-      const isPending=o.status==='pending';
-      return`<div class="order-card" id="hcard${o.order_id}">
-        <div class="order-top">
-          <div><div class="order-id">${o.order_id}</div><div class="order-date">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
-          <span class="badge badge-${isPending?'pending':'done'}">${statusLabel(o.status)}</span>
-        </div>
-        <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-        ${o.note?`<div class="order-note">📝 ${o.note}</div>`:''}
-        <div class="order-footer">
-          <div class="order-total" id="htotal${o.order_id}">฿${Number(o.total).toLocaleString()}</div>
-          <button class="btn-edit${isPending?'':' disabled'}" ${isPending?`onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')"`:' disabled'}>${isPending?'แก้ไข order':'แก้ไขไม่ได้'}</button>
-        </div>
-      </div>`;
-    }).join('');
+    list.innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+}
+
+function buildHistoryCard(o){
+  const items=parseItems(o.items);
+  const ps=o.payment_status||'pending';
+  const ds=o.delivery_status||'';
+  const isDoneDelivery=ds==='done'||o.status==='done';
+  const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  let badge='';
+  if(isDoneDelivery&&ps==='verified') badge=`<span class="badge badge-verified">จัดเสร็จ · ชำระแล้ว ✓</span>`;
+  else if(isDoneDelivery&&(ps==='pending'||ps==='')) badge=`<span class="badge badge-pay">จัดสำเร็จ · รอชำระ 💳</span>`;
+  else if(isDoneDelivery&&ps==='slip_uploaded') badge=`<span class="badge badge-slip">จัดสำเร็จ · รอ verify</span>`;
+  else if(isDoneDelivery&&ps==='rejected') badge=`<span class="badge badge-rejected">ยอดไม่ตรง</span>`;
+  else if(ps==='verified') badge=`<span class="badge badge-verified">ชำระแล้ว ✓</span>`;
+  else if(ps==='rejected') badge=`<span class="badge badge-rejected">ยอดไม่ตรง</span>`;
+  else if(ps==='slip_uploaded') badge=`<span class="badge badge-slip">รอตรวจสอบ</span>`;
+  else badge=`<span class="badge badge-pending">รอดำเนินการ</span>`;
+  let statusBox='';
+  if((ps==='pending'||ps==='')&&isDoneDelivery){
+    statusBox=`<div class="pay-box"><div class="pay-title">💳 ค้างชำระ ฿${Number(o.total).toLocaleString()}</div><div class="pay-sub">สินค้าจัดพร้อมแล้ว กรุณาชำระเงินครับ</div><div class="bank-box"><div><div class="bank-scb">SCB</div><div class="bank-num">123456789</div><div class="bank-name-s">บุษราพร โชคดีสิริกุล</div></div><button onclick="navigator.clipboard&&navigator.clipboard.writeText('123456789');showToast('คัดลอกแล้ว ✓')" style="font-size:11px;padding:5px 10px;background:#e65100;color:#fff;border:none;border-radius:6px;cursor:pointer">คัดลอก</button></div><div class="total-pay"><div class="total-pay-label">ยอดที่ต้องโอน</div><div class="total-pay-num">฿${Number(o.total).toLocaleString()}</div></div></div>`;
+  } else if(ps==='rejected'){
+    const vr=o.verify_result?o.verify_result.split(':'):['',''];
+    const diff=vr[1]?(Number(o.total)-Number(vr[1])).toLocaleString():'';
+    statusBox=`<div class="warn-box-h"><div style="font-size:12px;font-weight:600;color:#A32D2D;margin-bottom:3px">⚠️ ยอดเงินไม่ถูกต้อง</div><div style="font-size:11px;color:#A32D2D;line-height:1.5">กรุณาโอนเพิ่ม ฿${diff} แล้วแนบสลิปใหม่ครับ</div></div>`;
+  } else if(ps==='slip_uploaded'){
+    statusBox=`<div class="info-box"><strong>ส่งสลิปแล้ว รอตรวจสอบ</strong><br>ระบบกำลังตรวจสอบยอดเงิน กรุณารอสักครู่ครับ</div>`;
+  } else if(ps==='verified'){
+    statusBox=`<div class="ok-box-h"><strong>✓ ชำระเงินเรียบร้อย</strong><br>ยืนยันรับเงิน ฿${Number(o.total).toLocaleString()} แล้ว</div>`;
+  } else {
+    statusBox=`<div style="background:#f5f3f0;border-radius:8px;padding:8px 10px;font-size:12px;color:#888;margin:6px 0">⏳ รอลูกน้องจัดสินค้าก่อน จะแจ้งยอดชำระทีหลังครับ</div>`;
+  }
+  const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว</div><div class="ttime">${tStr}</div></div>`;
+  const tl2=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-pay"></div><div class="tlabel" style="color:#e65100;font-weight:500">จัดสินค้าสำเร็จ ✓</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">แจ้งยอดชำระ</div></div>`;
+  const tl4=ps==='verified'?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">ชำระเงินแล้ว ✓</div></div>`:ps==='slip_uploaded'?`<div class="tr"><div class="dot d-blue"></div><div class="tlabel" style="color:#185FA5">รอตรวจสอบสลิป</div></div>`:'';
+  const canEdit=(ps==='pending'||ps==='')&&!isDoneDelivery;
+  const canSlip=ps==='pending'||ps==='rejected'||ps==='';
+  let editBtn=canEdit?`<button class="btn-edit" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไข order</button>`:`<button class="btn-edit disabled" disabled>แก้ไขไม่ได้</button>`;
+  let slipBtn=canSlip?`<button class="btn-edit" style="background:#C8401A;color:#fff;border-color:#C8401A" onclick="toggleSlipUpload('${o.order_id}')">${ps==='rejected'?'แนบสลิปใหม่':'แนบสลิป'}</button>`:'';
+  return`<div class="order-card" id="hcard${o.order_id}">
+    <div class="order-top"><div><div class="order-id">${o.order_id}</div><div class="order-date">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>${badge}</div>
+    <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
+    ${o.note?`<div class="order-note">📝 ${o.note}</div>`:''}
+    ${statusBox}
+    <div class="tl">${tl1}${tl2}${tl3}${tl4}</div>
+    <div class="order-footer"><div class="order-total">฿${Number(o.total).toLocaleString()}</div><div style="display:flex;gap:6px">${slipBtn}${editBtn}</div></div>
+    <div class="slip-upload-inline" id="slipInline${o.order_id}">
+      <input type="file" id="slipFile${o.order_id}" accept="image/*" style="display:none" onchange="previewSlipInline(event,'${o.order_id}')">
+      <div class="upload-box" id="slipBox${o.order_id}" onclick="document.getElementById('slipFile${o.order_id}').click()"><div style="font-size:22px;color:#C8401A;margin-bottom:4px">📎</div><div style="font-size:13px;color:#888">แตะเพื่อเลือกรูปสลิป</div></div>
+      <img id="slipPreview${o.order_id}" class="slip-img-preview" src="" alt="slip" style="display:none">
+      <button class="btn-slip-send" id="slipBtn${o.order_id}" onclick="submitSlipFromHistory('${o.order_id}')" style="display:none">ส่งหลักฐานการชำระเงิน</button>
+      <div id="slipResult${o.order_id}"></div>
+    </div>
+  </div>`;
+}
+
+function toggleSlipUpload(orderId){
+  const box=document.getElementById('slipInline'+orderId);
+  box.style.display=box.style.display==='block'?'none':'block';
+}
+
+function previewSlipInline(e,orderId){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    document.getElementById('slipBox'+orderId).style.display='none';
+    const img=document.getElementById('slipPreview'+orderId);
+    img.src=ev.target.result;img.style.display='block';
+    document.getElementById('slipBtn'+orderId).style.display='block';
+    window['slipBase64_'+orderId]=ev.target.result.split(',')[1];
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitSlipFromHistory(orderId){
+  const btn=document.getElementById('slipBtn'+orderId);
+  const result=document.getElementById('slipResult'+orderId);
+  btn.textContent='กำลังส่ง...';btn.disabled=true;
+  try{
+    const formData=new FormData();
+    formData.append('key','be42b929c1810f8bfa52d0e1bd3648f1');
+    formData.append('image',window['slipBase64_'+orderId]);
+    const imgbbRes=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:formData});
+    const imgbbData=await imgbbRes.json();
+    if(!imgbbData.success) throw new Error('upload failed');
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:orderId,slip_url:imgbbData.data.url})});
+    await new Promise(r=>setTimeout(r,1500));
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:orderId})});
+    result.innerHTML='<div class="info-box" style="margin-top:6px"><strong>ส่งสลิปแล้ว ✓</strong><br>กรุณา refresh หน้าเพื่อดูผลครับ</div>';
+    showToast('ส่งสลิปแล้ว ✓');
+  }catch(e){
+    result.innerHTML='<div class="warn-box-h" style="margin-top:6px"><div style="font-size:12px;color:#A32D2D">เกิดข้อผิดพลาด กรุณาลองใหม่</div></div>';
+  }
+  btn.textContent='ส่งหลักฐานการชำระเงิน';btn.disabled=false;
 }
 
 function openEditOrder(orderId,itemsEncoded,total,noteEncoded){
