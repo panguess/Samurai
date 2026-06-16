@@ -519,7 +519,7 @@ function updateCart(){
   const shopVisible=document.getElementById('shopSection')&&document.getElementById('shopSection').style.display!=='none';
   document.getElementById('cartBar').classList.toggle('show',tq>0&&shopVisible);
   document.getElementById('cartInfo').textContent=tq+' รายการที่เลือก';
-  document.getElementById('cartTotal').textContent='฿'+tp.toLocaleString();
+  document.getElementById('cartTotalVal').textContent='฿'+tp.toLocaleString();
 }
 
 function genOid(){
