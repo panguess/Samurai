@@ -281,7 +281,7 @@
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">จัดสินค้าสำเร็จ</div><div class="s-sub">สินค้าพร้อมส่งมอบ</div></div></div>
     </div>
     <div class="s-card slip-section">
-      <div class="s-card-title"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i>แนบสลิปการโอน <span class="ai-badge">Claude AI verify</span></div>
+      <div class="s-card-title"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i>แนบสลิปการโอน <span class="ai-badge">ตรวจสอบอัตโนมัติ</span></div>
       <input type="file" id="slipInput" accept="image/*" style="display:none" onchange="previewSlip(event)">
       <div class="upload-box" id="uploadBox" onclick="document.getElementById('slipInput').click()">
         <div class="upload-icon"><i class="ti ti-photo" aria-hidden="true"></i></div>
@@ -291,7 +291,7 @@
       <div id="slipPreviewWrap" style="display:none">
         <img id="slipPreviewImg" class="slip-img" src="" alt="slip">
         <button class="btn-verify-slip" id="btnVerifySlip" onclick="submitSlip()">
-          <i class="ti ti-robot" style="font-size:14px" aria-hidden="true"></i>ให้ Claude AI ตรวจสอบสลิป
+          <i class="ti ti-send" style="font-size:14px" aria-hidden="true"></i>ส่งหลักฐานการชำระเงิน
         </button>
         <div id="verifyResult"></div>
       </div>
@@ -679,7 +679,7 @@ function previewSlip(e){
 
 async function submitSlip(){
   const btn=document.getElementById('btnVerifySlip');
-  btn.innerHTML='<i class="ti ti-robot" aria-hidden="true"></i> กำลังอัปโหลดและ verify...';
+  btn.innerHTML='<i class="ti ti-loader" aria-hidden="true"></i> กำลังส่งและตรวจสอบ...';
   btn.disabled=true;
   const vr=document.getElementById('verifyResult');
   vr.innerHTML='';
@@ -692,7 +692,7 @@ async function submitSlip(){
   }catch(e){
     vr.innerHTML='<div class="verify-box verify-fail">เกิดข้อผิดพลาด กรุณาลองใหม่</div>';
   }
-  btn.innerHTML='<i class="ti ti-robot" aria-hidden="true"></i> ให้ Claude AI ตรวจสอบสลิป';
+  btn.innerHTML='<i class="ti ti-send" aria-hidden="true"></i> ส่งหลักฐานการชำระเงิน';
   btn.disabled=false;
 }
 
