@@ -277,13 +277,13 @@
       <div class="home-customer" id="customerName">สวัสดีครับ</div>
     </div>
     <div class="home-body">
-      <button class="big-btn big-btn-red" onclick="goSection('shop')">
-        <div class="bb-icon bb-icon-1">🛒</div>
+      <button class="big-btn" style="background:#fff;border:2.5px solid #C8401A;color:#1a1a1a" onclick="goSection('shop')">
+        <div class="bb-icon" style="background:#fdf5f2;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">🛒</div>
         <div style="flex:1">
-          <div class="bb-title">สั่งสินค้า</div>
+          <div class="bb-title" style="color:#C8401A">สั่งสินค้า</div>
           <div class="bb-sub">เลือกสินค้าและสั่งซื้อได้เลยครับ</div>
         </div>
-        <div class="bb-arrow">›</div>
+        <div class="bb-arrow" style="color:#C8401A;opacity:0.7">›</div>
       </button>
       <button class="big-btn big-btn-white" onclick="goSection('pay')">
         <div class="bb-icon bb-icon-2">💳</div>
@@ -427,7 +427,9 @@
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchAdminTab('pending')" id="adminTabPending">⏳ รอจัด</div>
+    <div class="tab" onclick="switchAdminTab('packing')" id="adminTabPacking">🔄 กำลังจัด</div>
     <div class="tab" onclick="switchAdminTab('done')" id="adminTabDone">✅ จัดแล้ว</div>
+    <div class="tab" onclick="switchAdminTab('unpaid')" id="adminTabUnpaid" style="color:#854f0b">💰 ค้างชำระ</div>
   </div>
   <div class="admin-list" id="adminList"></div>
 </div>
@@ -445,8 +447,9 @@
   </div>
   <div class="owner-stats">
     <div class="o-stat" id="filterAll" onclick="setPayFilter('all')" style="cursor:pointer"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ทั้งหมด</div></div>
-    <div class="o-stat" id="filterVerify" onclick="setPayFilter('slip_uploaded')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify 🔍</div></div>
-    <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">ยอดรวม</div></div>
+    <div class="o-stat" id="filterUnpaid" onclick="setPayFilter('unpaid')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatUnpaid" style="color:#633806">0</div><div class="o-stat-label">ค้างรับเงิน</div></div>
+    <div class="o-stat" id="filterVerify" onclick="setPayFilter('slip_uploaded')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify</div></div>
+    <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">รับแล้ว</div></div>
   </div>
   <div class="owner-section-title" id="ownerListTitle">รายการรอตรวจสอบ</div>
   <div class="owner-orders" id="ownerList"></div>
@@ -745,12 +748,13 @@ function buildHistoryCard(o){
   } else {
     statusBox=`<div style="background:#f5f3f0;border-radius:8px;padding:8px 10px;font-size:12px;color:#888;margin:6px 0">⏳ รอลูกน้องจัดสินค้าก่อน จะแจ้งยอดชำระทีหลังครับ</div>`;
   }
+  const isPackingDelivery=ds==='packing'||String(ds).toLowerCase().trim()==='packing';
   const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว</div><div class="ttime">${tStr}</div></div>`;
-  const tl2=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
-  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-pay"></div><div class="tlabel" style="color:#e65100;font-weight:500">จัดสินค้าสำเร็จ ✓</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">แจ้งยอดชำระ</div></div>`;
+  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-pay"></div><div class="tlabel" style="color:#e65100;font-weight:500">จัดสินค้าสำเร็จ ✓</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
   const tl4=ps==='verified'?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">ชำระเงินแล้ว ✓</div></div>`:ps==='slip_uploaded'?`<div class="tr"><div class="dot d-blue"></div><div class="tlabel" style="color:#185FA5">รอตรวจสอบสลิป</div></div>`:'';
-  const canEdit=(ps==='pending'||ps==='')&&!isDoneDelivery;
-  const canSlip=ps==='pending'||ps==='rejected'||ps==='';
+  const canEdit=(ps==='pending'||ps==='')&&!isDoneDelivery&&!isPackingDelivery;
+  const canSlip=(ps==='pending'||ps==='rejected'||ps==='')&&isDoneDelivery;
   let editBtn=canEdit?`<button class="btn-edit" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไข order</button>`:`<button class="btn-edit disabled" disabled>แก้ไขไม่ได้</button>`;
   let slipBtn=canSlip?`<button class="btn-edit" style="background:#C8401A;color:#fff;border-color:#C8401A" onclick="toggleSlipUpload('${o.order_id}')">${ps==='rejected'?'แนบสลิปใหม่':'แนบสลิป'}</button>`:'';
   return`<div class="order-card" id="hcard${o.order_id}">
@@ -885,38 +889,70 @@ async function loadAdminOrders(){
 function switchAdminTab(tab){
   adminCurrentTab=tab;
   document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
+  document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
   document.getElementById('adminTabDone').classList.toggle('active',tab==='done');
+  document.getElementById('adminTabUnpaid').classList.toggle('active',tab==='unpaid');
   renderAdminOrders();
 }
 
 function renderAdminOrders(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
-  const filtered=allAdminOrders.filter(o=>adminCurrentTab==='pending'?o.delivery_status!=='done'&&o.status!=='done':o.delivery_status==='done'||o.status==='done');
-  const pendingCount=allAdminOrders.filter(o=>o.delivery_status!=='done'&&o.status!=='done').length;
-  document.getElementById('adminSubtitle').textContent='รอจัด '+pendingCount+' รายการ';
+  const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
+  const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
+  const ds_pending=o=>!ds_done(o)&&!ds_packing(o);
+  const is_unpaid=o=>ds_done(o)&&(o.payment_status||'pending')!=='verified';
+  let filtered;
+  if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
+  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
+  else if(adminCurrentTab==='done') filtered=allAdminOrders.filter(o=>ds_done(o)&&!is_unpaid(o));
+  else filtered=allAdminOrders.filter(is_unpaid);
+  const pendingCount=allAdminOrders.filter(ds_pending).length;
+  const packingCount=allAdminOrders.filter(ds_packing).length;
+  const unpaidCount=allAdminOrders.filter(is_unpaid).length;
+  document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount} · กำลังจัด ${packingCount} · ค้างชำระ ${unpaidCount}`;
+  document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount>0?' ('+packingCount+')':''}`;
+  document.getElementById('adminTabUnpaid').textContent=`💰 ค้างชำระ${unpaidCount>0?' ('+unpaidCount+')':''}`;
   const list=document.getElementById('adminList');
-  if(!filtered.length){list.innerHTML=`<div class="empty-state">${adminCurrentTab==='pending'?'ไม่มีรายการรอจัด 🎉':'ยังไม่มีรายการที่จัดแล้ว'}</div>`;return;}
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่จัดแล้ว',unpaid:'ไม่มีรายการค้างชำระ 🎉'};
+  if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
   list.innerHTML=filtered.map(o=>{
     const items=parseItems(o.items);
     if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
-    const isPending=o.delivery_status!=='done'&&o.status!=='done';
+    const isPending=ds_pending(o);
+    const isPacking=ds_packing(o);
+    const isDone=ds_done(o);
+    const isUnpaid=is_unpaid(o);
+    const canAdjustQty=isPending||isPacking;
     const itemsHtml=items.map((item,idx)=>{
       const prod=prodMap[item.name]||{};
       const imgHtml=prod.image_url
         ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none">🛍️</div>`
         :`<div class="admin-item-img-placeholder">🛍️</div>`;
-      return`<div class="admin-item-row">${imgHtml}<div class="admin-item-name">${item.name}</div>${isPending?`<div class="admin-item-qty-row"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#C8401A;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row">${imgHtml}<div class="admin-item-name">${item.name}</div>${canAdjustQty?`<div class="admin-item-qty-row"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#C8401A;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
-    return`<div class="admin-order-card">
-      <div class="admin-order-top">
+    let topRight='';
+    if(isPending) topRight=`<button class="btn-done" style="background:#534AB7" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
+    else if(isPacking) topRight=`<button class="btn-done" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`;
+    else if(isDone&&isUnpaid) topRight=`<span class="badge" style="background:#faeeda;color:#633806;border:0.5px solid #EF9F27">ค้างชำระ</span>`;
+    else topRight=`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`;
+    const cardStyle=isUnpaid?'border:1.5px solid #EF9F27;background:#fffdf7':'';
+    let unpaidNote='';
+    if(isUnpaid){
+      const daysAgo=o.done_at?Math.floor((Date.now()-new Date(o.done_at))/86400000):null;
+      unpaidNote=`<div style="font-size:11px;color:#854F0B;margin:6px 12px;padding:6px 8px;background:#fff;border-radius:6px;border:0.5px solid #EF9F27">จัดเสร็จแล้ว${daysAgo!==null?' '+daysAgo+' วันที่แล้ว':''} · ยังไม่ได้รับเงิน</div>`;
+    }
+    const cashBtn=isUnpaid?`<button class="btn-done" style="background:#1a0a06;font-size:12px" onclick="markPaidCash('${o.order_id}')">รับเงินแล้ว (หน้าร้าน)</button>`:'';
+    return`<div class="admin-order-card" style="${cardStyle}">
+      <div class="admin-order-top" style="${isUnpaid?'background:#faeeda':''}">
         <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
-        ${isPending?`<button class="btn-done" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`:`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`}
+        ${topRight}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
       ${o.note?`<div class="admin-note">📝 ${o.note}</div>`:''}
-      <div class="admin-order-footer">
+      ${unpaidNote}
+      <div class="admin-order-footer" style="${isUnpaid?'background:#faeeda':''}">
         <div class="admin-total" id="atotal${o.order_id}">฿${Number(o.total).toLocaleString()}</div>
-        
+        ${cashBtn}
       </div>
     </div>`;
   }).join('');
@@ -971,6 +1007,24 @@ async function markDone(orderId){
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
+async function markPacking(orderId){
+  try{
+    const order=allAdminOrders.find(o=>o.order_id===orderId);
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'packing'})});
+    if(order){order.delivery_status='packing';}
+    renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+}
+
+async function markPaidCash(orderId){
+  try{
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
+    const order=allAdminOrders.find(o=>o.order_id===orderId);
+    if(order)order.payment_status='verified';
+    renderAdminOrders();showToast('รับเงินแล้ว ✓');
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+}
+
 function parseItems(itemsText){
   if(!itemsText)return[];
   return itemsText.split(', ').map(item=>{
@@ -1020,11 +1074,15 @@ function renderOwnerStats(){
   const today=new Date().toDateString();
   const todayOrders=allOwnerOrders.filter(o=>new Date(o.timestamp).toDateString()===today);
   const waitVerify=allOwnerOrders.filter(o=>o.payment_status==='slip_uploaded').length;
+  const unpaidCount=allOwnerOrders.filter(o=>{const ds=o.delivery_status||o.status||'';const done=ds==='done'||String(ds).toLowerCase().trim()==='done';return done&&(o.payment_status||'pending')!=='verified';}).length;
   const revenue=allOwnerOrders.filter(o=>o.payment_status==='verified').reduce((s,o)=>s+Number(o.total),0);
   document.getElementById('oStatTotal').textContent=todayOrders.length;
+  document.getElementById('oStatUnpaid').textContent=unpaidCount;
   document.getElementById('oStatPending').textContent=waitVerify;
   document.getElementById('oStatRevenue').textContent='฿'+revenue.toLocaleString();
-  document.getElementById('ownerSubtitle').textContent='ซามูไรไส้กรอก · รอ verify '+waitVerify+' รายการ';
+  document.getElementById('ownerSubtitle').textContent='ซามูไรไส้กรอก · ค้างรับเงิน '+unpaidCount+' รายการ';
+  const unpaidCard=document.getElementById('filterUnpaid');
+  if(unpaidCard){unpaidCard.style.background=unpaidCount>0?'#faeeda':'';unpaidCard.style.border=unpaidCount>0?'2px solid #EF9F27':'2px solid transparent';}
 }
 
 function switchOwnerTab(tab){
@@ -1038,6 +1096,7 @@ function switchOwnerTab(tab){
 function setPayFilter(f){
   payFilter=f;
   document.getElementById('filterAll').style.border=f==='all'?'2px solid #C8401A':'2px solid transparent';
+  document.getElementById('filterUnpaid').style.border=f==='unpaid'?'2px solid #EF9F27':'2px solid transparent';
   document.getElementById('filterVerify').style.border=f==='slip_uploaded'?'2px solid #185FA5':'2px solid transparent';
   renderOwnerList();
 }
@@ -1046,7 +1105,12 @@ function renderOwnerList(){
   if(!allOwnerOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
   
   if(ownerCurrentTab==='payment'){
-    const payOrders=payFilter==='all'?allOwnerOrders:allOwnerOrders.filter(o=>o.payment_status===payFilter);
+    const isDone=o=>{const ds=o.delivery_status||o.status||'';return ds==='done'||String(ds).toLowerCase().trim()==='done';};
+    const isUnpaid=o=>isDone(o)&&(o.payment_status||'pending')!=='verified';
+    let payOrders;
+    if(payFilter==='all') payOrders=allOwnerOrders;
+    else if(payFilter==='unpaid') payOrders=allOwnerOrders.filter(isUnpaid);
+    else payOrders=allOwnerOrders.filter(o=>o.payment_status===payFilter);
     if(!payOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
     list.innerHTML=payOrders.map(o=>{
       const items=parseItems(o.items);
