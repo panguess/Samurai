@@ -335,8 +335,8 @@
     <p id="ownerSubtitle">ซามูไรไส้กรอก · ภาพรวมทั้งหมด</p>
   </div>
   <div class="tabs">
-    <div class="tab active" onclick="switchOwnerTab('pending')" id="ownerTab1">รอ verify</div>
-    <div class="tab" onclick="switchOwnerTab('all')" id="ownerTab2">ทั้งหมด</div>
+    <div class="tab active" onclick="switchOwnerTab('payment')" id="ownerTab1">💰 การเงิน</div>
+    <div class="tab" onclick="switchOwnerTab('delivery')" id="ownerTab2">📦 การจัดส่ง</div>
   </div>
   <div class="owner-stats">
     <div class="o-stat"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ออเดอร์วันนี้</div></div>
@@ -572,8 +572,8 @@ function switchAdminTab(tab){
 
 function renderAdminOrders(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
-  const filtered=allAdminOrders.filter(o=>adminCurrentTab==='pending'?o.status==='pending':o.status!=='pending');
-  const pendingCount=allAdminOrders.filter(o=>o.status==='pending').length;
+  const filtered=allAdminOrders.filter(o=>adminCurrentTab==='pending'?o.delivery_status!=='done':o.delivery_status==='done');
+  const pendingCount=allAdminOrders.filter(o=>o.delivery_status!=='done').length;
   document.getElementById('adminSubtitle').textContent='รอจัด '+pendingCount+' รายการ';
   const list=document.getElementById('adminList');
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${adminCurrentTab==='pending'?'ไม่มีรายการรอจัด 🎉':'ยังไม่มีรายการที่จัดแล้ว'}</div>`;return;}
@@ -591,7 +591,7 @@ function renderAdminOrders(){
     return`<div class="admin-order-card">
       <div class="admin-order-top">
         <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
-        ${isPending?`<button class="btn-done" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`:`<span class="badge badge-done">จัดเสร็จแล้ว</span>`}
+        ${isPending?`<button class="btn-done" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`:`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
       ${o.note?`<div class="admin-note">📝 ${o.note}</div>`:''}
@@ -634,8 +634,8 @@ async function saveAdminEdit(orderId){
 
 async function markDone(orderId){
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'done'})});
-    const order=allAdminOrders.find(o=>o.order_id===orderId);if(order)order.status='done';
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
+    const order=allAdminOrders.find(o=>o.order_id===orderId);if(order)order.delivery_status='done';
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
@@ -649,7 +649,9 @@ function parseItems(itemsText){
   }).filter(i=>i.qty>0);
 }
 
-function statusLabel(s){return{pending:'รอดำเนินการ',slip_uploaded:'รอ verify สลิป',verified:'ยืนยันแล้ว',done:'จัดสินค้าสำเร็จ',amount_mismatch:'ยอดไม่ตรง'}[s]||s;}
+function statusLabel(s){return{pending:'รอดำเนินการ',slip_uploaded:'รอ verify สลิป',verified:'ยืนยันชำระแล้ว',rejected:'ยอดไม่ตรง',packing:'กำลังจัด',done:'จัดเสร็จแล้ว'}[s]||s;}
+function payLabel(s){return{pending:'ยังไม่จ่าย',slip_uploaded:'รอ verify',verified:'จ่ายแล้ว ✓',rejected:'ยอดไม่ตรง'}[s]||'ยังไม่จ่าย';}
+function delivLabel(s){return{pending:'รอจัด',packing:'กำลังจัด',done:'จัดเสร็จแล้ว ✓'}[s]||'รอจัด';}
 
 function show(id){
   ['loading','app','adminApp','ownerApp','errorScreen'].forEach(x=>{
@@ -708,7 +710,7 @@ async function submitSlip(){
 
 // Owner
 
-let ownerCurrentTab='pending';
+let ownerCurrentTab='payment';
 let allOwnerOrders=[];
 
 async function initOwner(){
@@ -729,8 +731,8 @@ async function loadOwnerOrders(){
 function renderOwnerStats(){
   const today=new Date().toDateString();
   const todayOrders=allOwnerOrders.filter(o=>new Date(o.timestamp).toDateString()===today);
-  const waitVerify=allOwnerOrders.filter(o=>o.status==='slip_uploaded').length;
-  const revenue=allOwnerOrders.filter(o=>['verified','done'].includes(o.status)).reduce((s,o)=>s+Number(o.total),0);
+  const waitVerify=allOwnerOrders.filter(o=>o.payment_status==='slip_uploaded').length;
+  const revenue=allOwnerOrders.filter(o=>o.payment_status==='verified').reduce((s,o)=>s+Number(o.total),0);
   document.getElementById('oStatTotal').textContent=todayOrders.length;
   document.getElementById('oStatPending').textContent=waitVerify;
   document.getElementById('oStatRevenue').textContent='฿'+revenue.toLocaleString();
@@ -739,62 +741,78 @@ function renderOwnerStats(){
 
 function switchOwnerTab(tab){
   ownerCurrentTab=tab;
-  document.getElementById('ownerTab1').classList.toggle('active',tab==='pending');
-  document.getElementById('ownerTab2').classList.toggle('active',tab==='all');
-  document.getElementById('ownerListTitle').textContent=tab==='pending'?'รายการรอตรวจสอบ':'ออเดอร์ทั้งหมด';
+  document.getElementById('ownerTab1').classList.toggle('active',tab==='payment');
+  document.getElementById('ownerTab2').classList.toggle('active',tab==='delivery');
+  document.getElementById('ownerListTitle').textContent=tab==='payment'?'💰 สถานะการเงิน':'📦 สถานะการจัดส่ง';
   renderOwnerList();
 }
 
 function renderOwnerList(){
-  const filtered=ownerCurrentTab==='pending'
-    ?allOwnerOrders.filter(o=>['slip_uploaded','pending'].includes(o.status))
-    :allOwnerOrders;
   const list=document.getElementById('ownerList');
-  if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
-  list.innerHTML=filtered.map(o=>{
-    const items=parseItems(o.items);
-    const hasSlip=o.slip_url&&o.slip_url!=='';
-    const verifyInfo=o.verify_result?o.verify_result.split(':'):'';
-    const isVerified=o.verify_result&&o.verify_result.startsWith('verified');
-    const isMismatch=o.verify_result&&o.verify_result.startsWith('amount_mismatch');
-    let aiBox='';
-    if(isVerified) aiBox=`<div class="ai-result-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI: ยอดตรงกัน ✓</div>`;
-    else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI: ยอดไม่ตรง ฿${verifyInfo[1]} ≠ ฿${o.total}</div>`;
-    let actions='';
-    if(o.status==='slip_uploaded'||isVerified){
-      actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
-      actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
-    }
-    if(o.status==='verified') actions+=`<button class="btn-oa btn-mark-done" onclick="ownerMarkDone('${o.order_id}')">จัดส่งเสร็จ ✓</button>`;
-    return`<div class="owner-card" id="oc${o.order_id}">
-      <div class="oc-top">
-        <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id}</div></div>
-        <span class="badge badge-${o.status==='done'?'done':'pending'}">${statusLabel(o.status)}</span>
-      </div>
-      <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
-      <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
-      ${hasSlip?`<img class="slip-thumb" src="${o.slip_url}" alt="slip">`:''}
-      ${aiBox}
-      ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
-      <div class="oc-actions">${actions}</div>
-    </div>`;
-  }).join('');
+  if(!allOwnerOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
+  
+  if(ownerCurrentTab==='payment'){
+    list.innerHTML=allOwnerOrders.map(o=>{
+      const items=parseItems(o.items);
+      const hasSlip=o.slip_url&&o.slip_url!=='';
+      const isVerified=o.payment_status==='verified';
+      const isMismatch=o.payment_status==='rejected';
+      const isSlipUploaded=o.payment_status==='slip_uploaded';
+      let aiBox='';
+      if(o.verify_result){
+        const vr=o.verify_result.split(':');
+        if(isVerified) aiBox=`<div class="ai-result-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> AI: ยอดตรงกัน ✓</div>`;
+        else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail"><i class="ti ti-robot" aria-hidden="true"></i> AI: ยอดไม่ตรง ฿${vr[1]} ≠ ฿${o.total}</div>`;
+      }
+      let actions='';
+      if(isSlipUploaded||isMismatch){
+        actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
+        actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
+      }
+      const pBadgeColor=isVerified?'badge-done':isSlipUploaded?'badge-confirmed':'badge-pending';
+      return`<div class="owner-card">
+        <div class="oc-top">
+          <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':''}</div></div>
+          <span class="badge ${pBadgeColor}">${payLabel(o.payment_status)}</span>
+        </div>
+        <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
+        <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
+        ${hasSlip?`<img class="slip-thumb" src="${o.slip_url}" alt="slip">`:'<div style="font-size:12px;color:#aaa;margin-bottom:8px">ยังไม่มีสลิป</div>'}
+        ${aiBox}
+        ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
+        <div class="oc-actions">${actions||'<span style="font-size:12px;color:#aaa">'+payLabel(o.payment_status)+'</span>'}</div>
+      </div>`;
+    }).join('');
+  } else {
+    list.innerHTML=allOwnerOrders.map(o=>{
+      const items=parseItems(o.items);
+      const isDone=o.delivery_status==='done';
+      const dBadgeColor=isDone?'badge-done':'badge-pending';
+      return`<div class="owner-card">
+        <div class="oc-top">
+          <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':''}</div></div>
+          <span class="badge ${dBadgeColor}">${delivLabel(o.delivery_status)}</span>
+        </div>
+        <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
+        <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
+        ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
+        <div class="oc-actions"><span style="font-size:12px;color:#aaa">${delivLabel(o.delivery_status)}</span></div>
+      </div>`;
+    }).join('');
+  }
 }
 
 async function ownerConfirm(orderId){
-  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'verified'})});
+  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
+  const o=allOwnerOrders.find(x=>x.order_id===orderId);if(o)o.payment_status='verified';
   showToast('ยืนยันรับเงินแล้ว ✓');
-  await loadOwnerOrders();
+  renderOwnerStats();renderOwnerList();
 }
 async function ownerReject(orderId){
-  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'pending'})});
+  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'rejected'})});
+  const o=allOwnerOrders.find(x=>x.order_id===orderId);if(o)o.payment_status='rejected';
   showToast('แจ้งลูกค้าโอนใหม่แล้ว');
-  await loadOwnerOrders();
-}
-async function ownerMarkDone(orderId){
-  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'done'})});
-  showToast('จัดส่งเสร็จแล้ว ✓');
-  await loadOwnerOrders();
+  renderOwnerStats();renderOwnerList();
 }
 </script>
 </body>
