@@ -150,6 +150,50 @@
     .btn-save-admin{font-size:12px;padding:6px 12px;background:#1a0a06;color:#fff;border:none;border-radius:8px;cursor:pointer}
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap}
     .toast.show{opacity:1}
+    .slip-section{margin-top:10px}
+    .upload-box{border:2px dashed #f5c4b3;border-radius:12px;padding:1.25rem;text-align:center;cursor:pointer;background:#fdf5f2}
+    .upload-box:hover{border-color:#C8401A;background:#fbeee9}
+    .upload-icon{font-size:28px;color:#C8401A;margin-bottom:6px}
+    .upload-text{font-size:13px;color:#888}
+    .upload-sub{font-size:11px;color:#aaa;margin-top:2px}
+    .slip-img{width:100%;max-height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px}
+    .btn-verify-slip{width:100%;padding:11px;background:#C8401A;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+    .verify-box{border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}
+    .verify-ok{background:#eaf3de;color:#3b6d11}
+    .verify-fail{background:#fceaea;color:#a32d2d}
+    .ai-badge{font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:20px;font-weight:500;margin-left:4px}
+    #ownerApp{display:none;max-width:600px;margin:0 auto;padding-bottom:40px}
+    .owner-header{background:#1a0a06;color:#fff;padding:1.25rem 1rem}
+    .owner-header h1{font-size:18px;font-weight:600}
+    .owner-header p{font-size:12px;color:#f5c4b3;margin-top:3px}
+    .owner-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px}
+    .o-stat{background:#fff;border-radius:10px;padding:10px;text-align:center;border:0.5px solid #e8e2dc}
+    .o-stat-num{font-size:20px;font-weight:700;color:#C8401A}
+    .o-stat-label{font-size:10px;color:#888;margin-top:2px}
+    .pipeline-wrap{padding:0 12px;overflow-x:auto}
+    .pipeline{display:flex;gap:8px;padding-bottom:8px;min-width:max-content}
+    .p-col{width:140px;background:#fff;border-radius:12px;border:0.5px solid #e8e2dc;overflow:hidden}
+    .p-head{padding:8px 10px;font-size:11px;font-weight:600;color:#555;background:#f9f6f4;border-bottom:0.5px solid #e8e2dc;display:flex;justify-content:space-between;align-items:center}
+    .p-badge{font-size:10px;background:#C8401A;color:#fff;padding:1px 7px;border-radius:20px}
+    .p-body{padding:6px;min-height:60px}
+    .o-chip{background:#fdf5f2;border:0.5px solid #f5c4b3;border-radius:8px;padding:6px 8px;font-size:11px;margin-bottom:4px}
+    .o-chip-name{font-weight:600;color:#1a1a1a}
+    .o-chip-amt{color:#C8401A;font-weight:500;font-size:10px}
+    .owner-orders{padding:12px}
+    .owner-card{background:#fff;border-radius:12px;border:0.5px solid #e8e2dc;padding:1rem;margin-bottom:10px}
+    .oc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+    .oc-name{font-size:14px;font-weight:600;color:#1a1a1a}
+    .oc-id{font-size:10px;color:#aaa;font-family:monospace;margin-top:2px}
+    .oc-items{font-size:12px;color:#555;margin-bottom:6px;line-height:1.6}
+    .oc-amount{font-size:14px;font-weight:700;color:#C8401A;margin-bottom:8px}
+    .slip-thumb{width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:8px}
+    .ai-result-box{font-size:11px;padding:6px 10px;border-radius:7px;margin-bottom:8px}
+    .oc-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .btn-oa{font-size:11px;padding:5px 12px;border-radius:7px;border:none;cursor:pointer;font-weight:500}
+    .btn-confirm-pay{background:#3b6d11;color:#fff}
+    .btn-reject{background:#a32d2d;color:#fff}
+    .btn-mark-done{background:#C8401A;color:#fff}
+    .owner-section-title{font-size:12px;color:#888;font-weight:500;padding:0 12px;margin-bottom:6px}
   </style>
 </head>
 <body>
@@ -236,6 +280,22 @@
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">กำลังจัดสินค้า</div><div class="s-sub">ลูกน้องร้านกำลังจัดของให้</div></div></div>
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">จัดสินค้าสำเร็จ</div><div class="s-sub">สินค้าพร้อมส่งมอบ</div></div></div>
     </div>
+    <div class="s-card slip-section">
+      <div class="s-card-title"><i class="ti ti-receipt" style="font-size:14px" aria-hidden="true"></i>แนบสลิปการโอน <span class="ai-badge">Claude AI verify</span></div>
+      <input type="file" id="slipInput" accept="image/*" style="display:none" onchange="previewSlip(event)">
+      <div class="upload-box" id="uploadBox" onclick="document.getElementById('slipInput').click()">
+        <div class="upload-icon"><i class="ti ti-photo" aria-hidden="true"></i></div>
+        <div class="upload-text">แตะเพื่อเลือกรูปสลิป</div>
+        <div class="upload-sub">JPG, PNG</div>
+      </div>
+      <div id="slipPreviewWrap" style="display:none">
+        <img id="slipPreviewImg" class="slip-img" src="" alt="slip">
+        <button class="btn-verify-slip" id="btnVerifySlip" onclick="submitSlip()">
+          <i class="ti ti-robot" style="font-size:14px" aria-hidden="true"></i>ให้ Claude AI ตรวจสอบสลิป
+        </button>
+        <div id="verifyResult"></div>
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn-ghost" onclick="goHistory()">ดูประวัติ</button>
       <button class="btn-green" onclick="goShop()">สั่งซื้อต่อ</button>
@@ -269,15 +329,35 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="ownerApp">
+  <div class="owner-header">
+    <h1><i class="ti ti-layout-dashboard" style="font-size:18px;margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Owner Dashboard</h1>
+    <p id="ownerSubtitle">ซามูไรไส้กรอก · ภาพรวมทั้งหมด</p>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchOwnerTab('pending')" id="ownerTab1">รอ verify</div>
+    <div class="tab" onclick="switchOwnerTab('all')" id="ownerTab2">ทั้งหมด</div>
+  </div>
+  <div class="owner-stats">
+    <div class="o-stat"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ออเดอร์วันนี้</div></div>
+    <div class="o-stat"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify</div></div>
+    <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">ยอดรวม</div></div>
+  </div>
+  <div class="owner-section-title" id="ownerListTitle">รายการรอตรวจสอบ</div>
+  <div class="owner-orders" id="ownerList"></div>
+</div>
+
 <script>
 const API='https://script.google.com/macros/s/AKfycbw1m5qkP4vME2smTqyz3ZLMCEoMhP5Dpd2_dmaeZhw7LPx5g5QqR5XDA8lt-ZNO3nR2/exec';
 const ADMIN_KEY='shop123';
+const OWNER_KEY='owner123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
 const adminQtys={};
 const params=new URLSearchParams(window.location.search);
 const isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
 const customerRef=params.get('ref');
-window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else showError();};
+const isOwner=params.get('owner')==='true'&&params.get('key')===OWNER_KEY;
+window.onload=()=>{if(isOwner)initOwner();else if(isAdmin)initAdmin();else if(customerRef)initCustomer();else showError();};
 
 async function initCustomer(){
   try{
@@ -569,10 +649,10 @@ function parseItems(itemsText){
   }).filter(i=>i.qty>0);
 }
 
-function statusLabel(s){return{pending:'รอดำเนินการ',confirmed:'ยืนยันแล้ว',done:'จัดสินค้าสำเร็จ'}[s]||s;}
+function statusLabel(s){return{pending:'รอดำเนินการ',slip_uploaded:'รอ verify สลิป',verified:'ยืนยันแล้ว',done:'จัดสินค้าสำเร็จ',amount_mismatch:'ยอดไม่ตรง'}[s]||s;}
 
 function show(id){
-  ['loading','app','adminApp','errorScreen'].forEach(x=>{
+  ['loading','app','adminApp','ownerApp','errorScreen'].forEach(x=>{
     const el=document.getElementById(x);
     if(el)el.style.display=x===id?(x==='successScreen'?'flex':'block'):'none';
   });
@@ -581,6 +661,131 @@ function show(id){
 function hide(id){const el=document.getElementById(id);if(el)el.style.display='none';}
 function showError(){document.getElementById('loading').style.display='none';document.getElementById('errorScreen').style.display='flex';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+// Slip upload
+let currentSlipBase64='';let currentSlipMime='';
+function previewSlip(e){
+  const file=e.target.files[0];if(!file)return;
+  currentSlipMime=file.type;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    document.getElementById('uploadBox').style.display='none';
+    document.getElementById('slipPreviewImg').src=ev.target.result;
+    document.getElementById('slipPreviewWrap').style.display='block';
+    currentSlipBase64=ev.target.result.split(',')[1];
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitSlip(){
+  const btn=document.getElementById('btnVerifySlip');
+  btn.innerHTML='<i class="ti ti-robot" aria-hidden="true"></i> กำลังอัปโหลดและ verify...';
+  btn.disabled=true;
+  const vr=document.getElementById('verifyResult');
+  vr.innerHTML='';
+  try{
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:pendingOid,image_base64:currentSlipBase64,mime_type:currentSlipMime})});
+    await new Promise(r=>setTimeout(r,1500));
+    const res=await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:pendingOid})});
+    vr.innerHTML='<div class="verify-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI กำลังอ่านสลิป... กรุณารอสักครู่แล้วกลับมาเช็คสถานะครับ</div>';
+    showToast('ส่งสลิปแล้ว รอ verify ครับ');
+  }catch(e){
+    vr.innerHTML='<div class="verify-box verify-fail">เกิดข้อผิดพลาด กรุณาลองใหม่</div>';
+  }
+  btn.innerHTML='<i class="ti ti-robot" aria-hidden="true"></i> ให้ Claude AI ตรวจสอบสลิป';
+  btn.disabled=false;
+}
+
+// Owner
+const OWNER_KEY='owner123';
+let ownerCurrentTab='pending';
+let allOwnerOrders=[];
+
+async function initOwner(){
+  document.title='Owner - ซามูไรไส้กรอก';
+  show('ownerApp');
+  await loadOwnerOrders();
+}
+
+async function loadOwnerOrders(){
+  try{
+    const res=await fetch(`${API}?action=getOwnerOrders`);
+    allOwnerOrders=await res.json();
+    renderOwnerStats();
+    renderOwnerList();
+  }catch(e){document.getElementById('ownerList').innerHTML='<div style="text-align:center;padding:2rem;color:#aaa">โหลดข้อมูลไม่ได้</div>';}
+}
+
+function renderOwnerStats(){
+  const today=new Date().toDateString();
+  const todayOrders=allOwnerOrders.filter(o=>new Date(o.timestamp).toDateString()===today);
+  const waitVerify=allOwnerOrders.filter(o=>o.status==='slip_uploaded').length;
+  const revenue=allOwnerOrders.filter(o=>['verified','done'].includes(o.status)).reduce((s,o)=>s+Number(o.total),0);
+  document.getElementById('oStatTotal').textContent=todayOrders.length;
+  document.getElementById('oStatPending').textContent=waitVerify;
+  document.getElementById('oStatRevenue').textContent='฿'+revenue.toLocaleString();
+  document.getElementById('ownerSubtitle').textContent='ซามูไรไส้กรอก · รอ verify '+waitVerify+' รายการ';
+}
+
+function switchOwnerTab(tab){
+  ownerCurrentTab=tab;
+  document.getElementById('ownerTab1').classList.toggle('active',tab==='pending');
+  document.getElementById('ownerTab2').classList.toggle('active',tab==='all');
+  document.getElementById('ownerListTitle').textContent=tab==='pending'?'รายการรอตรวจสอบ':'ออเดอร์ทั้งหมด';
+  renderOwnerList();
+}
+
+function renderOwnerList(){
+  const filtered=ownerCurrentTab==='pending'
+    ?allOwnerOrders.filter(o=>['slip_uploaded','pending'].includes(o.status))
+    :allOwnerOrders;
+  const list=document.getElementById('ownerList');
+  if(!filtered.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
+  list.innerHTML=filtered.map(o=>{
+    const items=parseItems(o.items);
+    const hasSlip=o.slip_url&&o.slip_url!=='';
+    const verifyInfo=o.verify_result?o.verify_result.split(':'):'';
+    const isVerified=o.verify_result&&o.verify_result.startsWith('verified');
+    const isMismatch=o.verify_result&&o.verify_result.startsWith('amount_mismatch');
+    let aiBox='';
+    if(isVerified) aiBox=`<div class="ai-result-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI: ยอดตรงกัน ✓</div>`;
+    else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail"><i class="ti ti-robot" aria-hidden="true"></i> Claude AI: ยอดไม่ตรง ฿${verifyInfo[1]} ≠ ฿${o.total}</div>`;
+    let actions='';
+    if(o.status==='slip_uploaded'||isVerified){
+      actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
+      actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
+    }
+    if(o.status==='verified') actions+=`<button class="btn-oa btn-mark-done" onclick="ownerMarkDone('${o.order_id}')">จัดส่งเสร็จ ✓</button>`;
+    return`<div class="owner-card" id="oc${o.order_id}">
+      <div class="oc-top">
+        <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id}</div></div>
+        <span class="badge badge-${o.status==='done'?'done':'pending'}">${statusLabel(o.status)}</span>
+      </div>
+      <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
+      <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
+      ${hasSlip?`<img class="slip-thumb" src="${o.slip_url}" alt="slip">`:''}
+      ${aiBox}
+      ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
+      <div class="oc-actions">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+async function ownerConfirm(orderId){
+  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'verified'})});
+  showToast('ยืนยันรับเงินแล้ว ✓');
+  await loadOwnerOrders();
+}
+async function ownerReject(orderId){
+  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'pending'})});
+  showToast('แจ้งลูกค้าโอนใหม่แล้ว');
+  await loadOwnerOrders();
+}
+async function ownerMarkDone(orderId){
+  await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateStatus',order_id:orderId,status:'done'})});
+  showToast('จัดส่งเสร็จแล้ว ✓');
+  await loadOwnerOrders();
+}
 </script>
 </body>
 </html>
