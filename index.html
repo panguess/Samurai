@@ -29,7 +29,7 @@
     .product-price{font-size:13px;color:#C8401A;margin-bottom:8px}
     .qty-row{display:flex;align-items:center;gap:8px}
     .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-    .qty-num{font-size:14px;font-weight:500;min-width:18px;text-align:center}
+    .qty-num{font-size:14px;font-weight:500;width:36px;text-align:center;border:1px solid #ddd;border-radius:6px;padding:2px 4px;background:#fff}
     .cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;padding:12px 16px;display:none;z-index:100}
     .cart-bar.show{display:block}
     .cart-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -409,7 +409,7 @@ function renderProducts(){
     div.id='pc'+p.product_id;
     const imgHtml=p.image_url?`<img class="product-img" src="${p.image_url}" alt="${p.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:'' ;
     const ph=`<div class="product-img-placeholder" ${p.image_url?'style="display:none"':''}>🛍️</div>`;
-    div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${Number(p.price).toLocaleString()}</div><div class="qty-row"><button class="qty-btn" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button><span class="qty-num" id="qty${p.product_id}">${qty}</span><button class="qty-btn" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button></div></div>`;
+    div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${Number(p.price).toLocaleString()}</div><div class="qty-row"><button class="qty-btn" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button><input type="number" class="qty-num" id="qty${p.product_id}" value="${qty}" min="0" max="999" oninput="setQty('${p.product_id}',this.value,'${p.name}',${p.price})"><button class="qty-btn" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button></div></div>`;
     grid.appendChild(div);
   });
 }
@@ -418,11 +418,18 @@ function chg(id,delta,name,price){
   const cur=cart[id]?cart[id].qty:0;
   const nv=Math.max(0,cur+delta);
   if(nv===0)delete cart[id];else cart[id]={qty:nv,name,price:Number(price)};
-  const el=document.getElementById('qty'+id);if(el)el.textContent=nv;
+  const el=document.getElementById('qty'+id);if(el)el.value=nv;
   const pc=document.getElementById('pc'+id);if(pc)pc.classList.toggle('selected',nv>0);
   updateCart();
 }
 
+function setQty(id,val,name,price){
+  const nv=Math.max(0,Math.min(999,parseInt(val)||0));
+  if(nv===0) delete cart[id]; else cart[id]={qty:nv,name,price:Number(price)};
+  const pc=document.getElementById('pc'+id);
+  if(pc) pc.classList.toggle('selected',nv>0);
+  updateCart();
+}
 function updateCart(){
   const items=Object.values(cart);
   const tq=items.reduce((s,i)=>s+i.qty,0);
