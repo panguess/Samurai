@@ -838,20 +838,42 @@ async function submitSlipFromHistory(orderId){
   const btn=document.getElementById('slipBtn'+orderId);
   const result=document.getElementById('slipResult'+orderId);
   btn.textContent='กำลังส่ง...';btn.disabled=true;
+  let imgbbData;
   try{
     const formData=new FormData();
     formData.append('key','be42b929c1810f8bfa52d0e1bd3648f1');
     formData.append('image',window['slipBase64_'+orderId]);
     const imgbbRes=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:formData});
-    const imgbbData=await imgbbRes.json();
-    if(!imgbbData.success) throw new Error('upload failed');
+    imgbbData=await imgbbRes.json();
+    if(!imgbbData.success) throw new Error('imgbb_failed');
+  }catch(e){
+    result.innerHTML='<div class="warn-box-h" style="margin-top:6px"><div style="font-size:12px;color:#A32D2D">⚠️ อัพโหลดรูปไม่สำเร็จ กรุณาตรวจสอบไฟล์รูปและลองใหม่</div></div>';
+    btn.textContent='ส่งหลักฐานการชำระเงิน';btn.disabled=false;
+    return;
+  }
+  try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'uploadSlip',order_id:orderId,slip_url:imgbbData.data.url})});
+    result.innerHTML='<div class="info-box" style="margin-top:6px"><strong>ส่งสลิปแล้ว กำลังตรวจสอบ...</strong></div>';
     await new Promise(r=>setTimeout(r,1500));
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'verifyPayment',order_id:orderId})});
-    result.innerHTML='<div class="info-box" style="margin-top:6px"><strong>ส่งสลิปแล้ว ✓</strong><br>กรุณา refresh หน้าเพื่อดูผลครับ</div>';
-    showToast('ส่งสลิปแล้ว ✓');
+    // mode:'no-cors' ทำให้ไม่เห็นผลตรงๆ ต้องดึงข้อมูล order กลับมาดูผลจริง
+    await new Promise(r=>setTimeout(r,2500));
+    const checkRes=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+    const orders=await checkRes.json();
+    const updated=orders.find(o=>o.order_id===orderId);
+    if(updated&&updated.payment_status==='verified'){
+      result.innerHTML='<div class="info-box" style="margin-top:6px;background:#EAF3DE;color:#27500A"><strong>✓ ยืนยันการชำระเงินสำเร็จ</strong></div>';
+      showToast('ชำระเงินสำเร็จ ✓');
+      setTimeout(()=>loadPaySection(),1500);
+    } else if(updated&&updated.payment_status==='rejected'){
+      // รีโหลด card ทั้งใบเพื่อให้ buildPayCard แสดง error message ที่ตรงกับ verify_result จริง
+      showToast('ยอดหรือข้อมูลในสลิปไม่ถูกต้อง');
+      setTimeout(()=>loadPaySection(),800);
+    } else {
+      result.innerHTML='<div class="info-box" style="margin-top:6px">กำลังตรวจสอบ กรุณารอสักครู่แล้วลอง refresh หน้า</div>';
+    }
   }catch(e){
-    result.innerHTML='<div class="warn-box-h" style="margin-top:6px"><div style="font-size:12px;color:#A32D2D">เกิดข้อผิดพลาด กรุณาลองใหม่</div></div>';
+    result.innerHTML='<div class="warn-box-h" style="margin-top:6px"><div style="font-size:12px;color:#A32D2D">⚠️ ส่งข้อมูลไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่</div></div>';
   }
   btn.textContent='ส่งหลักฐานการชำระเงิน';btn.disabled=false;
 }
@@ -1162,18 +1184,43 @@ function buildPayCard(o){
   const items=parseItems(o.items);
   const itemSummary=items.length>1?items[0].name+' และอีก '+(items.length-1)+' รายการ':items[0]?.name||'';
   let slipSection='';
+  let rejectLabel='ยอดไม่ตรง';
   if(ps==='slip_uploaded'){
     slipSection=`<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:9px 12px;font-size:12px;color:#185FA5;margin:8px">ส่งสลิปแล้ว รอตรวจสอบ กรุณารอสักครู่ครับ</div>`;
   } else if(ps==='rejected'){
     const vr=o.verify_result?o.verify_result.split(':'):['',''];
-    const diff=vr[1]?(Number(o.total)-Number(vr[1])).toLocaleString():'';
-    slipSection=`<div style="background:#FCEBEB;border:1px solid #F09595;border-radius:8px;padding:9px 12px;font-size:12px;color:#A32D2D;margin:8px">⚠️ ยอดไม่ตรง กรุณาโอนเพิ่ม ฿${diff} แล้วแนบสลิปใหม่</div>`;
+    const reason=vr[1]||'';
+    const detail=vr.slice(2).join(':');
+    let msg='';
+    if(reason==='not_a_slip'){
+      msg='⚠️ ภาพที่แนบไม่ใช่สลิปการโอนเงิน กรุณาแนบภาพสลิปจากแอปธนาคารให้ชัดเจน';
+      rejectLabel='ไม่ใช่สลิป';
+    } else if(reason==='amount_unreadable'){
+      msg='⚠️ ไม่สามารถอ่านยอดเงินจากสลิปได้ กรุณาแนบภาพที่ชัดเจนขึ้น';
+      rejectLabel='อ่านยอดไม่ได้';
+    } else if(reason==='amount_mismatch'){
+      const diff=detail?(Number(o.total)-Number(detail)).toLocaleString():'';
+      msg=`⚠️ ยอดในสลิปไม่ตรงกับยอดที่ต้องชำระ กรุณาโอนเพิ่ม ฿${diff} แล้วแนบสลิปใหม่`;
+      rejectLabel='ยอดไม่ตรง';
+    } else if(reason==='name_mismatch'){
+      msg=`⚠️ ชื่อผู้รับเงินในสลิป (${detail||'ไม่ทราบ'}) ไม่ตรงกับชื่อบัญชีร้าน กรุณาตรวจสอบว่าโอนถูกบัญชีหรือไม่`;
+      rejectLabel='ชื่อผู้รับไม่ตรง';
+    } else if(reason==='slip_too_old'){
+      msg=`⚠️ สลิปนี้มีวันที่โอน (${detail||'ไม่ทราบ'}) ซึ่งเก่าเกินไปหรือไม่ตรงกับการสั่งซื้อนี้ กรุณาแนบสลิปที่โอนสำหรับออเดอร์นี้`;
+      rejectLabel='สลิปเก่าเกินไป';
+    } else if(reason==='ai_parse_failed'||reason==='needs_review'){
+      msg='⚠️ ระบบตรวจสอบสลิปขัดข้อง กรุณาลองแนบสลิปใหม่อีกครั้ง';
+      rejectLabel='ตรวจสอบไม่สำเร็จ';
+    } else {
+      msg='⚠️ ยอดไม่ตรง กรุณาตรวจสอบและแนบสลิปใหม่';
+    }
+    slipSection=`<div style="background:#FCEBEB;border:1px solid #F09595;border-radius:8px;padding:9px 12px;font-size:12px;color:#A32D2D;margin:8px">${msg}</div>`;
   }
   const canSlip=ps==='pending'||ps==='rejected'||ps==='';
   return`<div class="order-card" style="border:1.5px solid #C8401A;padding:0;overflow:hidden" id="pcard${o.order_id}">
     <div style="background:#fdf5f2;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f5c4b3">
       <div><div style="font-size:11px;font-family:monospace;color:#993C1D">${o.order_id}</div><div style="font-size:12px;color:#555;margin-top:2px">${itemSummary}</div></div>
-      <span style="font-size:10px;padding:3px 9px;border-radius:20px;background:#faeeda;color:#633806;font-weight:500">${ps==='slip_uploaded'?'รอ verify':ps==='rejected'?'ยอดไม่ตรง':'รอชำระ'}</span>
+      <span style="font-size:10px;padding:3px 9px;border-radius:20px;background:#faeeda;color:#633806;font-weight:500">${ps==='slip_uploaded'?'รอ verify':ps==='rejected'?rejectLabel:'รอชำระ'}</span>
     </div>
     <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f5ede8">
       <div style="width:32px;height:32px;border-radius:8px;background:#4e2e8a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;flex-shrink:0">SCB</div>
@@ -1380,8 +1427,16 @@ function renderOwnerList(){
       let aiBox='';
       if(o.verify_result){
         const vr=o.verify_result.split(':');
-        if(isVerified) aiBox=`<div class="ai-result-box verify-ok">🤖 AI: ยอดตรงกัน ✓</div>`;
-        else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ยอดไม่ตรง ฿${vr[1]} ≠ ฿${o.total}</div>`;
+        const vrReason=vr[0];
+        if(vrReason==='ai_passed') aiBox=`<div class="ai-result-box verify-ok">🤖 AI ตรวจสอบยอด+ชื่อผู้รับผ่านแล้ว — กรุณาเช็คยอดเงินจริงในบัญชีก่อนกดยืนยัน</div>`;
+        else if(vrReason==='rejected'){
+          const reason=vr[1];
+          if(reason==='amount_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ยอดไม่ตรง ฿${vr[2]} ≠ ฿${o.total}</div>`;
+          else if(reason==='name_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ชื่อผู้รับไม่ตรง (${vr[2]||'ไม่ทราบ'})</div>`;
+          else if(reason==='not_a_slip') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ภาพที่แนบไม่ใช่สลิป</div>`;
+          else if(reason==='amount_unreadable') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: อ่านยอดเงินจากสลิปไม่ได้</div>`;
+        }
+        else if(vrReason==='needs_review') aiBox=`<div class="ai-result-box verify-fail">🤖 AI ตรวจสอบไม่สำเร็จ กรุณาดูสลิปด้วยตาก่อนยืนยัน</div>`;
       }
       let actions='';
       if(isSlipUploaded||isMismatch){
