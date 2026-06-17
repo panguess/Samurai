@@ -1098,7 +1098,7 @@ function renderAdminOrders(){
       const willTransferAlready=o.note&&o.note.includes('[รอโอน]');
       const oid=o.order_id;
       const transferBtn=willTransferAlready?'':'<button style="padding:8px 14px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer" onclick="markWillTransfer(\''+oid+'\')">💬 โอนตามหลัง</button>';
-      footerBtns='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+transferBtn+'<button style="padding:8px 14px;border-radius:8px;border:none;background:#639922;color:#fff;font-size:12px;font-weight:500;cursor:pointer" onclick="markPaidCash(\''+oid+'\')">✓ รับเงินแล้ว (หน้าร้าน)</button></div>';
+      footerBtns='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+transferBtn+'<button style="padding:8px 14px;border-radius:8px;border:none;background:#639922;color:#fff;font-size:12px;font-weight:500;cursor:pointer" onclick="markPaidCashAdmin(\''+oid+'\')">✓ รับเงินแล้ว (หน้าร้าน)</button></div>';
     }
     return`<div class="admin-order-card" style="${cardStyle}">
       <div class="admin-order-top" style="${isUnpaid?'background:#faeeda':''}">
@@ -1172,7 +1172,7 @@ async function markPacking(orderId){
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
-async function markPaidCash(orderId){
+async function markPaidCashAdmin(orderId){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
   overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
@@ -1189,10 +1189,14 @@ async function markPaidCash(orderId){
   overlay.querySelector('#pcYes').onclick=async()=>{
     overlay.remove();
     const order=allAdminOrders.find(o=>o.order_id===orderId);
-    if(order)order.payment_status='verified';
+    const cleanedNote=order?(order.note||'').replace('[รอโอน]','').trim():'';
+    if(order){order.payment_status='verified';order.note=cleanedNote;}
     renderAdminOrders();showToast('รับเงินแล้ว ✓');
     try{
       await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
+      if(order){
+        await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:order.items,total:order.total,note:cleanedNote})});
+      }
     }catch(e){showToast('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   };
 }
@@ -1567,8 +1571,13 @@ async function ownerReject(orderId){
 }
 
 async function markPaidCash(orderId){
+  const o=allOwnerOrders.find(x=>x.order_id===orderId);
+  const cleanedNote=o?(o.note||'').replace('[รอโอน]','').trim():'';
   await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
-  const o=allOwnerOrders.find(x=>x.order_id===orderId);if(o)o.payment_status='verified';
+  if(o){
+    o.payment_status='verified';o.note=cleanedNote;
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:o.items,total:o.total,note:cleanedNote})});
+  }
   showToast('รับเงินแล้ว ✓');
   renderOwnerStats();renderOwnerList();
 }
