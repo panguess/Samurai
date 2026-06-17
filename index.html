@@ -313,13 +313,15 @@
         <div class="header-name" style="font-size:18px">สั่งสินค้า</div>
       </div>
     </div>
-    <div onclick="openReorderModal()" style="background:#fff;margin:10px 12px 4px;border-radius:10px;padding:11px 12px;display:flex;align-items:center;gap:10px;border:0.5px solid #e8e2dc;cursor:pointer">
-      <i class="ti ti-history" style="font-size:18px;color:#534AB7" aria-hidden="true"></i>
-      <div style="flex:1">
-        <div style="font-size:12px;font-weight:500;color:#1a1a1a">สั่งซ้ำจากประวัติเดิม</div>
-        <div style="font-size:10px;color:#aaa">เลือกออเดอร์ที่เคยสั่งและจ่ายครบแล้ว</div>
+    <div onclick="openReorderModal()" style="background:#EEEDFE;margin:10px 12px 4px;border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;border:1px solid #D9D5F8;cursor:pointer">
+      <div style="width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-recycle" style="font-size:20px;color:#3C3489" aria-hidden="true"></i>
       </div>
-      <i class="ti ti-chevron-right" style="font-size:14px;color:#aaa" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700;color:#3C3489">สั่งซ้ำจากออเดอร์เก่า</div>
+        <div id="reorderCountLabel" style="font-size:11px;color:#534AB7;margin-top:1px">เติมลงตะกร้าได้ทันที</div>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:16px;color:#534AB7" aria-hidden="true"></i>
     </div>
     <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:11px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
@@ -521,7 +523,7 @@ async function goSection(section){
   document.getElementById('reviewSection').style.display=['review_shop','review_staff1','review_staff2'].includes(section)?'block':'none';
   if(section==='pay') await loadPaySection();
   if(section==='track') await loadTrackSection();
-  if(section==='shop') updateCart();
+  if(section==='shop'){updateCart();updateReorderCount();}
   if(section==='review_shop') setupReview('shop');
   if(section==='review_staff1') setupReview('staff1');
   if(section==='review_staff2') setupReview('staff2');
@@ -1237,6 +1239,20 @@ function cancelOrder(orderId){
       await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
     }catch(e){}
   };
+}
+
+async function updateReorderCount(){
+  try{
+    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+    const orders=await res.json();
+    const completed=orders.filter(o=>{
+      const ds=o.delivery_status||o.status||'';
+      const isDone=ds==='done'||String(ds).toLowerCase().trim()==='done';
+      return isDone&&o.payment_status==='verified';
+    });
+    const label=document.getElementById('reorderCountLabel');
+    if(label) label.textContent=completed.length>0?`มี ${completed.length} ออเดอร์เก่าให้เลือก`:'เติมลงตะกร้าได้ทันที';
+  }catch(e){}
 }
 
 async function openReorderModal(){
