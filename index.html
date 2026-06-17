@@ -999,10 +999,9 @@ function renderAdminOrders(){
     else if(isPacking) footerBtns=`<button class="btn-done" style="font-size:12px" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`;
     else if(isUnpaid){
       const willTransferAlready=o.note&&o.note.includes('[รอโอน]');
-      footerBtns=`<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-        ${willTransferAlready?'':'<button style="padding:8px 14px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer" onclick="markWillTransfer(''+o.order_id+'')">💬 โอนตามหลัง</button>'}
-        <button style="padding:8px 14px;border-radius:8px;border:none;background:#1a0a06;color:#fff;font-size:12px;font-weight:500;cursor:pointer" onclick="markPaidCash('${o.order_id}')">✓ รับเงินแล้ว (หน้าร้าน)</button>
-      </div>`;
+      const oid=o.order_id;
+      const transferBtn=willTransferAlready?'':'<button style="padding:8px 14px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer" onclick="markWillTransfer(\''+oid+'\')">💬 โอนตามหลัง</button>';
+      footerBtns='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+transferBtn+'<button style="padding:8px 14px;border-radius:8px;border:none;background:#1a0a06;color:#fff;font-size:12px;font-weight:500;cursor:pointer" onclick="markPaidCash(\''+oid+'\')">✓ รับเงินแล้ว (หน้าร้าน)</button></div>';
     }
     return`<div class="admin-order-card" style="${cardStyle}">
       <div class="admin-order-top" style="${isUnpaid?'background:#faeeda':''}">
