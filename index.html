@@ -106,11 +106,11 @@
     .btn-close{background:none;border:none;font-size:22px;cursor:pointer;color:#888;line-height:1}
     .modal-body{padding:16px;display:flex;flex-direction:column;gap:14px}
     .edit-item{display:flex;align-items:center;gap:12px;padding:10px;background:#f8f8f8;border-radius:12px}
-    .edit-img{width:56px;height:56px;border-radius:8px;object-fit:cover;background:#e8e8e8;flex-shrink:0}
-    .edit-img-placeholder{width:56px;height:56px;border-radius:8px;background:#e8e8e8;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+    .edit-img{width:80px;height:80px;border-radius:10px;object-fit:cover;background:#e8e8e8;flex-shrink:0}
+    .edit-img-placeholder{width:80px;height:80px;border-radius:10px;background:#e8e8e8;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
     .edit-info{flex:1;min-width:0}
-    .edit-name{font-size:13px;font-weight:500;margin-bottom:2px}
-    .edit-price{font-size:12px;color:#888}
+    .edit-name{font-size:15px;font-weight:500;margin-bottom:3px}
+    .edit-price{font-size:13px;color:#888}
     .edit-qty-row{display:flex;align-items:center;gap:8px;flex-shrink:0}
     .edit-qty-btn{width:30px;height:30px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
     .edit-qty-num{font-size:15px;font-weight:500;min-width:22px;text-align:center}
@@ -204,9 +204,9 @@
     .admin-items-list{padding:8px 12px}
     .admin-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5}
     .admin-item-row:last-child{border:none}
-    .admin-item-img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
-    .admin-item-img-placeholder{width:52px;height:52px;border-radius:8px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-    .admin-item-name{font-size:13px;font-weight:500;flex:1}
+    .admin-item-img{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
+    .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
+    .admin-item-name{font-size:15px;font-weight:500;flex:1}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .admin-qty-num{font-size:14px;font-weight:600;min-width:20px;text-align:center;color:#C8401A}
@@ -423,7 +423,7 @@
 <div id="adminApp">
   <div class="admin-header">
     <h1>🗂 รายการที่ต้องจัด</h1>
-    <p id="adminSubtitle">กำลังโหลด...</p>
+    <p id="adminSubtitle" style="display:none">กำลังโหลด...</p>
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchAdminTab('pending')" id="adminTabPending">⏳ รอจัด</div>
@@ -997,10 +997,13 @@ function renderAdminOrders(){
     let footerBtns='';
     if(isPending) footerBtns=`<button class="btn-done" style="background:#534AB7;font-size:12px" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
     else if(isPacking) footerBtns=`<button class="btn-done" style="font-size:12px" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`;
-    else if(isUnpaid) footerBtns=`<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-      <button class="btn-done" style="background:#185FA5;font-size:11px" onclick="markWillTransfer('${o.order_id}')">จะโอนตามหลัง</button>
-      <button class="btn-done" style="background:#1a0a06;font-size:11px" onclick="markPaidCash('${o.order_id}')">รับเงินแล้ว (หน้าร้าน)</button>
-    </div>`;
+    else if(isUnpaid){
+      const willTransferAlready=o.note&&o.note.includes('[รอโอน]');
+      footerBtns=`<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        ${willTransferAlready?'':'<button style="padding:8px 14px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#0C447C;font-size:12px;font-weight:500;cursor:pointer" onclick="markWillTransfer(''+o.order_id+'')">💬 โอนตามหลัง</button>'}
+        <button style="padding:8px 14px;border-radius:8px;border:none;background:#1a0a06;color:#fff;font-size:12px;font-weight:500;cursor:pointer" onclick="markPaidCash('${o.order_id}')">✓ รับเงินแล้ว (หน้าร้าน)</button>
+      </div>`;
+    }
     return`<div class="admin-order-card" style="${cardStyle}">
       <div class="admin-order-top" style="${isUnpaid?'background:#faeeda':''}">
         <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
@@ -1076,23 +1079,41 @@ async function markPacking(orderId){
 }
 
 async function markPaidCash(orderId){
-  try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
+    <div style="font-size:22px;margin-bottom:10px">💵</div>
+    <div style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px">ยืนยันรับเงินหน้าร้าน?</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะถูก mark ว่าชำระแล้ว</div>
+    <div style="display:flex;gap:10px">
+      <button id="pcNo" style="flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer;color:#555">ยกเลิก</button>
+      <button id="pcYes" style="flex:1;padding:12px;border-radius:10px;border:none;background:#1a0a06;color:#fff;font-size:14px;font-weight:500;cursor:pointer">ยืนยัน</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#pcNo').onclick=()=>overlay.remove();
+  overlay.querySelector('#pcYes').onclick=async()=>{
+    overlay.remove();
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order)order.payment_status='verified';
     renderAdminOrders();showToast('รับเงินแล้ว ✓');
-  }catch(e){alert('เกิดข้อผิดพลาด');}
+    try{
+      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'verified'})});
+    }catch(e){showToast('เกิดข้อผิดพลาด กรุณาลองใหม่');}
+  };
 }
 
 async function markWillTransfer(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);
   if(!order)return;
   const newNote=(order.note||'').replace('[รอโอน]','').trim()+' [รอโอน]';
+  // อัพเดต local ทันที แล้วค่อยส่ง API
+  order.note=newNote;
+  renderAdminOrders();
+  showToast('บันทึกแล้ว · ลูกค้าจะโอนตามหลัง 💬');
   try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:order.items,total:order.total,note:newNote})});
-    order.note=newNote;
-    renderAdminOrders();showToast('บันทึกแล้ว — รอลูกค้าโอนตามหลัง 💬');
-  }catch(e){alert('เกิดข้อผิดพลาด');}
+  }catch(e){showToast('เกิดข้อผิดพลาด กรุณาลองใหม่');}
 }
 
 async function revertPayment(orderId){
