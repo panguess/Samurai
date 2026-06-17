@@ -37,19 +37,31 @@
     .cart-total{font-size:18px;font-weight:600}
     .btn-order{padding:10px 24px;background:#C8401A;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer}
     .history-list,.admin-list{padding:12px;display:flex;flex-direction:column;gap:10px}
-    .order-card{background:#fff;border-radius:12px;padding:14px;border:0.5px solid #e8e8e8}
+    .order-card{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;overflow:hidden}
     .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
     .order-id{font-size:12px;font-weight:500;font-family:monospace;color:#333}
     .order-date{font-size:11px;color:#aaa;margin-top:2px}
-    .badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap}
+    .badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap;text-align:center;display:inline-block}
     .badge-pending{background:#faeeda;color:#854f0b}
     .badge-done{background:#eaf3de;color:#3b6d11}
+    .hcard-summary{display:grid;grid-template-columns:18px 1fr 76px 110px;align-items:center;gap:10px;padding:13px 14px;cursor:pointer}
+    .hcard-chevron{font-size:14px;color:#aaa;transition:transform 0.15s;flex-shrink:0}
+    .hcard-chevron.open{transform:rotate(180deg)}
+    .hcard-idblock{min-width:0;overflow:hidden}
+    .hcard-id{font-size:12px;font-weight:500;font-family:monospace;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hcard-date{font-size:11px;color:#aaa;margin-top:1px}
+    .hcard-total{font-size:13px;font-weight:600;color:#333;text-align:right;white-space:nowrap}
+    .hcard-total.cancelled{color:#aaa;text-decoration:line-through;font-weight:500}
+    .hcard-badge-wrap{display:flex;justify-content:flex-end}
+    .hcard-detail{display:none;padding:0 14px 14px}
+    .hcard-detail.open{display:block}
+    .hcard-divider{border-top:0.5px solid #f0f0f0;padding-top:12px}
     .order-items-list{margin-bottom:8px}
     .item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
     .item-row:last-child{border:none}
     .item-qty{color:#C8401A;font-weight:500}
     .order-note{font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px}
-    .order-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
+    .order-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
     .order-total{font-size:14px;font-weight:600;color:#C8401A}
     .btn-edit{font-size:12px;padding:6px 14px;background:none;border:1px solid #C8401A;color:#C8401A;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
@@ -760,17 +772,38 @@ function buildHistoryCard(o){
   const items=parseItems(o.items);
   const ps=o.payment_status||'pending';
   const ds=o.delivery_status||'';
+  const isCancelled=ds==='cancelled'||String(ds).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const isDoneDelivery=ds==='done'||o.status==='done'||String(ds).toLowerCase().trim()==='done'||String(o.status).toLowerCase().trim()==='done';
   const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' · '+tStr:'';
   let badge='';
-  if(isDoneDelivery&&ps==='verified') badge=`<span class="badge badge-verified">จัดเสร็จ · ชำระแล้ว ✓</span>`;
-  else if(isDoneDelivery&&(ps==='pending'||ps==='')) badge=`<span class="badge badge-pay">จัดสำเร็จ · รอชำระ 💳</span>`;
+  if(isCancelled) badge=`<span class="badge" style="background:#f0f0f0;color:#888">ยกเลิกแล้ว</span>`;
+  else if(isDoneDelivery&&ps==='verified') badge=`<span class="badge badge-verified">จัดเสร็จ · ชำระแล้ว ✓</span>`;
+  else if(isDoneDelivery&&(ps==='pending'||ps==='')) badge=`<span class="badge badge-pay">จัดสำเร็จ · รอชำระ</span>`;
   else if(isDoneDelivery&&ps==='slip_uploaded') badge=`<span class="badge badge-slip">จัดสำเร็จ · รอ verify</span>`;
   else if(isDoneDelivery&&ps==='rejected') badge=`<span class="badge badge-rejected">ยอดไม่ตรง</span>`;
   else if(ps==='verified') badge=`<span class="badge badge-verified">ชำระแล้ว ✓</span>`;
   else if(ps==='rejected') badge=`<span class="badge badge-rejected">ยอดไม่ตรง</span>`;
   else if(ps==='slip_uploaded') badge=`<span class="badge badge-slip">รอตรวจสอบ</span>`;
   else badge=`<span class="badge badge-pending">รอดำเนินการ</span>`;
+
+  if(isCancelled){
+    return`<div class="order-card" id="hcard${o.order_id}" style="opacity:0.65">
+      <div class="hcard-summary" onclick="toggleHistoryCard('${o.order_id}')">
+        <i class="hcard-chevron" id="chev${o.order_id}">▾</i>
+        <div class="hcard-idblock"><div class="hcard-id">${o.order_id}</div><div class="hcard-date">${dateStr}</div></div>
+        <div class="hcard-total cancelled">฿${Number(o.total).toLocaleString()}</div>
+        <div class="hcard-badge-wrap">${badge}</div>
+      </div>
+      <div class="hcard-detail" id="detail${o.order_id}">
+        <div class="hcard-divider">
+          <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?new Date(o.cancelled_at).toLocaleString('th-TH'):dateStr}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
   let statusBox='';
   if((ps==='pending'||ps==='')&&isDoneDelivery){
     statusBox=`<div class="pay-box"><div class="pay-title">💳 ค้างชำระ ฿${Number(o.total).toLocaleString()}</div><div class="pay-sub">สินค้าจัดพร้อมแล้ว กรุณาชำระเงินครับ</div><div class="bank-box"><div><div class="bank-scb">SCB</div><div class="bank-num">123456789</div><div class="bank-name-s">บุษราพร โชคดีสิริกุล</div></div><button onclick="navigator.clipboard&&navigator.clipboard.writeText('123456789');showToast('คัดลอกแล้ว ✓')" style="font-size:11px;padding:5px 10px;background:#e65100;color:#fff;border:none;border-radius:6px;cursor:pointer">คัดลอก</button></div><div class="total-pay"><div class="total-pay-label">ยอดที่ต้องโอน</div><div class="total-pay-num">฿${Number(o.total).toLocaleString()}</div></div></div>`;
@@ -804,16 +837,33 @@ function buildHistoryCard(o){
     ?`<button style="${btnStyle};background:#C8401A;border:none;color:#fff" onclick="show('app');goSection('pay')">ชำระเงิน →</button>`
     :'';
   return`<div class="order-card" id="hcard${o.order_id}">
-    <div class="order-top"><div><div class="order-id">${o.order_id}</div><div class="order-date">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>${badge}</div>
-    <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-    ${o.note?`<div class="order-note">📝 ${o.note}</div>`:''}
-    ${statusBox}
-    <div class="tl">${tl1}${tl2}${tl3}${tl4}</div>
-    <div class="order-footer">
-      <div class="order-total">฿${Number(o.total).toLocaleString()}</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${cancelBtn}${editBtn}${payBtn}</div>
+    <div class="hcard-summary" onclick="toggleHistoryCard('${o.order_id}')">
+      <i class="hcard-chevron" id="chev${o.order_id}">▾</i>
+      <div class="hcard-idblock"><div class="hcard-id">${o.order_id}</div><div class="hcard-date">${dateStr}</div></div>
+      <div class="hcard-total">฿${Number(o.total).toLocaleString()}</div>
+      <div class="hcard-badge-wrap">${badge}</div>
+    </div>
+    <div class="hcard-detail" id="detail${o.order_id}">
+      <div class="hcard-divider">
+        <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
+        ${o.note?`<div class="order-note">📝 ${o.note}</div>`:''}
+        ${statusBox}
+        <div class="tl">${tl1}${tl2}${tl3}${tl4}</div>
+        <div class="order-footer">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${cancelBtn}${editBtn}${payBtn}</div>
+        </div>
+      </div>
     </div>
   </div>`;
+}
+
+function toggleHistoryCard(orderId){
+  const detail=document.getElementById('detail'+orderId);
+  const chev=document.getElementById('chev'+orderId);
+  if(!detail) return;
+  const isOpen=detail.classList.contains('open');
+  detail.classList.toggle('open',!isOpen);
+  if(chev) chev.classList.toggle('open',!isOpen);
 }
 
 function toggleSlipUpload(orderId){
@@ -1263,7 +1313,7 @@ function cancelOrder(orderId){
   overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
     <div style="font-size:22px;margin-bottom:10px">🗑️</div>
     <div style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px">ยกเลิกออร์เดอร์?</div>
-    <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะถูกลบออกจากระบบ</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะถูกยกเลิก</div>
     <div style="display:flex;gap:10px">
       <button id="cancelNo" style="flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer;color:#555">ไม่ยกเลิก</button>
       <button id="cancelYes" style="flex:1;padding:12px;border-radius:10px;border:none;background:#A32D2D;color:#fff;font-size:14px;font-weight:500;cursor:pointer">ยืนยันยกเลิก</button>
@@ -1273,13 +1323,13 @@ function cancelOrder(orderId){
   overlay.querySelector('#cancelNo').onclick=()=>overlay.remove();
   overlay.querySelector('#cancelYes').onclick=async()=>{
     overlay.remove();
-    // ลบออกจาก DOM ทันที
-    const card=document.getElementById('hcard'+orderId);
-    if(card)card.remove();
     showToast('ยกเลิกออร์เดอร์แล้ว');
     try{
       await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
     }catch(e){}
+    // โหลดประวัติใหม่เพื่อให้การ์ดนี้แสดงเป็นสถานะ "ยกเลิกแล้ว" แทนการลบหายไปเลย
+    await new Promise(r=>setTimeout(r,1000));
+    await loadTrackSection();
   };
 }
 
