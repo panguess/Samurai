@@ -313,6 +313,15 @@
         <div class="header-name" style="font-size:18px">สั่งสินค้า</div>
       </div>
     </div>
+    <div onclick="openReorderModal()" style="background:#fff;margin:10px 12px 4px;border-radius:10px;padding:11px 12px;display:flex;align-items:center;gap:10px;border:0.5px solid #e8e2dc;cursor:pointer">
+      <i class="ti ti-history" style="font-size:18px;color:#534AB7" aria-hidden="true"></i>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:500;color:#1a1a1a">สั่งซ้ำจากประวัติเดิม</div>
+        <div style="font-size:10px;color:#aaa">เลือกออเดอร์ที่เคยสั่งและจ่ายครบแล้ว</div>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size:14px;color:#aaa" aria-hidden="true"></i>
+    </div>
+    <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:11px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
     <div class="cart-bar" id="cartBar">
       <div class="cart-inner">
@@ -406,6 +415,16 @@
       </div>
     </div>
     <div class="history-list" id="trackList"></div>
+  </div>
+  <!-- Reorder Modal -->
+  <div id="reorderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;align-items:flex-end;justify-content:center">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="font-size:16px;font-weight:600">สั่งซ้ำจากประวัติ</h3>
+        <button onclick="closeReorderModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa">✕</button>
+      </div>
+      <div id="reorderModalBody"><div class="empty-state">กำลังโหลด...</div></div>
+    </div>
   </div>
   <!-- Edit Modal -->
   <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-end;justify-content:center">
@@ -1218,6 +1237,54 @@ function cancelOrder(orderId){
       await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
     }catch(e){}
   };
+}
+
+async function openReorderModal(){
+  document.getElementById('reorderModal').style.display='flex';
+  const body=document.getElementById('reorderModalBody');
+  body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  try{
+    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+    const orders=await res.json();
+    const completed=orders.filter(o=>{
+      const ds=o.delivery_status||o.status||'';
+      const isDone=ds==='done'||String(ds).toLowerCase().trim()==='done';
+      return isDone&&o.payment_status==='verified';
+    });
+    if(!completed.length){body.innerHTML='<div class="empty-state">ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์</div>';return;}
+    body.innerHTML=completed.map(o=>{
+      const items=parseItems(o.items);
+      const itemsStr=items.map(i=>i.name+' x'+i.qty).join(', ');
+      return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div style="flex:1">
+            <div style="font-size:10px;font-family:monospace;color:#888">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH'):''}</div>
+            <div style="font-size:12px;color:#1a1a1a;margin-top:2px">${itemsStr}</div>
+          </div>
+          <button style="font-size:11px;padding:6px 12px;border-radius:7px;border:none;background:#534AB7;color:#fff;font-weight:500;white-space:nowrap;cursor:pointer" onclick='applyReorder(${JSON.stringify(JSON.stringify(items))})'>สั่งซ้ำ</button>
+        </div>
+        <div style="font-size:11px;color:#3B6D11">฿${Number(o.total).toLocaleString()} · เสร็จสมบูรณ์ ✓</div>
+      </div>`;
+    }).join('');
+  }catch(e){body.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+}
+
+function closeReorderModal(){document.getElementById('reorderModal').style.display='none';}
+
+function applyReorder(itemsJson){
+  const items=JSON.parse(itemsJson);
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
+  items.forEach(item=>{
+    const prod=prodMap[item.name];
+    if(prod) cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};
+  });
+  closeReorderModal();
+  renderProducts();
+  updateCart();
+  const toast=document.getElementById('reorderToast');
+  toast.textContent='เติมสินค้าจากออเดอร์เดิมลงตะกร้าแล้ว ✓';
+  toast.style.display='block';
+  setTimeout(()=>{toast.style.display='none';},4000);
 }
 
 function parseItems(itemsText){
