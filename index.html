@@ -44,6 +44,8 @@
     .badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap;text-align:center;display:inline-block}
     .badge-pending{background:#faeeda;color:#854f0b}
     .badge-done{background:#eaf3de;color:#3b6d11}
+    .badge-packing{background:#EEEDFE;color:#3C3489}
+    .badge-confirmed{background:#E6F1FB;color:#185FA5}
     .hcard-summary{display:grid;grid-template-columns:18px 1fr 76px 110px;align-items:center;gap:10px;padding:13px 14px;cursor:pointer}
     .hcard-chevron{font-size:14px;color:#aaa;transition:transform 0.15s;flex-shrink:0}
     .hcard-chevron.open{transform:rotate(180deg)}
@@ -246,6 +248,9 @@
     .owner-header p{font-size:12px;color:#f5c4b3;margin-top:3px}
     .owner-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px}
     .o-stat{background:#fff;border-radius:10px;padding:10px;text-align:center;border:0.5px solid #e8e2dc}
+    .owner-filter-row{display:flex;gap:6px;padding:0 12px 10px;flex-wrap:wrap}
+    .o-filter-pill{font-size:12px;padding:6px 14px;border-radius:20px;background:#fff;border:1px solid #e8e2dc;color:#888;cursor:pointer;font-weight:500}
+    .o-filter-pill.active{background:#1a0a06;color:#fff;border-color:#1a0a06}
     .o-stat-num{font-size:20px;font-weight:700;color:#C8401A}
     .o-stat-label{font-size:10px;color:#888;margin-top:2px}
     .pipeline-wrap{padding:0 12px;overflow-x:auto}
@@ -468,17 +473,16 @@
     <h1><span style="font-size:18px;margin-right:6px">📊</span>Owner Dashboard</h1>
     <p id="ownerSubtitle">ซามูไรไส้กรอก · ภาพรวมทั้งหมด</p>
   </div>
-  <div class="tabs">
-    <div class="tab active" onclick="switchOwnerTab('payment')" id="ownerTab1">💰 การเงิน</div>
-    <div class="tab" onclick="switchOwnerTab('delivery')" id="ownerTab2">📦 การจัดส่ง</div>
+  <div class="owner-stats" style="grid-template-columns:1fr 1fr">
+    <div class="o-stat"><div class="o-stat-num" id="oStatAction" style="color:#854F0B">0</div><div class="o-stat-label">ต้องดำเนินการ</div></div>
+    <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">รับเงินวันนี้</div></div>
   </div>
-  <div class="owner-stats">
-    <div class="o-stat" id="filterAll" onclick="setPayFilter('all')" style="cursor:pointer"><div class="o-stat-num" id="oStatTotal">0</div><div class="o-stat-label">ทั้งหมด</div></div>
-    <div class="o-stat" id="filterUnpaid" onclick="setPayFilter('unpaid')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatUnpaid" style="color:#633806">0</div><div class="o-stat-label">ค้างรับเงิน</div></div>
-    <div class="o-stat" id="filterVerify" onclick="setPayFilter('slip_uploaded')" style="cursor:pointer;border:2px solid transparent"><div class="o-stat-num" id="oStatPending" style="color:#185FA5">0</div><div class="o-stat-label">รอ verify</div></div>
-    <div class="o-stat"><div class="o-stat-num" id="oStatRevenue" style="color:#3b6d11">฿0</div><div class="o-stat-label">รับแล้ว</div></div>
+  <div class="owner-filter-row" id="ownerFilterRow">
+    <span class="o-filter-pill active" onclick="setOwnerFilter('all')" id="ofAll">ทั้งหมด</span>
+    <span class="o-filter-pill" onclick="setOwnerFilter('action')" id="ofAction">ต้องดำเนินการ</span>
+    <span class="o-filter-pill" onclick="setOwnerFilter('done')" id="ofDone">เสร็จสมบูรณ์</span>
   </div>
-  <div class="owner-section-title" id="ownerListTitle">รายการรอตรวจสอบ</div>
+  <div class="owner-section-title" id="ownerListTitle">ออเดอร์ทั้งหมด</div>
   <div class="owner-orders" id="ownerList"></div>
 </div>
 
@@ -1393,7 +1397,7 @@ function parseItems(itemsText){
 
 function statusLabel(s){return{pending:'รอดำเนินการ',slip_uploaded:'รอ verify สลิป',verified:'ยืนยันชำระแล้ว',rejected:'ยอดไม่ตรง',packing:'กำลังจัด',done:'จัดเสร็จแล้ว'}[s]||s;}
 function payLabel(s){return{pending:'ยังไม่จ่าย',slip_uploaded:'รอ verify',verified:'จ่ายแล้ว ✓',rejected:'ยอดไม่ตรง'}[s]||'ยังไม่จ่าย';}
-function delivLabel(s){return{pending:'รอจัด',packing:'กำลังจัด',done:'จัดเสร็จแล้ว ✓'}[s]||'รอจัด';}
+function delivLabel(s){return{pending:'รอจัด',packing:'กำลังจัด',done:'จัดเสร็จแล้ว ✓',cancelled:'ยกเลิกแล้ว'}[s]||'รอจัด';}
 
 function show(id){
   ['loading','app','adminApp','ownerApp','errorScreen','confirmScreen','successScreen'].forEach(x=>{
@@ -1428,106 +1432,87 @@ async function loadOwnerOrders(){
 }
 
 function renderOwnerStats(){
+  const isCancelled=o=>{const ds=o.delivery_status||o.status||'';return ds==='cancelled'||String(ds).toLowerCase().trim()==='cancelled';};
+  const isDone=o=>{const ds=o.delivery_status||o.status||'';return ds==='done'||String(ds).toLowerCase().trim()==='done';};
+  const isPacking=o=>{const ds=o.delivery_status||o.status||'';return ds==='packing'||String(ds).toLowerCase().trim()==='packing';};
+  const activeOrders=allOwnerOrders.filter(o=>!isCancelled(o));
+  // "ต้องดำเนินการ" = ยังไม่จัดเสร็จ(รอจัด/กำลังจัด) หรือ จัดเสร็จแล้วแต่ยังไม่ verified การเงิน
+  const needsAction=activeOrders.filter(o=>!isDone(o)||(o.payment_status||'pending')!=='verified');
   const today=new Date().toDateString();
-  const todayOrders=allOwnerOrders.filter(o=>new Date(o.timestamp).toDateString()===today);
-  const waitVerify=allOwnerOrders.filter(o=>o.payment_status==='slip_uploaded').length;
-  const unpaidCount=allOwnerOrders.filter(o=>{const ds=o.delivery_status||o.status||'';const done=ds==='done'||String(ds).toLowerCase().trim()==='done';return done&&(o.payment_status||'pending')!=='verified';}).length;
-  const revenue=allOwnerOrders.filter(o=>o.payment_status==='verified').reduce((s,o)=>s+Number(o.total),0);
-  document.getElementById('oStatTotal').textContent=todayOrders.length;
-  document.getElementById('oStatUnpaid').textContent=unpaidCount;
-  document.getElementById('oStatPending').textContent=waitVerify;
-  document.getElementById('oStatRevenue').textContent='฿'+revenue.toLocaleString();
-  document.getElementById('ownerSubtitle').textContent='ซามูไรไส้กรอก · ค้างรับเงิน '+unpaidCount+' รายการ';
-  const unpaidCard=document.getElementById('filterUnpaid');
-  if(unpaidCard){unpaidCard.style.background=unpaidCount>0?'#faeeda':'';unpaidCard.style.border=unpaidCount>0?'2px solid #EF9F27':'2px solid transparent';}
+  const revenueToday=allOwnerOrders.filter(o=>o.payment_status==='verified'&&o.paid_at&&new Date(o.paid_at).toDateString()===today).reduce((s,o)=>s+Number(o.total),0);
+  document.getElementById('oStatAction').textContent=needsAction.length;
+  document.getElementById('oStatRevenue').textContent='฿'+revenueToday.toLocaleString();
+  document.getElementById('ownerSubtitle').textContent='ซามูไรไส้กรอก · ต้องดำเนินการ '+needsAction.length+' รายการ';
 }
 
-function switchOwnerTab(tab){
-  ownerCurrentTab=tab;
-  document.getElementById('ownerTab1').classList.toggle('active',tab==='payment');
-  document.getElementById('ownerTab2').classList.toggle('active',tab==='delivery');
-  document.getElementById('ownerListTitle').textContent=tab==='payment'?'💰 สถานะการเงิน':'📦 สถานะการจัดส่ง';
+let ownerFilter='all';
+function setOwnerFilter(f){
+  ownerFilter=f;
+  document.getElementById('ofAll').classList.toggle('active',f==='all');
+  document.getElementById('ofAction').classList.toggle('active',f==='action');
+  document.getElementById('ofDone').classList.toggle('active',f==='done');
   renderOwnerList();
 }
 
-function setPayFilter(f){
-  payFilter=f;
-  document.getElementById('filterAll').style.border=f==='all'?'2px solid #C8401A':'2px solid transparent';
-  document.getElementById('filterUnpaid').style.border=f==='unpaid'?'2px solid #EF9F27':'2px solid transparent';
-  document.getElementById('filterVerify').style.border=f==='slip_uploaded'?'2px solid #185FA5':'2px solid transparent';
-  renderOwnerList();
-}
 function renderOwnerList(){
   const list=document.getElementById('ownerList');
-  if(!allOwnerOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
-  
-  if(ownerCurrentTab==='payment'){
-    const isDone=o=>{const ds=o.delivery_status||o.status||'';return ds==='done'||String(ds).toLowerCase().trim()==='done';};
-    const isUnpaid=o=>isDone(o)&&(o.payment_status||'pending')!=='verified';
-    let payOrders;
-    if(payFilter==='all') payOrders=allOwnerOrders;
-    else if(payFilter==='unpaid') payOrders=allOwnerOrders.filter(isUnpaid);
-    else payOrders=allOwnerOrders.filter(o=>o.payment_status===payFilter);
-    if(!payOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
-    list.innerHTML=payOrders.map(o=>{
-      const items=parseItems(o.items);
-      const hasSlip=o.slip_url&&o.slip_url!=='';
-      const isVerified=o.payment_status==='verified';
-      const isMismatch=o.payment_status==='rejected';
-      const isSlipUploaded=o.payment_status==='slip_uploaded';
-      let aiBox='';
-      if(o.verify_result){
-        const vr=o.verify_result.split(':');
-        const vrReason=vr[0];
-        if(vrReason==='ai_passed') aiBox=`<div class="ai-result-box verify-ok">🤖 AI ตรวจสอบยอด+ชื่อผู้รับผ่านแล้ว — กรุณาเช็คยอดเงินจริงในบัญชีก่อนกดยืนยัน</div>`;
-        else if(vrReason==='rejected'){
-          const reason=vr[1];
-          if(reason==='amount_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ยอดไม่ตรง ฿${vr[2]} ≠ ฿${o.total}</div>`;
-          else if(reason==='name_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ชื่อผู้รับไม่ตรง (${vr[2]||'ไม่ทราบ'})</div>`;
-          else if(reason==='not_a_slip') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ภาพที่แนบไม่ใช่สลิป</div>`;
-          else if(reason==='amount_unreadable') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: อ่านยอดเงินจากสลิปไม่ได้</div>`;
-        }
-        else if(vrReason==='needs_review') aiBox=`<div class="ai-result-box verify-fail">🤖 AI ตรวจสอบไม่สำเร็จ กรุณาดูสลิปด้วยตาก่อนยืนยัน</div>`;
+  const isCancelled=o=>{const ds=o.delivery_status||o.status||'';return ds==='cancelled'||String(ds).toLowerCase().trim()==='cancelled';};
+  const isDone=o=>{const ds=o.delivery_status||o.status||'';return ds==='done'||String(ds).toLowerCase().trim()==='done';};
+  const isPacking=o=>{const ds=o.delivery_status||o.status||'';return ds==='packing'||String(ds).toLowerCase().trim()==='packing';};
+  const isVerifiedPay=o=>o.payment_status==='verified';
+  const needsAction=o=>!isDone(o)||!isVerifiedPay(o);
+  const activeOrders=allOwnerOrders.filter(o=>!isCancelled(o));
+  let ownerOrders;
+  if(ownerFilter==='action') ownerOrders=activeOrders.filter(needsAction);
+  else if(ownerFilter==='done') ownerOrders=activeOrders.filter(o=>!needsAction(o));
+  else ownerOrders=activeOrders;
+  if(!ownerOrders.length){list.innerHTML='<div style="text-align:center;padding:2rem;color:#aaa;font-size:14px">ไม่มีรายการ</div>';return;}
+  list.innerHTML=ownerOrders.map(o=>{
+    const items=parseItems(o.items);
+    const hasSlip=o.slip_url&&o.slip_url!=='';
+    const isVerified=o.payment_status==='verified';
+    const isMismatch=o.payment_status==='rejected';
+    const isSlipUploaded=o.payment_status==='slip_uploaded';
+    const dBadgeColor=isDone(o)?'badge-done':isPacking(o)?'badge-packing':'badge-pending';
+    const pBadgeColor=isVerified?'badge-done':isSlipUploaded?'badge-confirmed':'badge-pending';
+    let aiBox='';
+    if(o.verify_result){
+      const vr=o.verify_result.split(':');
+      const vrReason=vr[0];
+      if(vrReason==='ai_passed') aiBox=`<div class="ai-result-box verify-ok">🤖 AI ตรวจสอบยอด+ชื่อผู้รับผ่านแล้ว — กรุณาเช็คยอดเงินจริงในบัญชีก่อนกดยืนยัน</div>`;
+      else if(vrReason==='rejected'){
+        const reason=vr[1];
+        if(reason==='amount_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ยอดไม่ตรง ฿${vr[2]} ≠ ฿${o.total}</div>`;
+        else if(reason==='name_mismatch') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ชื่อผู้รับไม่ตรง (${vr[2]||'ไม่ทราบ'})</div>`;
+        else if(reason==='not_a_slip') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ภาพที่แนบไม่ใช่สลิป</div>`;
+        else if(reason==='amount_unreadable') aiBox=`<div class="ai-result-box verify-fail">🤖 AI: อ่านยอดเงินจากสลิปไม่ได้</div>`;
       }
-      let actions='';
-      if(isSlipUploaded||isMismatch){
-        actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
-        actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
-      }
-      if(isVerified){
-        actions+=`<button class="btn-oa" style="background:#FCEBEB;color:#A32D2D;border-color:#F09595" onclick="revertPayment('${o.order_id}')">↩ ยกเลิกการรับเงิน</button>`;
-      }
-      const pBadgeColor=isVerified?'badge-done':isSlipUploaded?'badge-confirmed':'badge-pending';
-      return`<div class="owner-card">
-        <div class="oc-top">
-          <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':''}</div></div>
-          <span class="badge ${pBadgeColor}">${payLabel(o.payment_status)}</span>
-        </div>
-        <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
-        <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
-        ${hasSlip?`<img class="slip-thumb" src="${o.slip_url}" alt="slip">`:'<div style="font-size:12px;color:#aaa;margin-bottom:8px">ยังไม่มีสลิป</div>'}
-        ${aiBox}
-        ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
-        <div class="oc-actions">${actions||'<span style="font-size:12px;color:#aaa">'+payLabel(o.payment_status)+'</span>'}</div>
-      </div>`;
-    }).join('');
-  } else {
-    list.innerHTML=allOwnerOrders.map(o=>{
-      const items=parseItems(o.items);
-      const isDone=o.delivery_status==='done';
-      const dBadgeColor=isDone?'badge-done':'badge-pending';
-      return`<div class="owner-card">
-        <div class="oc-top">
-          <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':''}</div></div>
-          <span class="badge ${dBadgeColor}">${delivLabel(o.delivery_status)}</span>
-        </div>
-        <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
-        <div class="oc-amount">฿${Number(o.total).toLocaleString()}</div>
-        ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
-        <div class="oc-actions"><span style="font-size:12px;color:#aaa">${delivLabel(o.delivery_status)}</span></div>
-      </div>`;
-    }).join('');
-  }
+      else if(vrReason==='needs_review') aiBox=`<div class="ai-result-box verify-fail">🤖 AI ตรวจสอบไม่สำเร็จ กรุณาดูสลิปด้วยตาก่อนยืนยัน</div>`;
+    }
+    let actions='';
+    if(isSlipUploaded||isMismatch){
+      actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
+      actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
+    }
+    if(isVerified){
+      actions+=`<button class="btn-oa" style="background:#FCEBEB;color:#A32D2D;border-color:#F09595" onclick="revertPayment('${o.order_id}')">↩ ยกเลิกการรับเงิน</button>`;
+    }
+    return`<div class="owner-card">
+      <div class="oc-top">
+        <div><div class="oc-name">${o.customer_name}</div><div class="oc-id">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':''}</div></div>
+        <div class="oc-amount" style="margin:0">฿${Number(o.total).toLocaleString()}</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <span class="badge ${dBadgeColor}">${delivLabel(o.delivery_status)}</span>
+        <span class="badge ${pBadgeColor}">${payLabel(o.payment_status)}</span>
+      </div>
+      <div class="oc-items">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div>
+      ${hasSlip?`<img class="slip-thumb" src="${o.slip_url}" alt="slip">`:''}
+      ${aiBox}
+      ${o.note?`<div style="font-size:12px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
+      <div class="oc-actions">${actions}</div>
+    </div>`;
+  }).join('');
 }
 
 async function ownerConfirm(orderId){
