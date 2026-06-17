@@ -1029,7 +1029,8 @@ function renderAdminOrders(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
-  const ds_pending=o=>!ds_done(o)&&!ds_packing(o);
+  const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
+  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
   const is_unpaid=o=>ds_done(o)&&(o.payment_status||'pending')!=='verified';
   let filtered;
   if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
