@@ -29,7 +29,7 @@
     .product-price{font-size:13px;color:#C8401A;margin-bottom:8px}
     .qty-row{display:flex;align-items:center;gap:8px}
     .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
-    .qty-num{font-size:14px;font-weight:500;width:36px;text-align:center;border:1px solid #ddd;border-radius:6px;padding:2px 4px;background:#fff}
+    .qty-num{font-size:14px;font-weight:500;width:48px;text-align:center;border:1px solid #ddd;border-radius:6px;padding:4px 4px;background:#fff}
     .cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;padding:12px 16px;display:none;z-index:100}
     .cart-bar.show{display:block}
     .cart-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -315,13 +315,13 @@
     </div>
     <div onclick="openReorderModal()" style="background:#EEEDFE;margin:10px 12px 4px;border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;border:1px solid #D9D5F8;cursor:pointer">
       <div style="width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <i class="ti ti-recycle" style="font-size:20px;color:#3C3489" aria-hidden="true"></i>
+        <span style="font-size:20px">♻️</span>
       </div>
       <div style="flex:1">
         <div style="font-size:14px;font-weight:700;color:#3C3489">สั่งซ้ำจากออเดอร์เก่า</div>
-        <div id="reorderCountLabel" style="font-size:11px;color:#534AB7;margin-top:1px">เติมลงตะกร้าได้ทันที</div>
+        <div style="font-size:11px;color:#534AB7;margin-top:1px">เลือกแล้วเติมลงตะกร้าได้ทันที</div>
       </div>
-      <i class="ti ti-chevron-right" style="font-size:16px;color:#534AB7" aria-hidden="true"></i>
+      <span style="font-size:16px;color:#534AB7">›</span>
     </div>
     <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:11px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
@@ -347,17 +347,17 @@
       <div style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:4px">ความคิดเห็นของคุณสำคัญมากครับ</div>
       <div style="font-size:13px;color:#888;margin-bottom:16px;line-height:1.5">เลือกว่าอยากให้คะแนนและแนะนำเรื่องอะไรครับ</div>
       <div onclick="goSection('review_shop')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#fdf5f2;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><i class="ti ti-building-store" style="font-size:28px;color:#C8401A" aria-hidden="true"></i></div>
+        <div style="width:52px;height:52px;border-radius:12px;background:#fdf5f2;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><span style="font-size:28px">🏪</span></div>
         <div style="flex:1"><div style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:3px">ติชมร้าน</div><div style="font-size:12px;color:#888">คุณภาพสินค้า ความสะอาด บรรยากาศร้าน</div></div>
         <div style="font-size:18px;color:#ddd">›</div>
       </div>
       <div onclick="goSection('review_staff1')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><i class="ti ti-user" style="font-size:28px;color:#185FA5" aria-hidden="true"></i></div>
+        <div style="width:52px;height:52px;border-radius:12px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><span style="font-size:28px">🧑</span></div>
         <div style="flex:1"><div style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 1</div><div style="font-size:12px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
         <div style="font-size:18px;color:#ddd">›</div>
       </div>
       <div onclick="goSection('review_staff2')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><i class="ti ti-user" style="font-size:28px;color:#3B6D11" aria-hidden="true"></i></div>
+        <div style="width:52px;height:52px;border-radius:12px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0"><span style="font-size:28px">🧑</span></div>
         <div style="flex:1"><div style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 2</div><div style="font-size:12px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
         <div style="font-size:18px;color:#ddd">›</div>
       </div>
@@ -459,7 +459,7 @@
 
 <div id="ownerApp">
   <div class="owner-header">
-    <h1><i class="ti ti-layout-dashboard" style="font-size:18px;margin-right:6px;vertical-align:-2px" aria-hidden="true"></i>Owner Dashboard</h1>
+    <h1><span style="font-size:18px;margin-right:6px">📊</span>Owner Dashboard</h1>
     <p id="ownerSubtitle">ซามูไรไส้กรอก · ภาพรวมทั้งหมด</p>
   </div>
   <div class="tabs">
@@ -502,7 +502,7 @@ async function initCustomer(){
   }catch(e){showError();}
 }
 
-function goHome(){
+function goHome(skipPush){
   document.getElementById('homeScreen').style.display='block';
   document.getElementById('shopSection').style.display='none';
   document.getElementById('paySection').style.display='none';
@@ -511,10 +511,11 @@ function goHome(){
   document.getElementById('reviewSection').style.display='none';
   document.getElementById('cartBar').classList.remove('show');
   if(typeof trackRefreshInterval!=='undefined'&&trackRefreshInterval){clearInterval(trackRefreshInterval);trackRefreshInterval=null;}
+  if(!skipPush) history.pushState({section:'home'},'',location.href);
 }
 
 let currentRating=0;
-async function goSection(section){
+async function goSection(section,skipPush){
   document.getElementById('homeScreen').style.display='none';
   document.getElementById('shopSection').style.display=section==='shop'?'block':'none';
   document.getElementById('paySection').style.display=section==='pay'?'block':'none';
@@ -523,11 +524,20 @@ async function goSection(section){
   document.getElementById('reviewSection').style.display=['review_shop','review_staff1','review_staff2'].includes(section)?'block':'none';
   if(section==='pay') await loadPaySection();
   if(section==='track') await loadTrackSection();
-  if(section==='shop'){updateCart();updateReorderCount();}
+  if(section==='shop'){updateCart();}
   if(section==='review_shop') setupReview('shop');
   if(section==='review_staff1') setupReview('staff1');
   if(section==='review_staff2') setupReview('staff2');
+  if(!skipPush) history.pushState({section:section},'',location.href);
 }
+
+window.addEventListener('popstate',(e)=>{
+  if(e.state&&e.state.section&&e.state.section!=='home'){
+    goSection(e.state.section,true);
+  }else{
+    goHome(true);
+  }
+});
 
 function setupReview(type){
   currentRating=0;
@@ -538,21 +548,21 @@ function setupReview(type){
   document.getElementById('reviewComment').style.display='block';
   if(type==='shop'){
     document.getElementById('reviewTitle').textContent='ติชมร้าน';
-    document.getElementById('reviewAvatar').innerHTML='<i class="ti ti-building-store" style="font-size:34px;color:#C8401A" aria-hidden="true"></i>';
+    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:34px">🏪</span>';
     document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#fdf5f2;border:2px solid #f5c4b3;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
     document.getElementById('reviewName').textContent='ซามูไรไส้กรอก';
     document.getElementById('reviewRole').textContent='ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา';
     document.getElementById('thankMsg').textContent='ความคิดเห็นของคุณช่วยให้เราพัฒนาร้านได้ดียิ่งขึ้นครับ';
   } else if(type==='staff1'){
     document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 1';
-    document.getElementById('reviewAvatar').innerHTML='<i class="ti ti-user" style="font-size:34px;color:#185FA5" aria-hidden="true"></i>';
+    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:34px">🧑</span>';
     document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#E6F1FB;border:2px solid #B5D4F4;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
     document.getElementById('reviewName').textContent='พนักงานคนที่ 1';
     document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
     document.getElementById('thankMsg').textContent='จะส่งต่อให้พนักงานรับทราบครับ เป็นกำลังใจให้ทีมงานมากๆ';
   } else {
     document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 2';
-    document.getElementById('reviewAvatar').innerHTML='<i class="ti ti-user" style="font-size:34px;color:#3B6D11" aria-hidden="true"></i>';
+    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:34px">🧑</span>';
     document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#EAF3DE;border:2px solid #C0DD97;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
     document.getElementById('reviewName').textContent='พนักงานคนที่ 2';
     document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
@@ -788,8 +798,7 @@ function buildHistoryCard(o){
   const tl4=ps==='verified'?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">ชำระเงินแล้ว ✓</div></div>`:ps==='slip_uploaded'?`<div class="tr"><div class="dot d-blue"></div><div class="tlabel" style="color:#185FA5">รอตรวจสอบสลิป</div></div>`:'';
   const canEdit=(ps==='pending'||ps==='')&&!isDoneDelivery&&!isPackingDelivery;
   const canCancel=canEdit;
-  const canSlip=(ps==='pending'||ps==='rejected'||ps==='')&&isDoneDelivery;
-  const canGoToPay=isDoneDelivery&&(ps==='pending'||ps==='');
+  const canGoToPay=isDoneDelivery&&ps!=='verified';
   const btnStyle='font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap';
   let editBtn=canEdit
     ?`<button style="${btnStyle};background:#fff;border:1px solid #ddd;color:#555" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไขออร์เดอร์</button>`
@@ -800,7 +809,6 @@ function buildHistoryCard(o){
   let payBtn=canGoToPay
     ?`<button style="${btnStyle};background:#C8401A;border:none;color:#fff" onclick="show('app');goSection('pay')">ชำระเงิน →</button>`
     :'';
-  let slipBtn=canSlip?`<button class="btn-edit" style="background:#C8401A;color:#fff;border-color:#C8401A" onclick="toggleSlipUpload('${o.order_id}')">${ps==='rejected'?'แนบสลิปใหม่':'แนบสลิป'}</button>`:'';
   return`<div class="order-card" id="hcard${o.order_id}">
     <div class="order-top"><div><div class="order-id">${o.order_id}</div><div class="order-date">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>${badge}</div>
     <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
@@ -809,14 +817,7 @@ function buildHistoryCard(o){
     <div class="tl">${tl1}${tl2}${tl3}${tl4}</div>
     <div class="order-footer">
       <div class="order-total">฿${Number(o.total).toLocaleString()}</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${cancelBtn}${editBtn}${payBtn}${slipBtn}</div>
-    </div>
-    <div class="slip-upload-inline" id="slipInline${o.order_id}">
-      <input type="file" id="slipFile${o.order_id}" accept="image/*" style="display:none" onchange="previewSlipInline(event,'${o.order_id}')">
-      <div class="upload-box" id="slipBox${o.order_id}" onclick="document.getElementById('slipFile${o.order_id}').click()"><div style="font-size:22px;color:#C8401A;margin-bottom:4px">📎</div><div style="font-size:13px;color:#888">แตะเพื่อเลือกรูปสลิป</div></div>
-      <img id="slipPreview${o.order_id}" class="slip-img-preview" src="" alt="slip" style="display:none">
-      <button class="btn-slip-send" id="slipBtn${o.order_id}" onclick="submitSlipFromHistory('${o.order_id}')" style="display:none">ส่งหลักฐานการชำระเงิน</button>
-      <div id="slipResult${o.order_id}"></div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${cancelBtn}${editBtn}${payBtn}</div>
     </div>
   </div>`;
 }
@@ -885,7 +886,7 @@ function renderEditModal(items,note){
     const imgHtml=prod.image_url
       ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
       :`<div class="edit-img-placeholder">🛍️</div>`;
-    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${price.toLocaleString()} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="width:40px;font-size:14px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
+    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${price.toLocaleString()} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="font-size:14px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
   html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${note}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${calcEditTotal().toLocaleString()}</span></div>`;
@@ -1241,20 +1242,6 @@ function cancelOrder(orderId){
   };
 }
 
-async function updateReorderCount(){
-  try{
-    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-    const orders=await res.json();
-    const completed=orders.filter(o=>{
-      const ds=o.delivery_status||o.status||'';
-      const isDone=ds==='done'||String(ds).toLowerCase().trim()==='done';
-      return isDone&&o.payment_status==='verified';
-    });
-    const label=document.getElementById('reorderCountLabel');
-    if(label) label.textContent=completed.length>0?`มี ${completed.length} ออเดอร์เก่าให้เลือก`:'เติมลงตะกร้าได้ทันที';
-  }catch(e){}
-}
-
 async function openReorderModal(){
   document.getElementById('reorderModal').style.display='flex';
   const body=document.getElementById('reorderModalBody');
@@ -1399,8 +1386,8 @@ function renderOwnerList(){
       let aiBox='';
       if(o.verify_result){
         const vr=o.verify_result.split(':');
-        if(isVerified) aiBox=`<div class="ai-result-box verify-ok"><i class="ti ti-robot" aria-hidden="true"></i> AI: ยอดตรงกัน ✓</div>`;
-        else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail"><i class="ti ti-robot" aria-hidden="true"></i> AI: ยอดไม่ตรง ฿${vr[1]} ≠ ฿${o.total}</div>`;
+        if(isVerified) aiBox=`<div class="ai-result-box verify-ok">🤖 AI: ยอดตรงกัน ✓</div>`;
+        else if(isMismatch) aiBox=`<div class="ai-result-box verify-fail">🤖 AI: ยอดไม่ตรง ฿${vr[1]} ≠ ฿${o.total}</div>`;
       }
       let actions='';
       if(isSlipUploaded||isMismatch){
@@ -1504,10 +1491,10 @@ async function ownerReject(orderId){
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">แจ้งยอดชำระ</div></div></div>
     </div>
     <button onclick="show('app');goHome()" style="width:100%;padding:14px;background:#C8401A;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px">
-      <i class="ti ti-home" aria-hidden="true"></i> กลับหน้าหลัก
+      🏠 กลับหน้าหลัก
     </button>
     <button onclick="show('app');goSection('track')" style="width:100%;padding:9px;background:none;border:none;font-size:12px;color:#aaa;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
-      <i class="ti ti-edit" style="font-size:13px" aria-hidden="true"></i> แก้ไขออเดอร์นี้
+      <span style="font-size:13px">✏️</span> แก้ไขออเดอร์นี้
     </button>
     <div class="copy-toast" id="copyToast">คัดลอกแล้ว ✓</div>
     <div style="text-align:center;font-size:11px;color:#aaa;margin-top:4px">ซามูไรไส้กรอก 🌭</div>
