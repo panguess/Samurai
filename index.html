@@ -313,16 +313,10 @@
         <div class="header-name" style="font-size:18px">สั่งสินค้า</div>
       </div>
     </div>
-    <div onclick="openReorderModal()" style="background:#EEEDFE;margin:10px 12px 4px;border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;border:1px solid #D9D5F8;cursor:pointer">
-      <div style="width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <span style="font-size:20px">♻️</span>
-      </div>
-      <div style="flex:1">
-        <div style="font-size:14px;font-weight:700;color:#3C3489">สั่งซ้ำจากออเดอร์เก่า</div>
-        <div style="font-size:11px;color:#534AB7;margin-top:1px">เลือกแล้วเติมลงตะกร้าได้ทันที</div>
-      </div>
-      <span style="font-size:16px;color:#534AB7">›</span>
-    </div>
+    <button onclick="openReorderModal()" style="width:calc(100% - 24px);margin:10px 12px 4px;background:#fff;border:2px solid #534AB7;border-radius:999px;padding:13px 18px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer">
+      <span style="font-size:19px;color:#534AB7">↻</span>
+      <span style="font-size:14px;font-weight:700;color:#534AB7">สั่งซ้ำจากออเดอร์เก่า</span>
+    </button>
     <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:11px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
     <div class="cart-bar" id="cartBar">
