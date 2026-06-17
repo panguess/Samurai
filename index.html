@@ -428,8 +428,8 @@
   <div class="tabs">
     <div class="tab active" onclick="switchAdminTab('pending')" id="adminTabPending">⏳ รอจัด</div>
     <div class="tab" onclick="switchAdminTab('packing')" id="adminTabPacking">🔄 กำลังจัด</div>
-    <div class="tab" onclick="switchAdminTab('done')" id="adminTabDone">✅ จัดแล้ว</div>
     <div class="tab" onclick="switchAdminTab('unpaid')" id="adminTabUnpaid" style="color:#854f0b">💰 ค้างชำระ</div>
+    <div class="tab" onclick="switchAdminTab('done')" id="adminTabDone">✅ เสร็จสมบูรณ์</div>
   </div>
   <div class="admin-list" id="adminList"></div>
 </div>
@@ -932,8 +932,8 @@ function switchAdminTab(tab){
   adminCurrentTab=tab;
   document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
   document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
-  document.getElementById('adminTabDone').classList.toggle('active',tab==='done');
   document.getElementById('adminTabUnpaid').classList.toggle('active',tab==='unpaid');
+  document.getElementById('adminTabDone').classList.toggle('active',tab==='done');
   renderAdminOrders();
 }
 
@@ -951,11 +951,20 @@ function renderAdminOrders(){
   const pendingCount=allAdminOrders.filter(ds_pending).length;
   const packingCount=allAdminOrders.filter(ds_packing).length;
   const unpaidCount=allAdminOrders.filter(is_unpaid).length;
-  document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount} · กำลังจัด ${packingCount} · ค้างชำระ ${unpaidCount}`;
+  document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount} · กำลังจัด ${packingCount} · ค้างชำระ ${unpaidCount}`; // ตัวเลขหลักอยู่ที่แท็บแล้ว
   document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount>0?' ('+packingCount+')':''}`;
   document.getElementById('adminTabUnpaid').textContent=`💰 ค้างชำระ${unpaidCount>0?' ('+unpaidCount+')':''}`;
   const list=document.getElementById('adminList');
-  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่จัดแล้ว',unpaid:'ไม่มีรายการค้างชำระ 🎉'};
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',unpaid:'ไม่มีรายการค้างชำระ 🎉',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
+  // อัพเดตตัวเลขข้างแท็บทุกครั้ง
+  const pendingCount2=allAdminOrders.filter(ds_pending).length;
+  const packingCount2=allAdminOrders.filter(ds_packing).length;
+  const unpaidCount2=allAdminOrders.filter(is_unpaid).length;
+  const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&!is_unpaid(o)).length;
+  document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
+  document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
+  document.getElementById('adminTabUnpaid').textContent=`💰 ค้างชำระ${unpaidCount2>0?' ('+unpaidCount2+')':''}`;
+  document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
   list.innerHTML=filtered.map(o=>{
     const items=parseItems(o.items);
@@ -964,7 +973,7 @@ function renderAdminOrders(){
     const isPacking=ds_packing(o);
     const isDone=ds_done(o);
     const isUnpaid=is_unpaid(o);
-    const canAdjustQty=isPending||isPacking;
+    const canAdjustQty=isPacking; // รอจัด = อ่านอย่างเดียว, กำลังจัด = แก้ได้
     const itemsHtml=items.map((item,idx)=>{
       const prod=prodMap[item.name]||{};
       const imgHtml=prod.image_url
@@ -972,29 +981,37 @@ function renderAdminOrders(){
         :`<div class="admin-item-img-placeholder">🛍️</div>`;
       return`<div class="admin-item-row">${imgHtml}<div class="admin-item-name">${item.name}</div>${canAdjustQty?`<div class="admin-item-qty-row"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#C8401A;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
-    let topRight='';
-    if(isPending) topRight=`<button class="btn-done" style="background:#534AB7" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
-    else if(isPacking) topRight=`<button class="btn-done" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`;
-    else if(isDone&&isUnpaid) topRight=`<span class="badge" style="background:#faeeda;color:#633806;border:0.5px solid #EF9F27">ค้างชำระ</span>`;
-    else topRight=`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`;
+    // topRight: เฉพาะ badge ไม่มีปุ่ม action บนขวาแล้ว
+    let topBadge='';
+    if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
+    else if(isPacking) topBadge=`<span class="badge" style="background:#EEEDFE;color:#3C3489">กำลังจัด</span>`;
+    else if(isUnpaid) topBadge=`<span class="badge" style="background:#faeeda;color:#633806;border:0.5px solid #EF9F27">ค้างชำระ</span>`;
+    else topBadge=`<span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>`;
     const cardStyle=isUnpaid?'border:1.5px solid #EF9F27;background:#fffdf7':'';
     let unpaidNote='';
     if(isUnpaid){
-      const daysAgo=o.done_at?Math.floor((Date.now()-new Date(o.done_at))/86400000):null;
-      unpaidNote=`<div style="font-size:11px;color:#854F0B;margin:6px 12px;padding:6px 8px;background:#fff;border-radius:6px;border:0.5px solid #EF9F27">จัดเสร็จแล้ว${daysAgo!==null?' '+daysAgo+' วันที่แล้ว':''} · ยังไม่ได้รับเงิน</div>`;
+      const willTransfer=o.note&&o.note.includes('[รอโอน]');
+      unpaidNote=`<div style="font-size:11px;color:${willTransfer?'#185FA5':'#854F0B'};margin:6px 12px;padding:6px 8px;background:#fff;border-radius:6px;border:0.5px solid ${willTransfer?'#85B7EB':'#EF9F27'}">${willTransfer?'💬 ลูกค้าแจ้งจะโอนตามหลัง':'จัดเสร็จแล้ว · ยังไม่ได้รับเงิน'}</div>`;
     }
-    const cashBtn=isUnpaid?`<button class="btn-done" style="background:#1a0a06;font-size:12px" onclick="markPaidCash('${o.order_id}')">รับเงินแล้ว (หน้าร้าน)</button>`:'';
+    // footer: ปุ่ม action อยู่ขวาล่าง
+    let footerBtns='';
+    if(isPending) footerBtns=`<button class="btn-done" style="background:#534AB7;font-size:12px" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
+    else if(isPacking) footerBtns=`<button class="btn-done" style="font-size:12px" onclick="markDone('${o.order_id}')">จัดเสร็จแล้ว ✓</button>`;
+    else if(isUnpaid) footerBtns=`<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="btn-done" style="background:#185FA5;font-size:11px" onclick="markWillTransfer('${o.order_id}')">จะโอนตามหลัง</button>
+      <button class="btn-done" style="background:#1a0a06;font-size:11px" onclick="markPaidCash('${o.order_id}')">รับเงินแล้ว (หน้าร้าน)</button>
+    </div>`;
     return`<div class="admin-order-card" style="${cardStyle}">
       <div class="admin-order-top" style="${isUnpaid?'background:#faeeda':''}">
         <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
-        ${topRight}
+        ${topBadge}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
-      ${o.note?`<div class="admin-note">📝 ${o.note}</div>`:''}
+      ${o.note&&!o.note.includes('[รอโอน]')?`<div class="admin-note">📝 ${o.note}</div>`:''}
       ${unpaidNote}
       <div class="admin-order-footer" style="${isUnpaid?'background:#faeeda':''}">
         <div class="admin-total" id="atotal${o.order_id}">฿${Number(o.total).toLocaleString()}</div>
-        ${cashBtn}
+        ${footerBtns}
       </div>
     </div>`;
   }).join('');
@@ -1065,6 +1082,43 @@ async function markPaidCash(orderId){
     if(order)order.payment_status='verified';
     renderAdminOrders();showToast('รับเงินแล้ว ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+}
+
+async function markWillTransfer(orderId){
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  if(!order)return;
+  const newNote=(order.note||'').replace('[รอโอน]','').trim()+' [รอโอน]';
+  try{
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:order.items,total:order.total,note:newNote})});
+    order.note=newNote;
+    renderAdminOrders();showToast('บันทึกแล้ว — รอลูกค้าโอนตามหลัง 💬');
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+}
+
+async function revertPayment(orderId){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
+    <div style="font-size:22px;margin-bottom:10px">↩️</div>
+    <div style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px">ยกเลิกการรับเงิน?</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะกลับไปสถานะ "รอชำระ"</div>
+    <div style="display:flex;gap:10px">
+      <button id="rvNo" style="flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer;color:#555">ยกเลิก</button>
+      <button id="rvYes" style="flex:1;padding:12px;border-radius:10px;border:none;background:#A32D2D;color:#fff;font-size:14px;font-weight:500;cursor:pointer">ยืนยัน</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#rvNo').onclick=()=>overlay.remove();
+  overlay.querySelector('#rvYes').onclick=async()=>{
+    overlay.remove();
+    try{
+      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updatePayment',order_id:orderId,payment_status:'pending'})});
+      const o=allOwnerOrders.find(x=>x.order_id===orderId);
+      if(o)o.payment_status='pending';
+      renderOwnerStats();renderOwnerList();
+      showToast('ยกเลิกการรับเงินแล้ว');
+    }catch(e){alert('เกิดข้อผิดพลาด');}
+  };
 }
 
 function buildPayCard(o){
@@ -1249,6 +1303,9 @@ function renderOwnerList(){
       if(isSlipUploaded||isMismatch){
         actions+=`<button class="btn-oa btn-confirm-pay" onclick="ownerConfirm('${o.order_id}')">✓ ยืนยันรับเงิน</button>`;
         actions+=`<button class="btn-oa btn-reject" onclick="ownerReject('${o.order_id}')">✗ แจ้งโอนใหม่</button>`;
+      }
+      if(isVerified){
+        actions+=`<button class="btn-oa" style="background:#FCEBEB;color:#A32D2D;border-color:#F09595" onclick="revertPayment('${o.order_id}')">↩ ยกเลิกการรับเงิน</button>`;
       }
       const pBadgeColor=isVerified?'badge-done':isSlipUploaded?'badge-confirmed':'badge-pending';
       return`<div class="owner-card">
