@@ -577,12 +577,20 @@ async function loadPaySection(){
   try{
     const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
     const orders=await res.json();
-    const payOrders=orders.filter(o=>{
-      const ps=o.payment_status||'pending';
-      return ps==='pending'||ps==='rejected'||ps==='slip_uploaded';
-    });
-    if(!payOrders.length){list.innerHTML='<div class="empty-state">ไม่มีรายการค้างชำระ 🎉</div>';return;}
-    list.innerHTML=payOrders.map(o=>buildHistoryCard(o)).join('');
+    const ds_done=o=>{const ds=o.delivery_status||o.status||'';return ds==='done'||String(ds).toLowerCase().trim()==='done';};
+    const pendingPay=orders.filter(o=>ds_done(o)&&(o.payment_status||'pending')!=='verified');
+    const paidOrders=orders.filter(o=>o.payment_status==='verified');
+    if(!pendingPay.length&&!paidOrders.length){list.innerHTML='<div class="empty-state">ไม่มีรายการชำระเงิน</div>';return;}
+    let html='';
+    if(pendingPay.length){
+      html+=`<div style="font-size:11px;font-weight:500;color:#854f0b;padding:8px 4px 2px;letter-spacing:0.4px">รอชำระ ${pendingPay.length} รายการ</div>`;
+      html+=pendingPay.map(o=>buildPayCard(o)).join('');
+    }
+    if(paidOrders.length){
+      html+=`<div style="font-size:11px;color:#aaa;text-align:center;padding:10px 4px 2px;letter-spacing:0.4px">— ชำระแล้ว —</div>`;
+      html+=paidOrders.map(o=>buildPaidCard(o)).join('');
+    }
+    list.innerHTML=html;
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
 }
 
@@ -594,7 +602,11 @@ async function loadTrackSection(){
     const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
     const orders=await res.json();
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
-    list.innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
+    // แสดงทุกออร์เดอร์ที่ยังไม่ชำระ + ออร์เดอร์ล่าสุด 3 รายการที่ชำระแล้ว
+    const active=orders.filter(o=>o.payment_status!=='verified');
+    const paid=orders.filter(o=>o.payment_status==='verified').slice(0,3);
+    const display=[...active,...paid];
+    list.innerHTML=display.map(o=>buildHistoryCard(o)).join('');
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
   // Auto-refresh ทุก 15 วินาที เมื่ออยู่หน้า track
   if(trackRefreshInterval) clearInterval(trackRefreshInterval);
@@ -754,8 +766,19 @@ function buildHistoryCard(o){
   const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-pay"></div><div class="tlabel" style="color:#e65100;font-weight:500">จัดสินค้าสำเร็จ ✓</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
   const tl4=ps==='verified'?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">ชำระเงินแล้ว ✓</div></div>`:ps==='slip_uploaded'?`<div class="tr"><div class="dot d-blue"></div><div class="tlabel" style="color:#185FA5">รอตรวจสอบสลิป</div></div>`:'';
   const canEdit=(ps==='pending'||ps==='')&&!isDoneDelivery&&!isPackingDelivery;
+  const canCancel=canEdit;
   const canSlip=(ps==='pending'||ps==='rejected'||ps==='')&&isDoneDelivery;
-  let editBtn=canEdit?`<button class="btn-edit" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไข order</button>`:`<button class="btn-edit disabled" disabled>แก้ไขไม่ได้</button>`;
+  const canGoToPay=isDoneDelivery&&(ps==='pending'||ps==='');
+  const btnStyle='font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap';
+  let editBtn=canEdit
+    ?`<button style="${btnStyle};background:#fff;border:1px solid #ddd;color:#555" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไขออร์เดอร์</button>`
+    :'';
+  let cancelBtn=canCancel
+    ?`<button style="${btnStyle};background:#FCEBEB;border:1px solid #F09595;color:#A32D2D" onclick="cancelOrder('${o.order_id}')">ยกเลิกออร์เดอร์</button>`
+    :'';
+  let payBtn=canGoToPay
+    ?`<button style="${btnStyle};background:#C8401A;border:none;color:#fff" onclick="show('app');goSection('pay')">ชำระเงิน →</button>`
+    :'';
   let slipBtn=canSlip?`<button class="btn-edit" style="background:#C8401A;color:#fff;border-color:#C8401A" onclick="toggleSlipUpload('${o.order_id}')">${ps==='rejected'?'แนบสลิปใหม่':'แนบสลิป'}</button>`:'';
   return`<div class="order-card" id="hcard${o.order_id}">
     <div class="order-top"><div><div class="order-id">${o.order_id}</div><div class="order-date">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>${badge}</div>
@@ -763,7 +786,10 @@ function buildHistoryCard(o){
     ${o.note?`<div class="order-note">📝 ${o.note}</div>`:''}
     ${statusBox}
     <div class="tl">${tl1}${tl2}${tl3}${tl4}</div>
-    <div class="order-footer"><div class="order-total">฿${Number(o.total).toLocaleString()}</div><div style="display:flex;gap:6px">${slipBtn}${editBtn}</div></div>
+    <div class="order-footer">
+      <div class="order-total">฿${Number(o.total).toLocaleString()}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${cancelBtn}${editBtn}${payBtn}${slipBtn}</div>
+    </div>
     <div class="slip-upload-inline" id="slipInline${o.order_id}">
       <input type="file" id="slipFile${o.order_id}" accept="image/*" style="display:none" onchange="previewSlipInline(event,'${o.order_id}')">
       <div class="upload-box" id="slipBox${o.order_id}" onclick="document.getElementById('slipFile${o.order_id}').click()"><div style="font-size:22px;color:#C8401A;margin-bottom:4px">📎</div><div style="font-size:13px;color:#888">แตะเพื่อเลือกรูปสลิป</div></div>
@@ -817,11 +843,15 @@ async function submitSlipFromHistory(orderId){
 function openEditOrder(orderId,itemsEncoded,total,noteEncoded){
   const itemsText=decodeURIComponent(itemsEncoded);
   const note=decodeURIComponent(noteEncoded);
-  const items=parseItems(itemsText);
-  editingOrder={orderId,items,total,note};
+  const orderedItems=parseItems(itemsText);
+  const orderedMap={};
+  orderedItems.forEach(i=>{orderedMap[i.name]=i.qty;});
+  // ขึ้นสินค้าทั้ง group โดย pre-fill qty จากที่สั่งไว้
+  const allItems=products.map(p=>({name:p.name,qty:orderedMap[p.name]||0,price:Number(p.price)||0}));
+  editingOrder={orderId,items:allItems,total,note};
   editQtys={};
-  items.forEach((item,idx)=>{editQtys[idx]=item.qty;});
-  renderEditModal(items,note);
+  allItems.forEach((item,idx)=>{editQtys[idx]=item.qty;});
+  renderEditModal(allItems,note);
   document.getElementById('editModal').style.display='flex';
 }
 
@@ -830,11 +860,11 @@ function renderEditModal(items,note){
   products.forEach(p=>{prodMap[p.name]=p;});
   let html=items.map((item,idx)=>{
     const prod=prodMap[item.name]||{};
-    const price=prod.price?Number(prod.price):0;
+    const price=Number(prod.price)||item.price||0;
     const imgHtml=prod.image_url
       ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
       :`<div class="edit-img-placeholder">🛍️</div>`;
-    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${price.toLocaleString()} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><span class="edit-qty-num" id="eq${idx}">${item.qty}</span><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
+    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${price.toLocaleString()} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="width:40px;font-size:14px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
   html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${note}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${calcEditTotal().toLocaleString()}</span></div>`;
@@ -843,13 +873,21 @@ function renderEditModal(items,note){
 
 function editChg(idx,delta){
   editQtys[idx]=Math.max(0,(editQtys[idx]||0)+delta);
-  const el=document.getElementById('eq'+idx);if(el)el.textContent=editQtys[idx];
+  const el=document.getElementById('eq'+idx);if(el)el.value=editQtys[idx];
+  document.getElementById('editTotalDisplay').textContent=calcEditTotal().toLocaleString();
+}
+
+function editSet(idx,val){
+  editQtys[idx]=Math.max(0,Math.min(999,parseInt(val)||0));
   document.getElementById('editTotalDisplay').textContent=calcEditTotal().toLocaleString();
 }
 
 function calcEditTotal(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
-  return editingOrder.items.reduce((sum,item,idx)=>sum+(editQtys[idx]||0)*(prodMap[item.name]||0),0);
+  return editingOrder.items.reduce((sum,item,idx)=>{
+    const price=prodMap[item.name]||item.price||0;
+    return sum+(editQtys[idx]||0)*price;
+  },0);
 }
 
 async function saveEdit(){
@@ -857,12 +895,16 @@ async function saveEdit(){
   btn.disabled=true;btn.textContent='กำลังบันทึก...';
   const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
   const newItems=editingOrder.items.map((item,idx)=>({...item,qty:editQtys[idx]||0})).filter(i=>i.qty>0);
-  const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
+  const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||i.price||0),0);
   const newNote=document.getElementById('editNote').value.trim();
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote})});
-    closeEditModal();showToast('บันทึกเรียบร้อยแล้ว ✓');await loadHistory();
+    closeEditModal();
+    showToast('บันทึกเรียบร้อยแล้ว ✓');
+    // รอ GAS propagate แล้วโหลดใหม่
+    await new Promise(r=>setTimeout(r,1200));
+    await loadTrackSection();
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
 }
@@ -1023,6 +1065,68 @@ async function markPaidCash(orderId){
     if(order)order.payment_status='verified';
     renderAdminOrders();showToast('รับเงินแล้ว ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+}
+
+function buildPayCard(o){
+  const ps=o.payment_status||'pending';
+  const items=parseItems(o.items);
+  const itemSummary=items.length>1?items[0].name+' และอีก '+(items.length-1)+' รายการ':items[0]?.name||'';
+  let slipSection='';
+  if(ps==='slip_uploaded'){
+    slipSection=`<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:9px 12px;font-size:12px;color:#185FA5;margin:8px">ส่งสลิปแล้ว รอตรวจสอบ กรุณารอสักครู่ครับ</div>`;
+  } else if(ps==='rejected'){
+    const vr=o.verify_result?o.verify_result.split(':'):['',''];
+    const diff=vr[1]?(Number(o.total)-Number(vr[1])).toLocaleString():'';
+    slipSection=`<div style="background:#FCEBEB;border:1px solid #F09595;border-radius:8px;padding:9px 12px;font-size:12px;color:#A32D2D;margin:8px">⚠️ ยอดไม่ตรง กรุณาโอนเพิ่ม ฿${diff} แล้วแนบสลิปใหม่</div>`;
+  }
+  const canSlip=ps==='pending'||ps==='rejected'||ps==='';
+  return`<div class="order-card" style="border:1.5px solid #C8401A;padding:0;overflow:hidden" id="pcard${o.order_id}">
+    <div style="background:#fdf5f2;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f5c4b3">
+      <div><div style="font-size:11px;font-family:monospace;color:#993C1D">${o.order_id}</div><div style="font-size:12px;color:#555;margin-top:2px">${itemSummary}</div></div>
+      <span style="font-size:10px;padding:3px 9px;border-radius:20px;background:#faeeda;color:#633806;font-weight:500">${ps==='slip_uploaded'?'รอ verify':ps==='rejected'?'ยอดไม่ตรง':'รอชำระ'}</span>
+    </div>
+    <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f5ede8">
+      <div style="width:32px;height:32px;border-radius:8px;background:#4e2e8a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;flex-shrink:0">SCB</div>
+      <div style="flex:1"><div style="font-size:14px;font-weight:500;color:#C8401A;font-family:monospace;letter-spacing:1px">123-456-789</div><div style="font-size:11px;color:#888">บุษราพร โชคดีสิริกุล</div></div>
+      <button onclick="navigator.clipboard&&navigator.clipboard.writeText('123456789');showToast('คัดลอกแล้ว ✓')" style="font-size:11px;padding:5px 10px;background:#fff;border:1px solid #ddd;border-radius:6px;cursor:pointer;color:#555">คัดลอก</button>
+    </div>
+    <div style="background:#C8401A;padding:10px 14px;text-align:center">
+      <div style="font-size:10px;color:rgba(255,255,255,0.8);margin-bottom:2px">ยอดที่ต้องโอน</div>
+      <div style="font-size:22px;font-weight:600;color:#fff">฿${Number(o.total).toLocaleString()}</div>
+    </div>
+    ${slipSection}
+    ${canSlip?`<div style="margin:8px">
+      <input type="file" id="slipFile${o.order_id}" accept="image/*" style="display:none" onchange="previewSlipInline(event,'${o.order_id}')">
+      <div class="upload-box" id="slipBox${o.order_id}" onclick="document.getElementById('slipFile${o.order_id}').click()" style="margin:0"><div style="font-size:18px;color:#C8401A;margin-bottom:4px">📎</div><div style="font-size:12px;color:#888">${ps==='rejected'?'แนบสลิปใหม่':'แตะเพื่อแนบสลิป'}</div></div>
+      <img id="slipPreview${o.order_id}" class="slip-img-preview" src="" alt="slip" style="display:none">
+      <button class="btn-slip-send" id="slipBtn${o.order_id}" onclick="submitSlipFromHistory('${o.order_id}')" style="display:none">ส่งหลักฐานการชำระเงิน</button>
+      <div id="slipResult${o.order_id}"></div>
+    </div>`:''}
+  </div>`;
+}
+
+function buildPaidCard(o){
+  const items=parseItems(o.items);
+  return`<div class="order-card" style="opacity:0.7;padding:10px 14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-size:11px;font-family:monospace;color:#aaa">${o.order_id}</div><div style="font-size:12px;color:#555;margin-top:1px">${items.map(i=>i.name+' ×'+i.qty).join(', ')}</div></div>
+      <span style="font-size:10px;padding:3px 9px;border-radius:20px;background:#EAF3DE;color:#27500A;font-weight:500;white-space:nowrap">ชำระแล้ว ✓</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px">
+      <span style="font-size:13px;font-weight:500;color:#3B6D11">฿${Number(o.total).toLocaleString()}</span>
+      <span style="font-size:11px;color:#aaa">${o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH'):''}</span>
+    </div>
+  </div>`;
+}
+
+async function cancelOrder(orderId){
+  if(!confirm('ยืนยันยกเลิกออร์เดอร์ '+orderId+'?')) return;
+  try{
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
+    showToast('ยกเลิกออร์เดอร์แล้ว');
+    await new Promise(r=>setTimeout(r,1200));
+    await loadTrackSection();
+  }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
 }
 
 function parseItems(itemsText){
