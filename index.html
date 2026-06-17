@@ -285,20 +285,20 @@
         </div>
         <div class="bb-arrow" style="color:#C8401A;opacity:0.7">›</div>
       </button>
+      <button class="big-btn big-btn-white" onclick="goSection('track')">
+        <div class="bb-icon bb-icon-3">📦</div>
+        <div style="flex:1">
+          <div class="bb-title" style="color:#185FA5">ติดตามสถานะ</div>
+          <div class="bb-sub">ดูสถานะออเดอร์และประวัติการสั่ง</div>
+        </div>
+        <div class="bb-arrow">›</div>
+      </button>
       <button class="big-btn big-btn-white" onclick="goSection('pay')">
         <div class="bb-icon bb-icon-2">💳</div>
         <div style="flex:1">
           <div class="bb-title" style="color:#e65100">ชำระเงิน</div>
           <div class="bb-sub">โอนเงินค้างชำระหรือแนบสลิปยืนยัน</div>
           <span class="bb-badge" id="pendingPayBadge" style="display:none">ค้างชำระ</span>
-        </div>
-        <div class="bb-arrow">›</div>
-      </button>
-      <button class="big-btn big-btn-white" onclick="goSection('track')">
-        <div class="bb-icon bb-icon-3">📦</div>
-        <div style="flex:1">
-          <div class="bb-title" style="color:#185FA5">ติดตามสถานะ</div>
-          <div class="bb-sub">ดูสถานะออเดอร์และประวัติการสั่ง</div>
         </div>
         <div class="bb-arrow">›</div>
       </button>
@@ -1119,14 +1119,31 @@ function buildPaidCard(o){
   </div>`;
 }
 
-async function cancelOrder(orderId){
-  if(!confirm('ยืนยันยกเลิกออร์เดอร์ '+orderId+'?')) return;
-  try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
+function cancelOrder(orderId){
+  // สร้าง custom dialog แทน confirm()
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
+    <div style="font-size:22px;margin-bottom:10px">🗑️</div>
+    <div style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px">ยกเลิกออร์เดอร์?</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะถูกลบออกจากระบบ</div>
+    <div style="display:flex;gap:10px">
+      <button id="cancelNo" style="flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;cursor:pointer;color:#555">ไม่ยกเลิก</button>
+      <button id="cancelYes" style="flex:1;padding:12px;border-radius:10px;border:none;background:#A32D2D;color:#fff;font-size:14px;font-weight:500;cursor:pointer">ยืนยันยกเลิก</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#cancelNo').onclick=()=>overlay.remove();
+  overlay.querySelector('#cancelYes').onclick=async()=>{
+    overlay.remove();
+    // ลบออกจาก DOM ทันที
+    const card=document.getElementById('hcard'+orderId);
+    if(card)card.remove();
     showToast('ยกเลิกออร์เดอร์แล้ว');
-    await new Promise(r=>setTimeout(r,1200));
-    await loadTrackSection();
-  }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
+    try{
+      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
+    }catch(e){}
+  };
 }
 
 function parseItems(itemsText){
