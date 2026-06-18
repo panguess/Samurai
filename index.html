@@ -20,7 +20,7 @@
     .header-name{font-size:22px;font-weight:600}
     .header-sub{font-size:13px;opacity:0.8;margin-top:4px}
     .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
-    .tab{flex:1;padding:12px;text-align:center;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent}
+    .tab{flex:1;padding:10px 4px;text-align:center;font-size:11.5px;cursor:pointer;color:#888;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#D64109;border-bottom-color:#D64109;font-weight:500}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
     .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
@@ -410,8 +410,10 @@
     <div class="tab active" onclick="switchAdminTab('pending')" id="adminTabPending">⏳ รอจัด</div>
     <div class="tab" onclick="switchAdminTab('packing')" id="adminTabPacking">🔄 กำลังจัด</div>
     <div class="tab" onclick="switchAdminTab('done')" id="adminTabDone">✅ เสร็จสมบูรณ์</div>
+    <div class="tab" onclick="switchAdminTab('overview')" id="adminTabOverview">📊 ภาพรวม</div>
   </div>
   <div class="admin-list" id="adminList"></div>
+  <div id="adminOverview" style="display:none;padding:12px"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -840,7 +842,8 @@ async function initAdmin(){
       if(text===lastAdminOrdersHash) return;
       lastAdminOrdersHash=text;
       allAdminOrders=JSON.parse(text);
-      renderAdminOrders();
+      if(adminCurrentTab==='overview') renderAdminOverview();
+      else renderAdminOrders();
     }catch(e){}
   },10000);
 }
@@ -861,7 +864,11 @@ function switchAdminTab(tab){
   document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
   document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
   document.getElementById('adminTabDone').classList.toggle('active',tab==='done');
-  renderAdminOrders();
+  document.getElementById('adminTabOverview').classList.toggle('active',tab==='overview');
+  document.getElementById('adminList').style.display=tab==='overview'?'none':'flex';
+  document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
+  if(tab==='overview') renderAdminOverview();
+  else renderAdminOrders();
 }
 
 function renderAdminOrders(){
@@ -919,6 +926,107 @@ function renderAdminOrders(){
       </div>
     </div>`;
   }).join('');
+}
+
+let overviewSearchTerm='';
+let openOverviewCustomers=new Set();
+function renderAdminOverview(){
+  const wrap=document.getElementById('adminOverview');
+  const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
+  const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
+  const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
+  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
+  const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
+
+  const today=new Date().toDateString();
+  const todayOrders=activeOrders.filter(o=>o.timestamp&&new Date(o.timestamp).toDateString()===today);
+  const customerNames=new Set(todayOrders.map(o=>o.customer_name));
+  const totalToday=todayOrders.reduce((s,o)=>s+Number(o.total),0);
+
+  const byCustomer={};
+  activeOrders.forEach(o=>{
+    const name=o.customer_name||'ไม่ระบุชื่อ';
+    if(!byCustomer[name]) byCustomer[name]={orders:[],total:0,pending:0,packing:0,done:0};
+    byCustomer[name].orders.push(o);
+    byCustomer[name].total+=Number(o.total);
+    if(ds_pending(o)) byCustomer[name].pending++;
+    else if(ds_packing(o)) byCustomer[name].packing++;
+    else if(ds_done(o)) byCustomer[name].done++;
+  });
+
+  let names=Object.keys(byCustomer);
+  if(overviewSearchTerm.trim()){
+    const term=overviewSearchTerm.trim().toLowerCase();
+    names=names.filter(n=>n.toLowerCase().includes(term));
+  }
+  names.sort((a,b)=>byCustomer[b].total-byCustomer[a].total);
+
+  let html=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+    <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;border:0.5px solid #e8e2dc">
+      <div style="font-size:22px;font-weight:600;color:#D64109">${customerNames.size}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ลูกค้าวันนี้</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;border:0.5px solid #e8e2dc">
+      <div style="font-size:22px;font-weight:600;color:#D64109">฿${totalToday.toLocaleString()}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ยอดรวมวันนี้</div>
+    </div>
+  </div>
+  <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
+
+  if(!names.length){
+    html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์'}</div>`;
+  } else {
+    html+=names.map(name=>{
+      const c=byCustomer[name];
+      const isOpen=openOverviewCustomers.has(name);
+      const safeName=name.replace(/'/g,"\\'");
+      const statusParts=[];
+      if(c.pending) statusParts.push(`รอจัด ${c.pending}`);
+      if(c.packing) statusParts.push(`กำลังจัด ${c.packing}`);
+      if(c.done) statusParts.push(`เสร็จแล้ว ${c.done}`);
+      const ordersSorted=[...c.orders].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+      const detailHtml=ordersSorted.map(o=>{
+        let label='รอจัด',bg='#faeeda',fg='#854f0b';
+        if(ds_done(o)){label='เสร็จแล้ว';bg='#eaf3de';fg='#3b6d11';}
+        else if(ds_packing(o)){label='กำลังจัด';bg='#EEEDFE';fg='#3C3489';}
+        const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'';
+        return`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:6px 0;border-bottom:1px solid #f5f5f5">
+          <span style="color:#888;font-family:monospace">${o.order_id} · ${dateStr}</span>
+          <span style="display:flex;align-items:center;gap:8px">
+            <span style="font-weight:500;color:#333">฿${Number(o.total).toLocaleString()}</span>
+            <span style="background:${bg};color:${fg};padding:2px 8px;border-radius:20px;white-space:nowrap">${label}</span>
+          </span>
+        </div>`;
+      }).join('');
+      return`<div style="background:#fff;border-radius:10px;margin-bottom:8px;border:0.5px solid #e8e2dc;overflow:hidden">
+        <div onclick="toggleOverviewCustomer('${safeName}')" style="padding:11px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#1a1a1a">${name}</div>
+            <div style="font-size:10px;color:#aaa;margin-top:2px">${c.orders.length} ออเดอร์${statusParts.length?' · '+statusParts.join(' · '):''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:14px;font-weight:600;color:#D64109">฿${c.total.toLocaleString()}</div>
+            <i style="font-size:12px;color:#aaa;transition:transform 0.15s;transform:rotate(${isOpen?180:0}deg);display:inline-block">▾</i>
+          </div>
+        </div>
+        ${isOpen?`<div style="padding:0 12px 10px;border-top:0.5px solid #f0f0f0">${detailHtml}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+  wrap.innerHTML=html;
+}
+
+function onOverviewSearch(val){
+  overviewSearchTerm=val;
+  renderAdminOverview();
+  const input=document.getElementById('overviewSearchInput');
+  if(input){input.focus();input.setSelectionRange(val.length,val.length);}
+}
+
+function toggleOverviewCustomer(name){
+  if(openOverviewCustomers.has(name)) openOverviewCustomers.delete(name);
+  else openOverviewCustomers.add(name);
+  renderAdminOverview();
 }
 
 function adminChg(orderId,idx,delta){
