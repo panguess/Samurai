@@ -1351,7 +1351,7 @@ function saveSummaryAsImage(orderId){
   }
 }
 
-function doCaptureSummary(card,orderId,btn){
+async function doCaptureSummary(card,orderId,btn){
   html2canvas(card,{scale:2,backgroundColor:'#ffffff'}).then(canvas=>{
     canvas.toBlob((blob)=>{
       const fileName=orderId+'.png';
