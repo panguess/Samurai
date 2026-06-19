@@ -1353,7 +1353,7 @@ function saveSummaryAsImage(orderId){
 
 async function doCaptureSummary(card,orderId,btn){
 html2canvas(card,{scale:2,backgroundColor:'#ffffff'}).then(async canvas=>{
-    canvas.toBlob((blob)=>{
+    canvas.toBlob(async (blob)=>{
       const fileName=orderId+'.png';
       const resetBtn=()=>{btn.innerHTML='<span style="font-size:16px">⬇</span> บันทึกรูปภาพ';btn.disabled=false;};
       const file = new File(
