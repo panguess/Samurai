@@ -1356,12 +1356,32 @@ function doCaptureSummary(card,orderId,btn){
     canvas.toBlob((blob)=>{
       const fileName=orderId+'.png';
       const resetBtn=()=>{btn.innerHTML='<span style="font-size:16px">⬇</span> บันทึกรูปภาพ';btn.disabled=false;};
-      const url=URL.createObjectURL(blob);
-      const link=document.createElement('a');
-      link.download=fileName;
-      link.href=url;
-      link.click();
-      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      const file = new File(
+  [blob],
+  fileName,
+  { type: 'image/png' }
+);
+
+// iPhone / Android
+if (
+  navigator.share &&
+  navigator.canShare &&
+  navigator.canShare({ files: [file] })
+) {
+  await navigator.share({
+    files: [file],
+    title: fileName
+  });
+}
+// Desktop
+else {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = fileName;
+  link.href = url;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
       resetBtn();
       showToast('บันทึกรูปภาพแล้ว ✓');
     },'image/png');
