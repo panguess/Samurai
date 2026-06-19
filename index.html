@@ -1006,7 +1006,7 @@ function renderAdminOverview(){
   const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
 
   const today=new Date().toDateString();
-  const todayOrders=activeOrders.filter(o=>o.timestamp&&new Date(o.timestamp).toDateString()===today);
+  const todayOrders=activeOrders.filter(o=>ds_done(o)&&o.timestamp&&new Date(o.timestamp).toDateString()===today);
   const customerNames=new Set(todayOrders.map(o=>o.customer_name));
   const totalToday=todayOrders.reduce((s,o)=>s+Number(o.total),0);
 
@@ -1031,11 +1031,11 @@ function renderAdminOverview(){
   let html=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
     <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;border:0.5px solid #e8e2dc">
       <div style="font-size:22px;font-weight:600;color:#D64109">${customerNames.size}</div>
-      <div style="font-size:11px;color:#888;margin-top:2px">ลูกค้าวันนี้</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ลูกค้าที่จัดเสร็จวันนี้</div>
     </div>
     <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;border:0.5px solid #e8e2dc">
       <div style="font-size:22px;font-weight:600;color:#D64109">฿${fmtMoney(totalToday)}</div>
-      <div style="font-size:11px;color:#888;margin-top:2px">ยอดรวมวันนี้</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ยอดที่จัดเสร็จวันนี้</div>
     </div>
   </div>
   <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
