@@ -653,7 +653,9 @@ function showConfirm(){
   document.getElementById('orderNote').value='';
   const items=Object.values(cart);
   const total=items.reduce((s,i)=>s+i.qty*i.price,0);
-  let html=items.map(i=>`<div class="confirm-row"><span>${i.name} × ${i.qty}</span><span>฿${fmtMoney(i.qty*i.price)}</span></div>`).join('');
+  const totalQty=items.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('confirmItemCount').textContent='('+totalQty+' รายการที่เลือก)';
+  let html=items.map(i=>`<div class="confirm-row"><span style="flex:1">${i.name}</span><span style="width:34px;text-align:right;color:#888">×${i.qty}</span><span style="width:74px;text-align:right">฿${fmtMoney(i.qty*i.price)}</span></div>`).join('');
   document.getElementById('confirmItems').innerHTML=html;
   document.getElementById('confirmTotal').textContent='฿'+fmtMoney(total);
   hide('app');hide('successScreen');
@@ -1512,7 +1514,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
   <div style="padding:12px;max-width:600px;margin:0 auto;width:100%">
     <div class="s-card">
       <div class="s-card-title">Order ID: <span id="confirmOid" style="font-family:monospace"></span></div>
-      <div class="s-card-title" style="margin-top:8px">รายการสินค้า</div>
+      <div class="s-card-title" style="margin-top:8px">รายการสินค้า <span id="confirmItemCount" style="color:#aaa;font-weight:400"></span></div>
       <div id="confirmItems"></div>
       <div class="s-total-row"><span>ยอดรวม</span><span id="confirmTotal">฿0</span></div>
     </div>
