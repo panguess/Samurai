@@ -271,7 +271,7 @@
       <div class="home-customer" id="customerName">สวัสดีครับ</div>
     </div>
     <div class="home-body">
-      <button class="big-btn" style="background:#fff;border:2.5px solid #D64109;color:#1a1a1a" onclick="goSection('shop')">
+      <button class="big-btn" style="background:#fff;border:2.5px solid #D64109;color:#1a1a1a" onclick="startNewOrder()">
         <div class="bb-icon" style="background:#fdf5f2;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">🛒</div>
         <div style="flex:1">
           <div class="bb-title" style="color:#D64109">สั่งสินค้า</div>
@@ -661,6 +661,7 @@ function showConfirm(){
 }
 
 function backToShop(){show('app');goSection('shop');}
+function startNewOrder(){cart={};goSection('shop');}
 
 async function placeOrder(){
   const btn=document.getElementById('btnConfirm');
