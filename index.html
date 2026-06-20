@@ -228,7 +228,7 @@
     .admin-items-list{padding:8px 12px}
     .admin-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px;transition:background 0.15s;margin:0 -4px;padding-left:4px;padding-right:4px}
     .admin-item-row.picked{background:#EAF3DE}
-    .admin-item-row.picked .admin-item-name{text-decoration:line-through;color:#8aa385}
+    .admin-item-row.picked .admin-item-name{color:#8aa385}
     .admin-item-img,.admin-item-img-placeholder{cursor:zoom-in}
     .admin-item-row:last-child{border:none}
     .admin-item-img{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
@@ -671,8 +671,15 @@ async function placeOrder(){
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
+    // mode:'no-cors' แปลว่าอ่านค่าตอบกลับจากเซิร์ฟเวอร์ไม่ได้ จึงดึงเลขที่ออเดอร์จริงจาก getOrders แทนการเดาจาก genOid()
+    let realOid=pendingOid;
+    try{
+      const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
+      const orders=await res.json();
+      if(orders&&orders.length) realOid=orders[0].order_id;
+    }catch(e2){}
     document.getElementById('confirmScreen').style.display='none';
-    document.getElementById('successOid').textContent=pendingOid+' · '+new Date().toLocaleDateString('th-TH');
+    document.getElementById('successOid').textContent=realOid+' · '+new Date().toLocaleDateString('th-TH');
     document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>x${i.qty}</span></div>`).join('');
     document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
     document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
@@ -1257,7 +1264,6 @@ async function markDone(orderId){
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
-    if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
