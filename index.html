@@ -661,7 +661,7 @@ function showConfirm(){
 }
 
 function backToShop(){show('app');goSection('shop');}
-function startNewOrder(){cart={};goSection('shop');}
+function startNewOrder(){cart={};goSection('shop');renderProducts();}
 
 async function placeOrder(){
   const btn=document.getElementById('btnConfirm');
