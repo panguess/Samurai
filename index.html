@@ -681,7 +681,7 @@ async function placeOrder(){
     }catch(e2){}
     document.getElementById('confirmScreen').style.display='none';
     document.getElementById('successOid').textContent=realOid+' · '+new Date().toLocaleDateString('th-TH');
-    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>x${i.qty}</span></div>`).join('');
+    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
     document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
     document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
     cart={};
