@@ -644,7 +644,7 @@ function genOid(){
   const hh=String(d.getHours()).padStart(2,'0');
   const mi=String(d.getMinutes()).padStart(2,'0');
   const ss=String(d.getSeconds()).padStart(2,'0');
-  return'ORD-'+yy+mm+dd+'-'+hh+mi+ss;
+  return'ORD-'+dd+mm+yy+'-'+hh+mi+ss;
 }
 
 function showConfirm(){
@@ -654,8 +654,8 @@ function showConfirm(){
   const items=Object.values(cart);
   const total=items.reduce((s,i)=>s+i.qty*i.price,0);
   let html=items.map(i=>`<div class="confirm-row"><span>${i.name} × ${i.qty}</span><span>฿${fmtMoney(i.qty*i.price)}</span></div>`).join('');
-  html+=`<div class="confirm-row total"><span>ยอดรวม</span><span>฿${fmtMoney(total)}</span></div>`;
   document.getElementById('confirmItems').innerHTML=html;
+  document.getElementById('confirmTotal').textContent='฿'+fmtMoney(total);
   hide('app');hide('successScreen');
   document.getElementById('confirmScreen').style.display='block';
 }
@@ -675,6 +675,7 @@ async function placeOrder(){
     document.getElementById('successOid').textContent=pendingOid+' · '+new Date().toLocaleDateString('th-TH');
     document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name} <span style="color:#aaa">×${i.qty}</span></span><span>x${i.qty}</span></div>`).join('');
     document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
+    document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
     cart={};
     document.getElementById('successScreen').style.display='flex';
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
@@ -743,9 +744,11 @@ function buildHistoryCard(o){
     </div>`;
   }
 
+  const packTStr=o.packing_at?new Date(o.packing_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const doneTStr=o.done_at?new Date(o.done_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
   const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว</div><div class="ttime">${tStr}</div></div>`;
-  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
-  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">จัดสินค้าสำเร็จ ✓</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
+  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">จัดสินค้าสำเร็จ ✓</div><div class="ttime">${doneTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
   const canEdit=!isDoneDelivery&&!isPackingDelivery;
   const canCancel=canEdit;
   const btnStyle='font-size:11px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap';
@@ -935,7 +938,7 @@ function renderAdminOrders(){
   document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
   if(adminCurrentTab==='done'){
-    const sorted=[...filtered].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
     list.innerHTML=sorted.map(o=>buildDoneAdminCard(o,prodMap)).join('');
     return;
   }
@@ -1000,8 +1003,9 @@ function buildDoneAdminCard(o,prodMap){
       <span style="flex:0.85;text-align:right;font-weight:600;color:#D64109">${fmtMoney(lineTotal)}</span>
     </div>`;
   }).join('');
-  const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
-  const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' · '+tStr:'';
+  const tStamp=o.done_at||o.timestamp;
+  const tStr=tStamp?new Date(tStamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const dateStr=tStamp?new Date(tStamp).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' · '+tStr:'';
   return`<div class="order-card">
     <div class="hcard-summary" onclick="toggleAdminDoneCard('${o.order_id}')">
       <div class="hcard-summary-top">
@@ -1526,9 +1530,9 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     </div>
     <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:600;color:#D64109">⏳ รอลูกน้องจัดสินค้าก่อนนะครับ</span>
+        <span style="font-size:13px;font-weight:600;color:#D64109">✅ ทางร้านได้รับคำสั่งซื้อแล้วครับ</span>
       </div>
-      <div style="font-size:12px;color:#993C1D;line-height:1.7">จัดเสร็จแล้วจะแจ้งให้ทราบครับ</div>
+      <div id="successMsg" style="font-size:12px;color:#993C1D;line-height:1.7"></div>
     </div>
     <div class="s-card">
       <div class="s-card-title">สถานะออเดอร์</div>
