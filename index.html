@@ -1254,19 +1254,29 @@ async function markDone(orderId){
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
-      const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
       const items=parseItems(order.items);
-      const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]||item.qty}));
-      const newTotal=newItems.reduce((s,i)=>s+i.qty*prodMap[i.name],0)||order.total;
-      const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
-      const qtyChanged=newItems.some((item,i)=>item.qty!==items[i].qty);
-      const newTimestamp=qtyChanged?new Date().toISOString():order.timestamp;
-      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
-      order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+      // จุดที่ 1: เช็คก่อนว่าจำนวนเปลี่ยนจริงไหม ถ้าไม่เปลี่ยนเลย ข้ามการ recalculate total ทั้งหมด
+      const qtyChanged=items.some((item,i)=>(adminQtys[orderId][i]||item.qty)!==item.qty);
+      if(qtyChanged){
+        // จุดที่ 2: ดึงราคาสินค้าล่าสุดจากเซิร์ฟเวอร์ก่อนคำนวณ ไม่ใช้ products ที่ cache ไว้ตอนเปิดแท็บ
+        const freshRes=await fetch(`${API}?action=getProducts&group=ALL`);
+        const freshProducts=await freshRes.json();
+        const prodMap={};freshProducts.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+        products=freshProducts; // sync ตัวแปร global ด้วย กันหน้าจอส่วนอื่นเพี้ยนตาม
+
+        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]||item.qty}));
+        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0)||order.total;
+        const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+        const newTimestamp=new Date().toISOString();
+        await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
+        order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+      }
+      // ถ้า qtyChanged เป็น false: ไม่ยิง updateOrder เลย — total/items/timestamp เดิมคงอยู่ตามที่ควรจะเป็น
     }
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
+    if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
