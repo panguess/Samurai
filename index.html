@@ -737,7 +737,7 @@ function buildHistoryCard(o){
           <div class="hcard-id">${o.order_id}</div>
         </div>
         <div class="hcard-summary-bottom">
-          <div class="hcard-date">${dateStr}</div>
+          <div class="hcard-date">${dateStr} · ${items.length} รายการ</div>
           <div class="hcard-badge-wrap">
             <div class="hcard-total cancelled">฿${fmtMoney(o.total)}</div>
             ${badge}
@@ -777,7 +777,7 @@ function buildHistoryCard(o){
         <div class="hcard-id">${o.order_id}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date">${dateStr}</div>
+        <div class="hcard-date">${dateStr} · ${items.length} รายการ</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           ${badge}
@@ -1022,7 +1022,7 @@ function buildDoneAdminCard(o,prodMap){
         <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date">${o.order_id} · ${dateStr}</div>
+        <div class="hcard-date">${o.order_id} · ${dateStr} · ${items.length} รายการ</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           <span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>
