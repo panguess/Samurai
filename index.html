@@ -967,7 +967,10 @@ function renderAdminOrders(){
         ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
         :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
       const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div class="admin-item-name">${item.name}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      const unitPrice=Number(prod.price)||0;
+      const lineTotal=unitPrice*item.qty;
+      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
