@@ -1084,7 +1084,12 @@ function setOverviewDateMode(mode){
 }
 
 function onOverviewCustomDate(val){
-  if(!val)return;
+  if(!val){
+    overviewCustomDate='';
+    overviewDateMode='today';
+    renderAdminOverview();
+    return;
+  }
   overviewCustomDate=val;
   overviewDateMode='custom';
   renderAdminOverview();
