@@ -1228,7 +1228,7 @@ function adminChg(orderId,idx,delta){
 
 function recalcAdminTotal(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
-  const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
   const total=items.reduce((s,item,idx)=>s+(adminQtys[orderId][idx]||0)*(prodMap[item.name]||0),0);
   const el=document.getElementById('atotal'+orderId);if(el)el.textContent='฿'+fmtMoney(total);
