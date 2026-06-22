@@ -1059,6 +1059,7 @@ function getOverviewRange(){
   const now=new Date();
   const startOfDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
   const endOfDay=d=>{const x=new Date(d);x.setHours(23,59,59,999);return x;};
+  if(overviewDateMode==='all'){return[new Date(2000,0,1),endOfDay(now)];}
   if(overviewDateMode==='yesterday'){const y=new Date(now);y.setDate(y.getDate()-1);return[startOfDay(y),endOfDay(y)];}
   if(overviewDateMode==='7days'){const s=new Date(now);s.setDate(s.getDate()-6);return[startOfDay(s),endOfDay(now)];}
   if(overviewDateMode==='month'){const s=new Date(now.getFullYear(),now.getMonth(),1);return[startOfDay(s),endOfDay(now)];}
@@ -1067,6 +1068,7 @@ function getOverviewRange(){
 }
 
 function overviewDateLabel(){
+  if(overviewDateMode==='all')return'ทั้งหมด';
   if(overviewDateMode==='today')return'วันนี้';
   if(overviewDateMode==='yesterday')return'เมื่อวาน';
   if(overviewDateMode==='7days')return'7 วันที่แล้ว';
@@ -1086,6 +1088,16 @@ function onOverviewCustomDate(val){
   overviewCustomDate=val;
   overviewDateMode='custom';
   renderAdminOverview();
+}
+
+function openOverviewDatePicker(btn){
+  const input=btn.querySelector('input[type="date"]');
+  if(!input)return;
+  if(typeof input.showPicker==='function'){
+    try{input.showPicker();return;}catch(e){}
+  }
+  input.focus();
+  input.click();
 }
 
 function setOverviewView(view){
@@ -1144,15 +1156,16 @@ function renderAdminOverview(){
     const active=overviewView===view;
     return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
   };
-  let html=`<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">
+  let html=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+    ${chip('all','ทั้งหมด')}
     ${chip('today','วันนี้')}
     ${chip('yesterday','เมื่อวาน')}
     ${chip('7days','7 วันที่แล้ว')}
     ${chip('month','เดือนนี้')}
-    <label style="position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${overviewDateMode==='custom'?'#D64109':'#ddd'};background:${overviewDateMode==='custom'?'#D64109':'#fff'};color:${overviewDateMode==='custom'?'#fff':'#555'}">
+    <button type="button" onclick="openOverviewDatePicker(this)" style="position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${overviewDateMode==='custom'?'#D64109':'#ddd'};background:${overviewDateMode==='custom'?'#D64109':'#fff'};color:${overviewDateMode==='custom'?'#fff':'#555'};font-family:inherit">
       📅 ${overviewDateMode==='custom'?overviewDateLabel():'เลือกวันที่'}
-      <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" style="position:absolute;opacity:0;width:0;height:0">
-    </label>
+      <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" onclick="event.stopPropagation()" style="position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none">
+    </button>
   </div>
   <div style="display:flex;background:#fff;border:1px solid #e8e2dc;border-radius:10px;padding:3px;margin-bottom:10px">
     ${viewBtn('customer','ดูตามลูกค้า','👤')}
