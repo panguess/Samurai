@@ -1273,6 +1273,8 @@ async function saveAdminEdit(orderId){
 }
 
 async function markDone(orderId){
+  const btn=document.querySelector(`button[onclick="markDone('${orderId}')"]`);
+  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.style.opacity='0.5'; }
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
@@ -1296,16 +1298,24 @@ async function markDone(orderId){
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
-  }catch(e){alert('เกิดข้อผิดพลาด');}
+  }catch(e){
+    alert('เกิดข้อผิดพลาด');
+    if(btn){btn.disabled=false;btn.style.opacity='1';}
+  }
 }
 
 async function markPacking(orderId){
+  const btn=document.querySelector(`button[onclick="markPacking('${orderId}')"]`);
+  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.style.opacity='0.5'; }
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'packing'})});
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
-  }catch(e){alert('เกิดข้อผิดพลาด');}
+  }catch(e){
+    alert('เกิดข้อผิดพลาด');
+    if(btn){btn.disabled=false;btn.style.opacity='1';}
+  }
 }
 
 function showCustomerBill(orderId){
