@@ -672,7 +672,7 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note})});
+    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group})});
     // mode:'no-cors' แปลว่าอ่านค่าตอบกลับจากเซิร์ฟเวอร์ไม่ได้ จึงดึงเลขที่ออเดอร์จริงจาก getOrders แทนการเดาจาก genOid()
     let realOid=pendingOid;
     try{
