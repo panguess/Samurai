@@ -1226,6 +1226,15 @@ function adminChg(orderId,idx,delta){
   recalcAdminTotal(orderId);
 }
 
+function getOrderProdMap(order){
+  const group=order&&order.customer_group;
+  const list=group?products.filter(p=>p.group===group):products;
+  const source=list.length?list:products;
+  const prodMap={};
+  source.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  return prodMap;
+}
+
 function recalcAdminTotal(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
   const prodMap=getOrderProdMap(order);
@@ -1236,7 +1245,7 @@ function recalcAdminTotal(orderId){
 
 async function saveAdminEdit(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
-  const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
   const newItems=items.map((item,idx)=>({...item,qty:adminQtys[orderId][idx]||0})).filter(i=>i.qty>0);
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
@@ -1253,19 +1262,26 @@ async function markDone(orderId){
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
-      const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
       const items=parseItems(order.items);
-      const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]||item.qty}));
-      const newTotal=newItems.reduce((s,i)=>s+i.qty*prodMap[i.name],0)||order.total;
-      const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
-      const qtyChanged=newItems.some((item,i)=>item.qty!==items[i].qty);
-      const newTimestamp=qtyChanged?new Date().toISOString():order.timestamp;
-      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
-      order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+      const qtyChanged=items.some((item,i)=>(adminQtys[orderId][i]||item.qty)!==item.qty);
+      if(qtyChanged){
+        const freshRes=await fetch(`${API}?action=getProducts&group=ALL`);
+        const freshProducts=await freshRes.json();
+        products=freshProducts;
+        const prodMap=getOrderProdMap(order);
+
+        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]||item.qty}));
+        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0)||order.total;
+        const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+        const newTimestamp=new Date().toISOString();
+        await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
+        order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+      }
     }
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
+    if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
@@ -1285,7 +1301,7 @@ function showCustomerBill(orderId){
 function showOrderSummary(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId)||lastTrackOrders.find(o=>o.order_id===orderId);
   if(!order)return;
-  const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
   const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const itemsHtml=items.map(i=>{
