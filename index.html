@@ -234,7 +234,6 @@
     .admin-item-img{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
     .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
     .admin-item-name{font-size:15px;font-weight:500;flex:1}
-    .admin-item-price{font-size:11px;color:#aaa;margin-top:2px;font-weight:400}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .admin-qty-num{font-size:14px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
@@ -967,10 +966,7 @@ function renderAdminOrders(){
         ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
         :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
       const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
-      const unitPrice=Number(prod.price)||0;
-      const lineTotal=unitPrice*item.qty;
-      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div class="admin-item-name">${item.name}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
@@ -1053,6 +1049,8 @@ function buildDoneAdminCard(o,prodMap){
 }
 
 let overviewSearchTerm='';
+let overviewView='customer';
+let overviewSortMode='recent';
 let openOverviewCustomers=new Set();
 let overviewDateMode='today';
 let overviewCustomDate='';
@@ -1090,32 +1088,42 @@ function onOverviewCustomDate(val){
   renderAdminOverview();
 }
 
+function setOverviewView(view){
+  overviewView=view;
+  renderAdminOverview();
+}
+
+function setOverviewSortMode(mode){
+  overviewSortMode=mode;
+  renderAdminOverview();
+}
+
 function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
-  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
   const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
 
   const[rangeStart,rangeEnd]=getOverviewRange();
-  const todayOrders=activeOrders.filter(o=>{
+  // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards, มุมมองลูกค้า, มุมมองสินค้า
+  const rangeOrders=activeOrders.filter(o=>{
     if(!ds_done(o)||!o.timestamp)return false;
     const t=new Date(o.timestamp);
     return t>=rangeStart&&t<=rangeEnd;
   });
-  const customerNames=new Set(todayOrders.map(o=>o.customer_name));
-  const totalToday=todayOrders.reduce((s,o)=>s+Number(o.total),0);
+  const customerNames=new Set(rangeOrders.map(o=>o.customer_name));
+  const totalToday=rangeOrders.reduce((s,o)=>s+Number(o.total),0);
 
   const byCustomer={};
-  activeOrders.forEach(o=>{
+  rangeOrders.forEach(o=>{
     const name=o.customer_name||'ไม่ระบุชื่อ';
-    if(!byCustomer[name]) byCustomer[name]={orders:[],total:0,pending:0,packing:0,done:0};
+    if(!byCustomer[name]) byCustomer[name]={orders:[],total:0,lastDoneAt:0};
     byCustomer[name].orders.push(o);
     byCustomer[name].total+=Number(o.total);
-    if(ds_pending(o)) byCustomer[name].pending++;
-    else if(ds_packing(o)) byCustomer[name].packing++;
-    else if(ds_done(o)) byCustomer[name].done++;
+    const t=o.packing_at||o.done_at||o.timestamp;
+    const ts=t?new Date(t).getTime():0;
+    if(ts>byCustomer[name].lastDoneAt) byCustomer[name].lastDoneAt=ts;
   });
 
   let names=Object.keys(byCustomer);
@@ -1123,11 +1131,18 @@ function renderAdminOverview(){
     const term=overviewSearchTerm.trim().toLowerCase();
     names=names.filter(n=>n.toLowerCase().includes(term));
   }
-  names.sort((a,b)=>byCustomer[b].total-byCustomer[a].total);
+  if(overviewSortMode==='total') names.sort((a,b)=>byCustomer[b].total-byCustomer[a].total);
+  else if(overviewSortMode==='count') names.sort((a,b)=>byCustomer[b].orders.length-byCustomer[a].orders.length);
+  else if(overviewSortMode==='name') names.sort((a,b)=>a.localeCompare(b,'th'));
+  else names.sort((a,b)=>byCustomer[b].lastDoneAt-byCustomer[a].lastDoneAt);
 
   const chip=(mode,label)=>{
     const active=overviewDateMode===mode;
     return`<button onclick="setOverviewDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#D64109':'#ddd'};background:${active?'#D64109':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
+  };
+  const viewBtn=(view,label,icon)=>{
+    const active=overviewView===view;
+    return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
   };
   let html=`<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">
     ${chip('today','วันนี้')}
@@ -1139,6 +1154,10 @@ function renderAdminOverview(){
       <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" style="position:absolute;opacity:0;width:0;height:0">
     </label>
   </div>
+  <div style="display:flex;background:#fff;border:1px solid #e8e2dc;border-radius:10px;padding:3px;margin-bottom:10px">
+    ${viewBtn('customer','ดูตามลูกค้า','👤')}
+    ${viewBtn('product','ดูตามสินค้า','📦')}
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
     <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;border:0.5px solid #e8e2dc">
       <div style="font-size:22px;font-weight:600;color:#D64109">${customerNames.size}</div>
@@ -1148,25 +1167,66 @@ function renderAdminOverview(){
       <div style="font-size:22px;font-weight:600;color:#D64109">฿${fmtMoney(totalToday)}</div>
       <div style="font-size:11px;color:#888;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
-  </div>
-  <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
+  </div>`;
+
+  if(overviewView==='product'){
+    const byProduct={};
+    rangeOrders.forEach(o=>{
+      parseItems(o.items).forEach(it=>{
+        if(!byProduct[it.name]) byProduct[it.name]=0;
+        byProduct[it.name]+=it.qty;
+      });
+    });
+    let pNames=Object.keys(byProduct);
+    if(overviewSearchTerm.trim()){
+      const term=overviewSearchTerm.trim().toLowerCase();
+      pNames=pNames.filter(n=>n.toLowerCase().includes(term));
+    }
+    pNames.sort((a,b)=>byProduct[b]-byProduct[a]);
+
+    html+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
+
+    if(!pNames.length){
+      html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบสินค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
+    } else {
+      html+=pNames.map((name,idx)=>{
+        return`<div style="background:#fff;border-radius:10px;margin-bottom:8px;border:0.5px solid #e8e2dc;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:#f5f3f0;color:#aaa;font-size:11px;font-weight:600">${idx+1}</span>
+            <span style="font-size:13px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#D64109;flex-shrink:0;padding-left:8px">${byProduct[name]} ชิ้น</div>
+        </div>`;
+      }).join('');
+      html+=`<div style="font-size:11px;color:#aaa;text-align:center;margin-top:10px;line-height:1.6">เรียงตามจำนวนชิ้นที่ขาย (มาก→น้อย) — ไม่แสดงยอดเงิน เพราะราคาต่างกันตามกลุ่มลูกค้า</div>`;
+    }
+    wrap.innerHTML=html;
+    return;
+  }
+
+  const sortSelect=`<div style="position:relative;flex-shrink:0">
+    <select onchange="setOverviewSortMode(this.value)" style="appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
+      <option value="recent" ${overviewSortMode==='recent'?'selected':''}>ล่าสุดที่จัดเสร็จ</option>
+      <option value="total" ${overviewSortMode==='total'?'selected':''}>ยอดรวม (มาก→น้อย)</option>
+      <option value="count" ${overviewSortMode==='count'?'selected':''}>จำนวนออเดอร์ (มาก→น้อย)</option>
+      <option value="name" ${overviewSortMode==='name'?'selected':''}>ชื่อ A-Z</option>
+    </select>
+  </div>`;
+  html+=`<div style="display:flex;gap:8px;margin-bottom:12px">
+    <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit" oninput="onOverviewSearch(this.value)">
+    ${sortSelect}
+  </div>`;
 
   if(!names.length){
-    html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์'}</div>`;
+    html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
   } else {
     html+=names.map(name=>{
       const c=byCustomer[name];
       const isOpen=openOverviewCustomers.has(name);
       const safeName=name.replace(/'/g,"\\'");
-      const statusParts=[];
-      if(c.pending) statusParts.push(`รอจัด ${c.pending}`);
-      if(c.packing) statusParts.push(`กำลังจัด ${c.packing}`);
-      if(c.done) statusParts.push(`เสร็จแล้ว ${c.done}`);
       const ordersSorted=[...c.orders].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
       const detailHtml=ordersSorted.map(o=>{
-        let label='รอจัด',bg='#faeeda',fg='#854f0b';
-        if(ds_done(o)){label='เสร็จแล้ว';bg='#eaf3de';fg='#3b6d11';}
-        else if(ds_packing(o)){label='กำลังจัด';bg='#EEEDFE';fg='#3C3489';}
+        const label='เสร็จแล้ว',bg='#eaf3de',fg='#3b6d11';
         const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'';
         return`<div style="display:grid;grid-template-columns:1fr 70px 78px;align-items:center;gap:8px;font-size:11px;padding:6px 0;border-bottom:1px solid #f5f5f5">
           <span style="color:#888;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.order_id} · ${dateStr}</span>
@@ -1178,7 +1238,7 @@ function renderAdminOverview(){
         <div onclick="toggleOverviewCustomer('${safeName}')" style="padding:11px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
           <div>
             <div style="font-size:13px;font-weight:600;color:#1a1a1a">${name}</div>
-            <div style="font-size:10px;color:#aaa;margin-top:2px">${c.orders.length} ออเดอร์${statusParts.length?' · '+statusParts.join(' · '):''}</div>
+            <div style="font-size:10px;color:#aaa;margin-top:2px">${c.orders.length} ออเดอร์</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="font-size:14px;font-weight:600;color:#D64109">฿${fmtMoney(c.total)}</div>
@@ -1226,17 +1286,7 @@ function openImageLightbox(url){
 function adminChg(orderId,idx,delta){
   if(!adminQtys[orderId])return;
   adminQtys[orderId][idx]=Math.max(0,adminQtys[orderId][idx]+delta);
-  const newQty=adminQtys[orderId][idx];
-  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=newQty;
-  const order=allAdminOrders.find(o=>o.order_id===orderId);
-  if(order){
-    const items=parseItems(order.items);
-    const item=items[idx];
-    const prodMap=getOrderProdMap(order);
-    const unitPrice=prodMap[item.name]||0;
-    const priceEl=document.getElementById(`ap${orderId}_${idx}`);
-    if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
-  }
+  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=adminQtys[orderId][idx];
   recalcAdminTotal(orderId);
 }
 
@@ -1273,8 +1323,6 @@ async function saveAdminEdit(orderId){
 }
 
 async function markDone(orderId){
-  const btn=document.querySelector(`button[onclick="markDone('${orderId}')"]`);
-  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.style.opacity='0.5'; }
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
@@ -1298,24 +1346,16 @@ async function markDone(orderId){
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
-  }catch(e){
-    alert('เกิดข้อผิดพลาด');
-    if(btn){btn.disabled=false;btn.style.opacity='1';}
-  }
+  }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
 async function markPacking(orderId){
-  const btn=document.querySelector(`button[onclick="markPacking('${orderId}')"]`);
-  if(btn){ if(btn.disabled) return; btn.disabled=true; btn.style.opacity='0.5'; }
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'packing'})});
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
-  }catch(e){
-    alert('เกิดข้อผิดพลาด');
-    if(btn){btn.disabled=false;btn.style.opacity='1';}
-  }
+  }catch(e){alert('เกิดข้อผิดพลาด');}
 }
 
 function showCustomerBill(orderId){
