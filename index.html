@@ -928,7 +928,6 @@ function switchAdminTab(tab){
 }
 
 function renderAdminOrders(){
-  const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
@@ -949,11 +948,12 @@ function renderAdminOrders(){
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
   if(adminCurrentTab==='done'){
     const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
-    list.innerHTML=sorted.map(o=>buildDoneAdminCard(o,prodMap)).join('');
+    list.innerHTML=sorted.map(o=>buildDoneAdminCard(o)).join('');
     return;
   }
   list.innerHTML=filtered.map(o=>{
     const items=parseItems(o.items);
+    const prodMap=getOrderProdFullMap(o);
     if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
     const isPending=ds_pending(o);
     const isPacking=ds_packing(o);
@@ -1002,8 +1002,9 @@ function toggleAdminDoneCard(orderId){
   renderAdminOrders();
 }
 
-function buildDoneAdminCard(o,prodMap){
+function buildDoneAdminCard(o){
   const items=parseItems(o.items);
+  const prodMap=getOrderProdFullMap(o);
   const isOpen=openAdminDoneCards.has(o.order_id);
   const note=cleanNote(o.note);
   const itemsHtml=items.map(item=>{
@@ -1328,6 +1329,17 @@ function getOrderProdMap(order){
   const source=list.length?list:products;
   const prodMap={};
   source.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  return prodMap;
+}
+
+// เหมือน getOrderProdMap แต่เก็บ product object เต็ม (มี image_url ด้วย) ใช้ตอนแสดงรายการในแอดมิน
+// ต้อง group-aware เหมือนกัน ไม่งั้นสินค้าชื่อซ้ำกันข้าม group จะได้ราคาผิด (เช่นไข่นกกระทา)
+function getOrderProdFullMap(order){
+  const group=order&&order.customer_group;
+  const list=group?products.filter(p=>p.group===group):products;
+  const source=list.length?list:products;
+  const prodMap={};
+  source.forEach(p=>{prodMap[p.name]=p;});
   return prodMap;
 }
 
