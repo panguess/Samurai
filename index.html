@@ -234,6 +234,7 @@
     .admin-item-img{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
     .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
     .admin-item-name{font-size:15px;font-weight:500;flex:1}
+    .admin-item-price{font-size:11px;color:#aaa;margin-top:2px;font-weight:400}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
     .admin-qty-num{font-size:14px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
@@ -966,7 +967,10 @@ function renderAdminOrders(){
         ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
         :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
       const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div class="admin-item-name">${item.name}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      const unitPrice=Number(prod.price)||0;
+      const lineTotal=unitPrice*item.qty;
+      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
@@ -1304,7 +1308,17 @@ function openImageLightbox(url){
 function adminChg(orderId,idx,delta){
   if(!adminQtys[orderId])return;
   adminQtys[orderId][idx]=Math.max(0,adminQtys[orderId][idx]+delta);
-  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=adminQtys[orderId][idx];
+  const newQty=adminQtys[orderId][idx];
+  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=newQty;
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  if(order){
+    const items=parseItems(order.items);
+    const item=items[idx];
+    const prodMap=getOrderProdMap(order);
+    const unitPrice=prodMap[item.name]||0;
+    const priceEl=document.getElementById(`ap${orderId}_${idx}`);
+    if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
+  }
   recalcAdminTotal(orderId);
 }
 
