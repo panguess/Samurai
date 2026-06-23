@@ -1104,12 +1104,14 @@ function openOverviewDatePicker(btn){
   const input=btn.querySelector('input[type="date"]');
   if(!input)return;
   if(typeof input.showPicker==='function'){
-    try{input.showPicker();return;}catch(e){}
+    try{input.showPicker();return;}catch(e){
+      input.focus();
+    }
+  } else {
+    input.focus();
   }
-  input.focus();
-  input.click();
 }
-
+  
 function setOverviewView(view){
   overviewView=view;
   renderAdminOverview();
@@ -1174,7 +1176,7 @@ function renderAdminOverview(){
     ${chip('month','เดือนนี้')}
     <button type="button" onclick="openOverviewDatePicker(this)" style="position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${overviewDateMode==='custom'?'#D64109':'#ddd'};background:${overviewDateMode==='custom'?'#D64109':'#fff'};color:${overviewDateMode==='custom'?'#fff':'#555'};font-family:inherit">
       📅 ${overviewDateMode==='custom'?overviewDateLabel():'เลือกวันที่'}
-      <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" onclick="event.stopPropagation()" style="position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none">
+      <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer">
     </button>
   </div>
   <div style="display:flex;background:#fff;border:1px solid #e8e2dc;border-radius:10px;padding:3px;margin-bottom:10px">
