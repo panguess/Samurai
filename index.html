@@ -439,19 +439,70 @@ let pickedItems=new Set();
 var params=new URLSearchParams(window.location.search);
 var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
 var customerRef=params.get('ref');
+
+/* ===== Error logging & global safety net ===== */
+function logError(label,err){
+  try{
+    console.error('['+label+']',err);
+    var entry={t:new Date().toISOString(),label:label,msg:(err&&err.message)||String(err)};
+    var log=JSON.parse(localStorage.getItem('ss_errlog')||'[]');
+    log.push(entry);
+    if(log.length>20)log=log.slice(-20);
+    localStorage.setItem('ss_errlog',JSON.stringify(log));
+  }catch(e){}
+  showErrBanner((label?label+': ':'')+((err&&err.message)||String(err)));
+}
+function showErrBanner(msg){
+  var b=document.getElementById('errBanner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='errBanner';
+    b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#A32D2D;color:#fff;font-size:11px;padding:8px 12px;z-index:9999;display:flex;justify-content:space-between;align-items:center;gap:8px';
+    document.body.appendChild(b);
+  }
+  b.innerHTML='<span style="flex:1">⚠️ '+msg+'</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer">✕</button>';
+}
+window.onerror=function(msg,src,line,col,err){logError('JS Error',err||{message:msg+' ('+src+':'+line+')'});};
+window.addEventListener('unhandledrejection',function(ev){logError('Promise Error',ev.reason);});
+
+/* ===== Safe fetch helpers (timeout + JSON guard + fallback) ===== */
+async function safeFetchJSON(url,fallback,label,timeoutMs){
+  timeoutMs=timeoutMs||8000;
+  const controller=new AbortController();
+  const t=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const res=await fetch(url,{signal:controller.signal});
+    clearTimeout(t);
+    if(!res.ok){logError(label||'fetch','HTTP '+res.status);return fallback;}
+    const text=await res.text();
+    try{return JSON.parse(text);}
+    catch(e){logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80));return fallback;}
+  }catch(e){
+    clearTimeout(t);
+    logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
+    return fallback;
+  }
+}
+async function postAction(payload,label){
+  try{
+    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    if(!res.ok){logError(label||'postAction','HTTP '+res.status);return false;}
+    return true;
+  }catch(e){logError(label||'postAction',e);return false;}
+}
+
 window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else showError();};
 
 async function initCustomer(){
   try{
-    const res=await fetch(`${API}?action=getCustomer&id=${customerRef}`);
-    const data=await res.json();
-    if(data.error){showError();return;}
+    const data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,{error:true},'getCustomer');
+    if(!data||data.error){showError();return;}
     customer=data;
     document.getElementById('customerName').textContent='สวัสดีครับ '+customer.name;
     document.title='ซามูไรไส้กรอก - '+customer.name;
     show('app');
-    loadProducts();
-  }catch(e){showError();}
+    await loadProducts();
+  }catch(e){logError('initCustomer',e);showError();}
 }
 
 function goHome(skipPush){
@@ -591,8 +642,8 @@ function applyOpenHistoryState(){
 }
 
 async function loadProducts(){
-  const res=await fetch(`${API}?action=getProducts&group=${customer.product_group}`);
-  products=await res.json();
+  products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)');
+  if(!Array.isArray(products))products=[];
   renderProducts();
 }
 
@@ -673,8 +724,8 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group})});
-    // mode:'no-cors' แปลว่าอ่านค่าตอบกลับจากเซิร์ฟเวอร์ไม่ได้ จึงดึงเลขที่ออเดอร์จริงจาก getOrders แทนการเดาจาก genOid()
+    await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group});
+    // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
     let realOid=pendingOid;
     try{
       const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
@@ -868,7 +919,7 @@ async function saveEdit(){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp})});
+    await postAction({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp});
     closeEditModal();
     showToast('บันทึกเรียบร้อยแล้ว ✓');
     await new Promise(r=>setTimeout(r,1200));
@@ -884,35 +935,35 @@ let lastAdminOrdersHash='';
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
-  const res=await fetch(`${API}?action=getProducts&group=ALL`);
-  products=await res.json();
+  products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts');
+  if(!Array.isArray(products))products=[];
   await loadAdminOrders();
   if(adminRefreshInterval) clearInterval(adminRefreshInterval);
   adminRefreshInterval=setInterval(async()=>{
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    try{
-      const res=await fetch(`${API}?action=getAdminOrders`);
-      const text=await res.text();
-      if(text===lastAdminOrdersHash) return;
-      lastAdminOrdersHash=text;
-      allAdminOrders=JSON.parse(text);
-      if(adminCurrentTab==='overview') renderAdminOverview();
-      else renderAdminOrders();
-    }catch(e){}
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders');
+    if(data===null) return;
+    const text=JSON.stringify(data);
+    if(text===lastAdminOrdersHash) return;
+    lastAdminOrdersHash=text;
+    allAdminOrders=Array.isArray(data)?data:[];
+    if(adminCurrentTab==='overview') renderAdminOverview();
+    else renderAdminOrders();
   },10000);
 }
 
 async function loadAdminOrders(){
   document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  try{
-    const res=await fetch(`${API}?action=getAdminOrders`);
-    const text=await res.text();
-    lastAdminOrdersHash=text;
-    allAdminOrders=JSON.parse(text);
-    renderAdminOrders();
-  }catch(e){document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+  const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'loadAdminOrders');
+  if(data===null){
+    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
+    return;
+  }
+  allAdminOrders=Array.isArray(data)?data:[];
+  lastAdminOrdersHash=JSON.stringify(data);
+  renderAdminOrders();
 }
 
 function switchAdminTab(tab){
@@ -1362,7 +1413,7 @@ async function saveAdminEdit(orderId){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
+    await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp});
     order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
@@ -1384,11 +1435,11 @@ async function markDone(orderId){
         const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0)||order.total;
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
-        await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp})});
+        await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp});
         order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
       }
     }
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'done'})});
+    await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'});
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
@@ -1398,7 +1449,7 @@ async function markDone(orderId){
 async function markPacking(orderId){
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
-    await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'updateDelivery',order_id:orderId,delivery_status:'packing'})});
+    await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'});
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
   }catch(e){alert('เกิดข้อผิดพลาด');}
@@ -1548,7 +1599,7 @@ function cancelOrder(orderId){
     overlay.remove();
     showToast('ยกเลิกออร์เดอร์แล้ว');
     try{
-      await fetch(API,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'cancelOrder',order_id:orderId})});
+      await postAction({action:'cancelOrder',order_id:orderId});
     }catch(e){}
     await new Promise(r=>setTimeout(r,1000));
     await loadTrackSection();
