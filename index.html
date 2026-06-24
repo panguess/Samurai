@@ -1010,6 +1010,65 @@ function switchAdminTab(tab){
   else renderAdminOrders();
 }
 
+function buildAdminItemsHtml(o,canAdjustQty){
+  const items=parseItems(o.items);
+  const prodMap=getOrderProdFullMap(o);
+  if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
+  return items.map((item,idx)=>{
+    const prod=prodMap[item.name]||{};
+    const rowKey=o.order_id+'_'+idx;
+    const isPicked=canAdjustQty&&pickedItems.has(rowKey);
+    const imgHtml=prod.image_url
+      ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
+      :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
+    const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
+    const unitPrice=Number(prod.price)||0;
+    const lineTotal=unitPrice*item.qty;
+    const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+  }).join('');
+}
+
+let openAdminPendingCards=new Set();
+function toggleAdminPendingCard(orderId){
+  if(openAdminPendingCards.has(orderId)) openAdminPendingCards.delete(orderId);
+  else openAdminPendingCards.add(orderId);
+  renderAdminOrders();
+}
+
+function buildPendingAdminCard(o){
+  const items=parseItems(o.items);
+  const isOpen=openAdminPendingCards.has(o.order_id);
+  const note=cleanNote(o.note);
+  const itemsHtml=buildAdminItemsHtml(o,false);
+  const tStr=o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):'';
+  return`<div class="order-card">
+    <div class="hcard-summary" onclick="toggleAdminPendingCard('${o.order_id}')">
+      <div class="hcard-summary-top">
+        <i class="hcard-chevron ${isOpen?'open':''}">▾</i>
+        <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
+      </div>
+      <div class="hcard-summary-bottom">
+        <div class="hcard-date">${o.order_id} · ${tStr} · ${items.length} รายการ</div>
+        <div class="hcard-badge-wrap">
+          <div class="hcard-total">฿${fmtMoney(o.total)}</div>
+          <span class="badge badge-pending">รอจัด</span>
+        </div>
+      </div>
+    </div>
+    <div class="hcard-detail ${isOpen?'open':''}">
+      <div class="hcard-divider">
+        <div class="admin-items-list" style="padding:0 0 8px">${itemsHtml}</div>
+        ${note?`<div class="order-note">📝 ${note}</div>`:''}
+        <div class="order-footer" style="justify-content:space-between">
+          <div style="font-size:14px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
+          <button class="btn-done" style="background:#534AB7;font-size:12px" onclick="event.stopPropagation();markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderAdminOrders(){
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
@@ -1032,6 +1091,11 @@ function renderAdminOrders(){
   if(adminCurrentTab==='done'){
     const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
     list.innerHTML=sorted.map(o=>buildDoneAdminCard(o)).join('');
+    return;
+  }
+  if(adminCurrentTab==='pending'){
+    const sorted=[...filtered].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    list.innerHTML=sorted.map(o=>buildPendingAdminCard(o)).join('');
     return;
   }
   list.innerHTML=filtered.map(o=>{
