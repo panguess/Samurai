@@ -467,7 +467,7 @@ function showErrBanner(msg){
   }
   b.innerHTML='<span style="flex:1">⚠️ '+msg+'</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer">✕</button>';
 }
-window.onerror=function(msg,src,line,col,err){logError('JS Error',err||{message:msg+' ('+src+':'+line+')'});};
+window.onerror=function(msg,src,line,col,err){if(msg==='Script error.'||/^Script error\.?$/.test(msg))return;logError('JS Error',err||{message:msg+' ('+src+':'+line+')'});};
 window.addEventListener('unhandledrejection',function(ev){logError('Promise Error',ev.reason);});
 
 /* ===== Safe fetch helpers (timeout + JSON guard + fallback) ===== */
