@@ -653,7 +653,7 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',9000,0);
+      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1);
       if(orders===null) return;
       const text=JSON.stringify(orders);
       if(text===lastTrackOrdersHash) return;
@@ -764,7 +764,7 @@ async function placeOrder(){
     // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
     let realOid=pendingOid;
     try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',10000,0);
+      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',15000,1);
       if(orders&&orders.length) realOid=orders[0].order_id;
     }catch(e2){}
     document.getElementById('confirmScreen').style.display='none';
@@ -978,7 +978,7 @@ async function initAdmin(){
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',9000,0);
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',15000,1);
     if(data===null) return;
     const text=JSON.stringify(data);
     if(text===lastAdminOrdersHash) return;
