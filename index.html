@@ -496,8 +496,7 @@ async function postAction(payload,label){
   }catch(e){logError(label||'postAction',e);return false;}
 }
 
-window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else showError();};
-
+window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
 async function initCustomer(){
   try{
     const data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,{error:true},'getCustomer');
