@@ -500,18 +500,35 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries){
   }
   return fallback;
 }
-async function postAction(payload,label){
-  try{
-    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    if(!res.ok){logError(label||'postAction','HTTP '+res.status);return false;}
-    return true;
-  }catch(e){logError(label||'postAction',e);return false;}
+async function postAction(payload,label,timeoutMs,retries){
+  timeoutMs=timeoutMs||15000;
+  retries=retries==null?1:retries;
+  for(let attempt=0;attempt<=retries;attempt++){
+    const controller=new AbortController();
+    const t=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal});
+      clearTimeout(t);
+      if(!res.ok){
+        logError(label||'postAction','HTTP '+res.status);
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return false;
+      }
+      return true;
+    }catch(e){
+      clearTimeout(t);
+      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
+      if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+      return false;
+    }
+  }
+  return false;
 }
 
 window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
 async function initCustomer(){
   try{
-    const data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',8000,1);
+    const data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
     if(data===null){showError(true);return;}
     if(data.error){showError(false);return;}
     customer=data;
@@ -619,10 +636,9 @@ async function loadTrackSection(){
     return[...active,...doneOrders,...cancelledOrders].sort(byTimeDesc);
   };
   try{
-    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-    const text=await res.text();
-    lastTrackOrdersHash=text;
-    const orders=JSON.parse(text);
+    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
+    if(orders===null) throw new Error('timeout/fetch-failed');
+    lastTrackOrdersHash=JSON.stringify(orders);
     lastTrackOrders=orders;
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
     const display=buildDisplay(orders);
@@ -634,11 +650,11 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
-      const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-      const text=await res.text();
+      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',9000,0);
+      if(orders===null) return;
+      const text=JSON.stringify(orders);
       if(text===lastTrackOrdersHash) return;
       lastTrackOrdersHash=text;
-      const orders=JSON.parse(text);
       lastTrackOrders=orders;
       if(orders.length){
         const display=buildDisplay(orders);
@@ -659,7 +675,7 @@ function applyOpenHistoryState(){
 }
 
 async function loadProducts(){
-  products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)');
+  products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)',15000,1);
   if(!Array.isArray(products))products=[];
   renderProducts();
 }
@@ -745,8 +761,7 @@ async function placeOrder(){
     // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
     let realOid=pendingOid;
     try{
-      const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-      const orders=await res.json();
+      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',10000,0);
       if(orders&&orders.length) realOid=orders[0].order_id;
     }catch(e2){}
     document.getElementById('confirmScreen').style.display='none';
@@ -777,8 +792,8 @@ async function loadHistory(){
   const list=document.getElementById('trackList');
   list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
   try{
-    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-    const orders=await res.json();
+    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadHistory',15000,1);
+    if(orders===null) throw new Error('timeout/fetch-failed');
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
     list.innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
@@ -952,7 +967,7 @@ let lastAdminOrdersHash='';
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
-  products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts');
+  products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
   if(!Array.isArray(products))products=[];
   await loadAdminOrders();
   if(adminRefreshInterval) clearInterval(adminRefreshInterval);
@@ -960,7 +975,7 @@ async function initAdmin(){
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders');
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',9000,0);
     if(data===null) return;
     const text=JSON.stringify(data);
     if(text===lastAdminOrdersHash) return;
@@ -973,7 +988,7 @@ async function initAdmin(){
 
 async function loadAdminOrders(){
   document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'loadAdminOrders');
+  const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'loadAdminOrders',15000,1);
   if(data===null){
     document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
     return;
@@ -1443,8 +1458,7 @@ async function markDone(orderId){
       const items=parseItems(order.items);
       const qtyChanged=items.some((item,i)=>(adminQtys[orderId][i]||item.qty)!==item.qty);
       if(qtyChanged){
-        const freshRes=await fetch(`${API}?action=getProducts&group=ALL`);
-        const freshProducts=await freshRes.json();
+        const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
         products=freshProducts;
         const prodMap=getOrderProdMap(order);
 
@@ -1628,8 +1642,8 @@ async function openReorderModal(){
   const body=document.getElementById('reorderModalBody');
   body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
   try{
-    const res=await fetch(`${API}?action=getOrders&customer_id=${customer.customer_id}`);
-    const orders=await res.json();
+    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
+    if(orders===null) throw new Error('timeout/fetch-failed');
     const completed=orders.filter(o=>{
       const ds=o.delivery_status||o.status||'';
       return ds==='done'||String(ds).toLowerCase().trim()==='done';
