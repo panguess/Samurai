@@ -71,6 +71,9 @@
     .hcard-detail{display:none;padding:0 14px 14px}
     .hcard-detail.open{display:block}
     .hcard-divider{border-top:0.5px solid #f0f0f0;padding-top:12px}
+    .date-divider{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;background:#efece6;border-radius:8px;padding:7px 12px}
+    .date-divider-label{font-size:12.5px;font-weight:500;color:#5f5e5a}
+    .date-divider-sum{font-size:11px;color:#888}
     .order-items-list{margin-bottom:8px}
     .item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
     .item-row:last-child{border:none}
@@ -1090,7 +1093,21 @@ function renderAdminOrders(){
   if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
   if(adminCurrentTab==='done'){
     const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
-    list.innerHTML=sorted.map(o=>buildDoneAdminCard(o)).join('');
+    const groups=[];
+    let curKey='';
+    sorted.forEach(o=>{
+      const tStamp=o.done_at||o.timestamp;
+      const d=tStamp?new Date(tStamp):null;
+      const key=d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'ไม่ทราบวันที่';
+      if(key!==curKey){groups.push({key,orders:[]});curKey=key;}
+      groups[groups.length-1].orders.push(o);
+    });
+    list.innerHTML=groups.map(g=>{
+      const dayTotal=g.orders.reduce((sum,o)=>sum+(Number(o.total)||0),0);
+      const header=`<div class="date-divider"><span class="date-divider-label">${g.key}</span><span class="date-divider-sum">${g.orders.length} ออเดอร์ · ฿${fmtMoney(dayTotal)}</span></div>`;
+      const cards=g.orders.map(o=>buildDoneAdminCard(o)).join('');
+      return header+cards;
+    }).join('');
     return;
   }
   if(adminCurrentTab==='pending'){
