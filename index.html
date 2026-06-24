@@ -448,7 +448,7 @@ var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
 var customerRef=params.get('ref');
 
 /* ===== Error logging & global safety net ===== */
-function logError(label,err){
+function logError(label,err,silent){
   try{
     console.error('['+label+']',err);
     var entry={t:new Date().toISOString(),label:label,msg:(err&&err.message)||String(err)};
@@ -457,7 +457,7 @@ function logError(label,err){
     if(log.length>20)log=log.slice(-20);
     localStorage.setItem('ss_errlog',JSON.stringify(log));
   }catch(e){}
-  showErrBanner((label?label+': ':'')+((err&&err.message)||String(err)));
+  if(!silent)showErrBanner((label?label+': ':'')+((err&&err.message)||String(err)));
 }
 function showErrBanner(msg){
   var b=document.getElementById('errBanner');
@@ -473,7 +473,7 @@ window.onerror=function(msg,src,line,col,err){if(msg==='Script error.'||/^Script
 window.addEventListener('unhandledrejection',function(ev){logError('Promise Error',ev.reason);});
 
 /* ===== Safe fetch helpers (timeout + JSON guard + fallback) ===== */
-async function safeFetchJSON(url,fallback,label,timeoutMs,retries){
+async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
   timeoutMs=timeoutMs||8000;
   retries=retries==null?1:retries;
   for(let attempt=0;attempt<=retries;attempt++){
@@ -483,20 +483,20 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries){
       const res=await fetch(url,{signal:controller.signal});
       clearTimeout(t);
       if(!res.ok){
-        logError(label||'fetch','HTTP '+res.status);
+        logError(label||'fetch','HTTP '+res.status,silent);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
       const text=await res.text();
       try{return JSON.parse(text);}
       catch(e){
-        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80));
+        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),silent);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
     }catch(e){
       clearTimeout(t);
-      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
+      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,silent);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
       return fallback;
     }
@@ -623,6 +623,7 @@ function submitReview(){
 }
 
 let trackRefreshInterval=null;
+let trackRefreshFailCount=0;
 let openHistoryCards=new Set();
 let lastTrackOrders=[];
 let lastTrackOrdersHash='';
@@ -649,12 +650,20 @@ async function loadTrackSection(){
     applyOpenHistoryState();
   }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
   if(trackRefreshInterval) clearInterval(trackRefreshInterval);
+  trackRefreshFailCount=0;
   trackRefreshInterval=setInterval(async()=>{
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1);
-      if(orders===null) return;
+      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
+      if(orders===null){
+        trackRefreshFailCount++;
+        if(trackRefreshFailCount>=3){
+          showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+trackRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
+        }
+        return;
+      }
+      trackRefreshFailCount=0;
       const text=JSON.stringify(orders);
       if(text===lastTrackOrdersHash) return;
       lastTrackOrdersHash=text;
@@ -967,6 +976,7 @@ function closeEditModal(){document.getElementById('editModal').style.display='no
 
 let adminRefreshInterval=null;
 let lastAdminOrdersHash='';
+let adminRefreshFailCount=0;
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
@@ -974,12 +984,20 @@ async function initAdmin(){
   if(!Array.isArray(products))products=[];
   await loadAdminOrders();
   if(adminRefreshInterval) clearInterval(adminRefreshInterval);
+  adminRefreshFailCount=0;
   adminRefreshInterval=setInterval(async()=>{
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',15000,1);
-    if(data===null) return;
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',15000,1,true);
+    if(data===null){
+      adminRefreshFailCount++;
+      if(adminRefreshFailCount>=3){
+        showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+adminRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
+      }
+      return;
+    }
+    adminRefreshFailCount=0;
     const text=JSON.stringify(data);
     if(text===lastAdminOrdersHash) return;
     lastAdminOrdersHash=text;
