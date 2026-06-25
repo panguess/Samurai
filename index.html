@@ -1358,6 +1358,14 @@ function renderAdminOverview(){
     const active=overviewView===view;
     return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
   };
+  const sortSelect=`<div style="position:relative;flex-shrink:0">
+    <select onchange="setOverviewSortMode(this.value)" style="appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
+      <option value="recent" ${overviewSortMode==='recent'?'selected':''}>ล่าสุดที่จัดเสร็จ</option>
+      <option value="total" ${overviewSortMode==='total'?'selected':''}>ยอดรวม (มาก→น้อย)</option>
+      <option value="count" ${overviewSortMode==='count'?'selected':''}>จำนวนออเดอร์ (มาก→น้อย)</option>
+      <option value="name" ${overviewSortMode==='name'?'selected':''}>ชื่อ A-Z</option>
+    </select>
+  </div>`;
   let filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
     ${chip('today','วันนี้')}
     ${chip('yesterday','เมื่อวาน')}
@@ -1372,7 +1380,7 @@ function renderAdminOverview(){
     ${viewBtn('customer','ดูตามลูกค้า','👤')}
     ${viewBtn('product','ดูตามสินค้า','📦')}
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:340px;margin-left:auto;margin-right:auto">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
     <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
       <div style="font-size:17px;font-weight:600;color:#D64109">${customerNames.size}</div>
       <div style="font-size:10px;color:#888;margin-top:2px">ลูกค้าที่จัดเสร็จ (${overviewDateLabel()})</div>
@@ -1382,9 +1390,17 @@ function renderAdminOverview(){
       <div style="font-size:10px;color:#888;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
   </div>`;
+  if(overviewView==='product'){
+    filterHtml+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box" oninput="onOverviewSearch(this.value)">`;
+  } else {
+    filterHtml+=`<div style="display:flex;gap:8px">
+      <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit" oninput="onOverviewSearch(this.value)">
+      ${sortSelect}
+    </div>`;
+  }
   const filterBarEl=document.getElementById('overviewFilterBar');
   if(filterBarEl) filterBarEl.innerHTML=filterHtml;
-  let html='<div style="padding-top:2px"></div>';
+  let html='<div style="padding-top:10px"></div>';
 
   if(overviewView==='product'){
     const byProduct={};
@@ -1401,7 +1417,6 @@ function renderAdminOverview(){
     }
     pNames.sort((a,b)=>byProduct[b]-byProduct[a]);
 
-    html+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
     if(!pNames.length){
       html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบสินค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
     } else {
@@ -1419,19 +1434,6 @@ function renderAdminOverview(){
     wrap.innerHTML=html;
     return;
   }
-
-  const sortSelect=`<div style="position:relative;flex-shrink:0">
-    <select onchange="setOverviewSortMode(this.value)" style="appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
-      <option value="recent" ${overviewSortMode==='recent'?'selected':''}>ล่าสุดที่จัดเสร็จ</option>
-      <option value="total" ${overviewSortMode==='total'?'selected':''}>ยอดรวม (มาก→น้อย)</option>
-      <option value="count" ${overviewSortMode==='count'?'selected':''}>จำนวนออเดอร์ (มาก→น้อย)</option>
-      <option value="name" ${overviewSortMode==='name'?'selected':''}>ชื่อ A-Z</option>
-    </select>
-  </div>`;
-  html+=`<div style="display:flex;gap:8px;margin-bottom:12px">
-    <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit" oninput="onOverviewSearch(this.value)">
-    ${sortSelect}
-  </div>`;
 
   if(!names.length){
     html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
