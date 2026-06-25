@@ -27,7 +27,7 @@
     .header{background:#D64109;color:#fff;padding:1.25rem 1rem}
     .header-name{font-size:22px;font-weight:600}
     .header-sub{font-size:13px;opacity:0.8;margin-top:4px}
-    .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:var(--header-h,56px);z-index:49}
+    .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:var(--header-h,64px);z-index:49}
     .tab{flex:1;padding:10px 4px;text-align:center;font-size:11.5px;cursor:pointer;color:#888;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#D64109;border-bottom-color:#D64109;font-weight:500}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
@@ -977,9 +977,17 @@ function closeEditModal(){document.getElementById('editModal').style.display='no
 let adminRefreshInterval=null;
 let lastAdminOrdersHash='';
 let adminRefreshFailCount=0;
+
+function setAdminHeaderHeight(){
+  const h=document.querySelector('.admin-header');
+  if(h) document.documentElement.style.setProperty('--header-h',h.offsetHeight+'px');
+}  
+  
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
+  setAdminHeaderHeight();
+  window.addEventListener('resize',setAdminHeaderHeight);
   products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
   if(!Array.isArray(products))products=[];
   await loadAdminOrders();
