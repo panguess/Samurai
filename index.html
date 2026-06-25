@@ -1313,11 +1313,13 @@ function renderAdminOverview(){
 
   const[rangeStart,rangeEnd]=getOverviewRange();
   // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards, มุมมองลูกค้า, มุมมองสินค้า
-  const rangeOrders=activeOrders.filter(o=>{
-    if(!ds_done(o)||!o.timestamp)return false;
-    const t=new Date(o.timestamp);
-    return t>=rangeStart&&t<=rangeEnd;
-  });
+ const rangeOrders=activeOrders.filter(o=>{
+  if(!ds_done(o))return false;
+  const tStamp=o.done_at||o.timestamp;
+  if(!tStamp)return false;
+  const t=new Date(tStamp);
+  return t>=rangeStart&&t<=rangeEnd;
+});
   const customerNames=new Set(rangeOrders.map(o=>o.customer_name));
   const totalToday=rangeOrders.reduce((s,o)=>s+Number(o.total),0);
 
