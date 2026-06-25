@@ -28,6 +28,7 @@
     .header-name{font-size:22px;font-weight:600}
     .header-sub{font-size:13px;opacity:0.8;margin-top:4px}
     .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
+    .overview-sticky{position:sticky;top:var(--admin-top-h,112px);z-index:40;background:#f7f5f2;margin:0 -12px;padding:12px 12px 0 12px}
     .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
     .tab{flex:1;padding:10px 4px;text-align:center;font-size:11.5px;cursor:pointer;color:#888;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#D64109;border-bottom-color:#D64109;font-weight:500}
@@ -1310,6 +1311,8 @@ function setOverviewSortMode(mode){
 
 function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
+  const stickyTop=document.querySelector('.admin-sticky-wrap');
+  if(stickyTop) document.documentElement.style.setProperty('--admin-top-h',stickyTop.offsetHeight+'px');
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
@@ -1356,8 +1359,8 @@ function renderAdminOverview(){
     const active=overviewView===view;
     return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
   };
-  let html=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-    ${chip('all','ทั้งหมด')}
+  let html=`<div class="overview-sticky">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
     ${chip('today','วันนี้')}
     ${chip('yesterday','เมื่อวาน')}
     ${chip('7days','7 วันที่แล้ว')}
@@ -1398,7 +1401,7 @@ function renderAdminOverview(){
     pNames.sort((a,b)=>byProduct[b]-byProduct[a]);
 
     html+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit" oninput="onOverviewSearch(this.value)">`;
-
+    html+=`</div>`;
     if(!pNames.length){
       html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบสินค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
     } else {
@@ -1429,6 +1432,7 @@ function renderAdminOverview(){
     <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit" oninput="onOverviewSearch(this.value)">
     ${sortSelect}
   </div>`;
+  html+=`</div>`;
 
   if(!names.length){
     html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
