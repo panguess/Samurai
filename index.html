@@ -829,7 +829,7 @@ function buildHistoryCard(o){
   const isDoneDelivery=ds==='done'||o.status==='done'||String(ds).toLowerCase().trim()==='done'||String(o.status).toLowerCase().trim()==='done';
   const isPackingDelivery=ds==='packing'||String(ds).toLowerCase().trim()==='packing';
   const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
-  const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' · '+tStr:'';
+  const dateTimeStr=fmtOrderDateTime(o.timestamp);
   let badge='';
   if(isCancelled) badge=`<span class="badge" style="background:#f0f0f0;color:#888">ยกเลิกแล้ว</span>`;
   else if(isDoneDelivery) badge=`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`;
@@ -844,7 +844,7 @@ function buildHistoryCard(o){
           <div class="hcard-id">${o.order_id}</div>
         </div>
         <div class="hcard-summary-bottom">
-          <div class="hcard-date">${dateStr} · ${items.length} รายการ</div>
+          <div class="hcard-date" style="line-height:1.6">${dateTimeStr}<br>${items.length} รายการ</div>
           <div class="hcard-badge-wrap">
             <div class="hcard-total cancelled">฿${fmtMoney(o.total)}</div>
             ${badge}
@@ -854,7 +854,7 @@ function buildHistoryCard(o){
       <div class="hcard-detail" id="detail${o.order_id}">
         <div class="hcard-divider">
           <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?new Date(o.cancelled_at).toLocaleString('th-TH'):dateStr}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?new Date(o.cancelled_at).toLocaleString('th-TH'):dateTimeStr}</div>
         </div>
       </div>
     </div>`;
@@ -884,7 +884,7 @@ function buildHistoryCard(o){
         <div class="hcard-id">${o.order_id}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date">${dateStr} · ${items.length} รายการ</div>
+        <div class="hcard-date" style="line-height:1.6">${dateTimeStr}<br>${items.length} รายการ</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           ${badge}
@@ -1083,7 +1083,7 @@ function buildPendingAdminCard(o){
         <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date">${o.order_id} · ${tStr} · ${items.length} รายการ</div>
+        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${tStr}<br>${items.length} รายการ</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           <span class="badge badge-pending">รอจัด</span>
@@ -1221,7 +1221,7 @@ function buildDoneAdminCard(o){
         <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date">${o.order_id} · ${dateStr} · ${items.length} รายการ</div>
+        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${dateStr}<br>${items.length} รายการ</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           <span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>
