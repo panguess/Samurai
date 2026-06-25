@@ -1333,7 +1333,7 @@ function renderAdminOverview(){
     if(!byCustomer[name]) byCustomer[name]={orders:[],total:0,lastDoneAt:0};
     byCustomer[name].orders.push(o);
     byCustomer[name].total+=Number(o.total);
-    const t=o.packing_at||o.done_at||o.timestamp;
+    const t=o.done_at||o.timestamp;
     const ts=t?new Date(t).getTime():0;
     if(ts>byCustomer[name].lastDoneAt) byCustomer[name].lastDoneAt=ts;
   });
