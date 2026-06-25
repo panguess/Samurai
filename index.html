@@ -1013,7 +1013,7 @@ async function initAdmin(){
     const text=JSON.stringify(data);
     if(text===lastAdminOrdersHash) return;
     lastAdminOrdersHash=text;
-    allAdminOrders=Array.isArray(data)?data:[];
+    allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
     if(adminCurrentTab==='overview') renderAdminOverview();
     else renderAdminOrders();
   },10000);
@@ -1026,7 +1026,7 @@ async function loadAdminOrders(){
     document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
     return;
   }
-  allAdminOrders=Array.isArray(data)?data:[];
+  allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
   lastAdminOrdersHash=JSON.stringify(data);
   renderAdminOrders();
 }
@@ -1451,11 +1451,14 @@ function renderAdminOverview(){
       const ordersSorted=[...c.orders].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
       const detailHtml=ordersSorted.map(o=>{
         const label='เสร็จแล้ว',bg='#eaf3de',fg='#3b6d11';
-        const dateStr=o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'';
-        return`<div style="display:grid;grid-template-columns:1fr 70px 78px;align-items:center;gap:8px;font-size:11px;padding:6px 0;border-bottom:1px solid #f5f5f5">
-          <span style="color:#888;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.order_id} · ${dateStr}</span>
-          <span style="font-weight:500;color:#333;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">฿${fmtMoney(o.total)}</span>
-          <span style="background:${bg};color:${fg};padding:2px 8px;border-radius:20px;white-space:nowrap;text-align:center">${label}</span>
+        const dateTimeStr=fmtOrderDateTime(o.timestamp);
+        const itemCount=parseItems(o.items).length;
+        return`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:11px;padding:8px 0;border-bottom:1px solid #f5f5f5">
+          <span style="color:#888;font-family:monospace;line-height:1.6">${o.order_id}<br>${dateTimeStr}<br>${itemCount} รายการ</span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+            <span style="font-weight:500;color:#333;font-variant-numeric:tabular-nums;white-space:nowrap">฿${fmtMoney(o.total)}</span>
+            <span style="background:${bg};color:${fg};padding:2px 8px;border-radius:20px;white-space:nowrap;text-align:center">${label}</span>
+          </span>
         </div>`;
       }).join('');
       return`<div style="background:#fff;border-radius:10px;margin-bottom:8px;border:0.5px solid #e8e2dc;overflow:hidden">
