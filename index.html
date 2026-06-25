@@ -442,6 +442,13 @@
 <script>
 const API='https://script.google.com/macros/s/AKfycby5dJu-T0M5zxgsu7kvLznSqlvhM_5YVgG8XhnX1D0AfvKUsVgXLOc00XpvQZlUyDc4/exec';
 function fmtMoney(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtOrderDateTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts);
+  const dateStr=d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const timeStr=d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}).replace(':','.');
+  return`${dateStr} ${timeStr} น.`;
+}
 function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').trim();}
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
@@ -1068,7 +1075,7 @@ function buildPendingAdminCard(o){
   const isOpen=openAdminPendingCards.has(o.order_id);
   const note=cleanNote(o.note);
   const itemsHtml=buildAdminItemsHtml(o,false);
-  const tStr=o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):'';
+  const tStr=fmtOrderDateTime(o.timestamp);
   return`<div class="order-card">
     <div class="hcard-summary" onclick="toggleAdminPendingCard('${o.order_id}')">
       <div class="hcard-summary-top">
@@ -1206,8 +1213,7 @@ function buildDoneAdminCard(o){
     </div>`;
   }).join('');
   const tStamp=o.done_at||o.timestamp;
-  const tStr=tStamp?new Date(tStamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
-  const dateStr=tStamp?new Date(tStamp).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' · '+tStr:'';
+  const dateStr=fmtOrderDateTime(tStamp);
   return`<div class="order-card">
     <div class="hcard-summary" onclick="toggleAdminDoneCard('${o.order_id}')">
       <div class="hcard-summary-top">
