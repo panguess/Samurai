@@ -453,7 +453,7 @@ function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').tr
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
 var adminQtys={};
-var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set();
+var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
 let pickedItems=new Set();
 var params=new URLSearchParams(window.location.search);
 var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
@@ -881,6 +881,9 @@ function buildHistoryCard(o){
   let billBtn=isDoneDelivery
     ?`<button style="${btnStyle};background:#1a0a06;border:none;color:#fff" onclick="showCustomerBill('${o.order_id}')">🧾 ใบวางบิล</button>`
     :'';
+  let reorderBtn=isDoneDelivery
+    ?`<button style="${btnStyle};background:#D64109;border:none;color:#fff;font-weight:500" onclick="openReorderFromHistory('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${o.timestamp}')">↻ สั่งซ้ำ</button>`
+    :'';
   return`<div class="order-card" id="hcard${o.order_id}">
     <div class="hcard-summary" onclick="toggleHistoryCard('${o.order_id}')">
       <div class="hcard-summary-top">
@@ -901,7 +904,7 @@ function buildHistoryCard(o){
         ${cleanNote(o.note)?`<div class="order-note">📝 ${cleanNote(o.note)}</div>`:''}
         <div class="tl">${tl1}${tl2}${tl3}</div>
         <div class="order-footer">
-          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${billBtn}${cancelBtn}${editBtn}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${billBtn}${reorderBtn}${cancelBtn}${editBtn}</div>
         </div>
       </div>
     </div>
@@ -1803,14 +1806,26 @@ function closeReorderModal(){
   document.getElementById('reorderModal').style.display='none';
   reorderCurrentOrder=null;
   reorderSelectedIdx=new Set();
+  reorderBackToList=true;
 }
 
 function openReorderPicker(orderId){
   const order=reorderOrdersCache.find(o=>o.order_id===orderId);
   if(!order)return;
   reorderCurrentOrder=order;
+  reorderBackToList=true;
   const items=parseItems(order.items);
   reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  renderReorderPicker();
+}
+
+function openReorderFromHistory(orderId,itemsEncoded,total,timestamp){
+  const itemsText=decodeURIComponent(itemsEncoded);
+  reorderCurrentOrder={order_id:orderId,items:itemsText,total:Number(total),timestamp:timestamp};
+  reorderBackToList=false;
+  const items=parseItems(itemsText);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  document.getElementById('reorderModal').style.display='flex';
   renderReorderPicker();
 }
 
@@ -1838,7 +1853,7 @@ function renderReorderPicker(){
   });
   const disabled=selectedCount===0;
   document.getElementById('reorderModalBody').innerHTML=`
-    <button onclick="renderReorderList()" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;padding:0;margin-bottom:10px">‹ กลับไปเลือกออเดอร์อื่น</button>
+    <button onclick="${reorderBackToList?'renderReorderList()':'closeReorderModal()'}" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;padding:0;margin-bottom:10px">‹ ${reorderBackToList?'กลับไปเลือกออเดอร์อื่น':'กลับ'}</button>
     <div style="font-size:11px;color:#aaa;margin-bottom:2px">${order.order_id} · ${order.timestamp?fmtOrderDateTime(order.timestamp):''}</div>
     <div style="font-size:11px;color:#888;margin:8px 0 4px">แตะรายการที่ไม่ต้องการเพื่อตัดออก</div>
     <div>${rowsHtml}</div>
