@@ -1770,7 +1770,8 @@ async function openReorderModal(){
       const ds=o.delivery_status||o.status||'';
       return ds==='done'||String(ds).toLowerCase().trim()==='done';
     });
-    reorderOrdersCache=completed;
+    const completedSorted=[...completed].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    reorderOrdersCache=completedSorted.slice(0,3);
     if(!completed.length){body.innerHTML='<div class="empty-state">ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์</div>';return;}
     renderReorderList();
   }catch(e){body.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
@@ -1787,6 +1788,7 @@ function renderReorderList(){
       <div>
         <div style="font-size:14px;font-weight:600;color:#1a1a1a">${datePart}</div>
         <div style="font-size:11px;color:#aaa;margin-top:2px">${timePart} · ${items.length} รายการ</div>
+        <div style="font-size:10px;font-family:monospace;color:#ccc;margin-top:3px">${o.order_id}</div>
         <div style="font-size:10px;color:#3B6D11;margin-top:4px">เสร็จสมบูรณ์ ✓</div>
       </div>
       <div style="text-align:right">
