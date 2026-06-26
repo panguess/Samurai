@@ -1178,7 +1178,7 @@ function renderAdminOrders(){
     let footerBtns='';
     if(isPending) footerBtns=`<button class="btn-done" style="background:#534AB7;font-size:12px" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
     else if(isPacking) footerBtns=`<button class="btn-done" style="background:#639922;font-size:12px" onclick="markDone('${o.order_id}')">✓ จัดเสร็จแล้ว</button>`;
-    else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:12px" onclick="showOrderSummary('${o.order_id}')"><i class="ti ti-download" aria-hidden="true" style="margin-right:4px"></i>บันทึกรูปภาพ</button>`;
+    else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:12px" onclick="showOrderSummary('${o.order_id}')">⬇ บันทึกรูปภาพ</button>`;
     return`<div class="admin-order-card">
       <div class="admin-order-top">
         <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?fmtOrderDateTime(o.timestamp):''}</div></div>
@@ -1780,16 +1780,19 @@ function renderReorderList(){
   const body=document.getElementById('reorderModalBody');
   body.innerHTML=reorderOrdersCache.map(o=>{
     const items=parseItems(o.items);
-    const itemsStr=items.map(i=>i.name+' x'+i.qty).join(', ');
-    return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer" onclick="openReorderPicker('${o.order_id}')">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-        <div style="flex:1">
-          <div style="font-size:10px;font-family:monospace;color:#888">${o.order_id} · ${o.timestamp?fmtOrderDateTime(o.timestamp):''}</div>
-          <div style="font-size:12px;color:#1a1a1a;margin-top:2px">${itemsStr}</div>
-        </div>
-        <span style="font-size:16px;color:#ccc;flex-shrink:0;margin-left:6px">›</span>
+    const dateTimeStr=o.timestamp?fmtOrderDateTime(o.timestamp):'';
+    const datePart=dateTimeStr?dateTimeStr.split(' ')[0]:'';
+    const timePart=dateTimeStr?dateTimeStr.split(' ').slice(1).join(' '):'';
+    return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer" onclick="openReorderPicker('${o.order_id}')">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#1a1a1a">${datePart}</div>
+        <div style="font-size:11px;color:#aaa;margin-top:2px">${timePart} · ${items.length} รายการ</div>
+        <div style="font-size:10px;color:#3B6D11;margin-top:4px">เสร็จสมบูรณ์ ✓</div>
       </div>
-      <div style="font-size:11px;color:#3B6D11">฿${fmtMoney(o.total)} · เสร็จสมบูรณ์ ✓</div>
+      <div style="text-align:right">
+        <div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(o.total)}</div>
+        <div style="font-size:11px;color:#888;margin-top:6px">สั่งซ้ำ ›</div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1817,7 +1820,7 @@ function renderReorderPicker(){
   const rowsHtml=items.map((item,idx)=>{
     const selected=reorderSelectedIdx.has(idx);
     const checkboxHtml=selected
-      ?`<div style="width:22px;height:22px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:14px;color:#fff" aria-hidden="true"></i></div>`
+      ?`<div style="width:22px;height:22px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
       :`<div style="width:22px;height:22px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
     return`<div onclick="toggleReorderItem(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 8px;border-bottom:1px solid #f5f5f5;border-radius:8px;cursor:pointer">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">${checkboxHtml}<span style="font-size:13.5px;color:#1a1a1a">${item.name}</span></div>
