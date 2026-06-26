@@ -53,10 +53,10 @@
 
   /* employee: stock check grid */
   .prod-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-  .prod-card{border-radius:var(--radius-lg); padding:10px; border:2px solid var(--border);}
+  .prod-card{border-radius:16px; padding:10px; border:2px solid var(--border);}
   .prod-card.checked{background:#EAF3DE; border-color:#639922;}
   .prod-card-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
-  .prod-thumb{width:38px; height:38px; background:#fff; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:15px; flex-shrink:0;}
+  .prod-thumb{width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .check-toggle{margin-left:auto; font-size:18px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
@@ -103,6 +103,20 @@
   .acc-row-body td{padding:3px 0;}
   .acc-row-body tr.safety td{border-left:2px solid var(--danger); padding-left:6px;}
   .acc-row-body tr.suggest td{padding-left:6px; border-radius:4px;}
+
+  /* playful redesign additions */
+  .hero{background:var(--brand); padding:32px 20px 26px; text-align:center;}
+  .hero .logo-circle{width:52px; height:52px; border-radius:50%; background:var(--cream); display:flex; align-items:center; justify-content:center; margin:0 auto 12px;}
+  .hero h1{color:var(--cream); font-size:18px; font-weight:600; margin:0;}
+  .hero p{color:rgba(252,249,242,0.6); font-size:11px; margin:4px 0 0;}
+  .icon-card{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:14px; padding:13px; margin-bottom:9px; cursor:pointer;}
+  .icon-box{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .pick-row{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:10px 14px; margin-bottom:9px; cursor:pointer;}
+  .pick-avatar{width:48px; height:48px; border-radius:50%; border:2px solid var(--text); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .sup-card-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+  .sup-card{display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:14px 8px; text-align:center; cursor:pointer;}
+  .sup-card.done{opacity:0.55;}
+  .sup-icon{width:42px; height:42px; border-radius:13px; border:2px solid var(--text); display:flex; align-items:center; justify-content:center;}
 </style>
 </head>
 <body>
@@ -138,6 +152,11 @@ let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock
 /* ============ STATE / ROUTER ============ */
 let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{}, expandedRows:new Set() };
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
+const ICON_PALETTE = [
+  {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
+  {bg:'#E1F5EE', fg:'#085041'}, {bg:'#EEEDFE', fg:'#3C3489'},
+];
+function iconColor(idx){ return ICON_PALETTE[idx % ICON_PALETTE.length]; }
 function go(screen, extra){ state.screen = screen; Object.assign(state, extra||{}); render(); }
 
 function renderLoading(app, msg){
@@ -178,12 +197,23 @@ function topbar(title, opts={}){
 
 /* ============ HOME ============ */
 function renderHome(app){
-  app.appendChild(topbar('ซามูไร ไส้กรอก'));
+  const hero = document.createElement('div'); hero.className='hero';
+  hero.innerHTML = `<div class="logo-circle"><i class="ti ti-flame" style="font-size:24px; color:var(--brand);" aria-hidden="true"></i></div>
+    <h1>ซามูไร ไส้กรอก</h1><p>ระบบเช็คสต๊อก & สั่งของ</p>`;
+  app.appendChild(hero);
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
-    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">เลือกฝั่งที่จะใช้งาน</p>
-    <div class="nav-tile" id="goStaff"><div style="font-size:20px;">👷</div><div><p>ฝั่งพนักงาน</p><small>เช็คสต๊อกรายวัน</small></div></div>
-    <div class="nav-tile" id="goOwner"><div style="font-size:20px;">🧑‍🍳</div><div><p>ฝั่งเจ้าของร้าน</p><small>สั่งของ / สต๊อก / วิเคราะห์</small></div></div>
+    <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 12px;">เลือกฝั่งที่จะใช้งาน</p>
+    <div class="icon-card" id="goStaff">
+      <div class="icon-box" style="background:var(--bg);"><i class="ti ti-clipboard-check" style="font-size:20px; color:var(--text);" aria-hidden="true"></i></div>
+      <div style="flex:1;"><p style="margin:0; font-size:14.5px; font-weight:600;">ฝั่งพนักงาน</p><p style="margin:2px 0 0; font-size:12px; color:var(--text-tertiary);">เช็คสต๊อกรายวัน</p></div>
+      <i class="ti ti-chevron-right" style="font-size:18px; color:var(--text-tertiary);" aria-hidden="true"></i>
+    </div>
+    <div class="icon-card" id="goOwner">
+      <div class="icon-box" style="background:var(--bg);"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text);" aria-hidden="true"></i></div>
+      <div style="flex:1;"><p style="margin:0; font-size:14.5px; font-weight:600;">ฝั่งเจ้าของร้าน</p><p style="margin:2px 0 0; font-size:12px; color:var(--text-tertiary);">สั่งของ / สต๊อก / วิเคราะห์</p></div>
+      <i class="ti ti-chevron-right" style="font-size:18px; color:var(--text-tertiary);" aria-hidden="true"></i>
+    </div>
   `;
   app.appendChild(c);
   c.querySelector('#goStaff').onclick = ()=>go('staffName');
@@ -194,13 +224,19 @@ function renderHome(app){
 function renderStaffName(app){
   app.appendChild(topbar('เลือกชื่อพนักงาน', {back:()=>go('home')}));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-    ${STAFF.map(s=>`
-      <div class="nav-tile staff-pick" data-name="${s.name}" style="justify-content:center; margin-bottom:0;">
-        <div style="width:36px; height:36px; border-radius:50%; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600;">${s.avatar||s.name[1]}</div>
-        <p>${s.name}</p>
-      </div>`).join('')}
-  </div>`;
+  const emojis = ['👋','✨','🌸','🔥','🍀'];
+  c.innerHTML = `
+    <p style="font-size:14px; font-weight:600; margin:0 0 2px;">วันนี้ใครจะมาเช็คสต๊อก? 🙋</p>
+    <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 16px;">แตะเลือกชื่อตัวเองได้เลย</p>
+    ${STAFF.map((s,i)=>{
+      const col = iconColor(i);
+      return `<div class="pick-row staff-pick" data-name="${s.name}">
+        <div class="pick-avatar" style="background:${col.bg};"><i class="ti ti-user" style="font-size:20px; color:${col.fg};" aria-hidden="true"></i></div>
+        <p style="margin:0; font-size:15px; font-weight:600; flex:1;">${s.name}</p>
+        <span style="font-size:17px;">${emojis[i % emojis.length]}</span>
+      </div>`;
+    }).join('')}
+  `;
   app.appendChild(c);
   c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('supplierList', {staffName: el.dataset.name}));
 }
@@ -228,11 +264,11 @@ async function renderSupplierList(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <div class="progress-track"><div class="progress-fill" style="width:${SUPPLIERS.length? done.length/SUPPLIERS.length*100:0}%; background:var(--brand);"></div></div>
-    <input type="text" id="search" placeholder="ค้นหาชื่อร้าน" style="margin-bottom:10px;">
+    <input type="text" id="search" placeholder="ค้นหาชื่อร้าน" style="margin-bottom:14px;">
     <p class="section-label" style="margin-top:0;">ยังไม่เช็ค (${pending.length})</p>
-    <div id="pendingList"></div>
-    <p class="section-label">เช็คแล้ว (${done.length})</p>
-    <div id="doneList"></div>
+    <div id="pendingList" class="sup-card-grid"></div>
+    <p class="section-label">เช็คแล้ว (${done.length}) <i class="ti ti-check" style="font-size:13px; vertical-align:-1px;" aria-hidden="true"></i></p>
+    <div id="doneList" class="sup-card-grid"></div>
   `;
   app.appendChild(c);
 
@@ -240,26 +276,26 @@ async function renderSupplierList(app){
     const f = (filter||'').trim();
     const pl = c.querySelector('#pendingList'); const dl = c.querySelector('#doneList');
     pl.innerHTML=''; dl.innerHTML='';
-    pending.filter(s=>s.name.includes(f)).forEach(s=> pl.appendChild(supplierRow(s,false)));
-    done.filter(s=>s.name.includes(f)).forEach(s=> dl.appendChild(supplierRow(s,true)));
+    pending.filter(s=>s.name.includes(f)).forEach((s)=> pl.appendChild(supplierCard(s, false, SUPPLIERS.indexOf(s))));
+    done.filter(s=>s.name.includes(f)).forEach((s)=> dl.appendChild(supplierCard(s, true, SUPPLIERS.indexOf(s))));
     if(!pl.children.length) pl.innerHTML = '<p class="empty-state">ไม่พบร้านที่ค้นหา</p>';
   }
   renderLists('');
   c.querySelector('#search').oninput = (e)=>renderLists(e.target.value);
 }
 
-function supplierRow(s, isDone){
-  const col = NEUTRAL_COL;
-  const row = document.createElement('div');
-  row.className = 'sup-row' + (isDone?' done':'');
-  row.style.borderLeft = `3px solid ${col.text}`;
-  row.innerHTML = `
-    <div class="sup-thumb"><i class="ti ti-photo" aria-hidden="true" style="font-size:16px;"></i></div>
-    <p>${s.name}</p>
-    ${isDone? '<i class="ti ti-check" style="color:'+col.text+'; font-size:16px;"></i>' : '<i class="ti ti-chevron-right" style="color:var(--text-tertiary); font-size:16px;"></i>'}
+function supplierCard(s, isDone, idx){
+  const col = iconColor(idx);
+  const card = document.createElement('div');
+  card.className = 'sup-card' + (isDone?' done':'');
+  card.innerHTML = `
+    <div class="sup-icon" style="background:${isDone?'var(--bg)':col.bg}; border-color:${isDone?'var(--border-strong)':'var(--text)'};">
+      <i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:19px; color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>
+    </div>
+    <p style="margin:0; font-size:13px; font-weight:600; color:${isDone?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
   `;
-  row.onclick = ()=>go('supplierCheck', {currentSupplierId: s.id});
-  return row;
+  card.onclick = ()=>go('supplierCheck', {currentSupplierId: s.id});
+  return card;
 }
 
 /* ============ STAFF: single-page check (all products, 2-col grid) ============ */
@@ -286,13 +322,14 @@ async function renderSupplierCheck(app){
 
   function renderGrid(){
     grid.innerHTML='';
-    products.forEach(p=>{
+    products.forEach((p, idx)=>{
       const isChecked = checkedProducts.has(p.id);
+      const col = iconColor(idx);
       const card = document.createElement('div');
       card.className = 'prod-card' + (isChecked?' checked':'');
       card.innerHTML = `
         <div class="prod-card-head">
-          <div class="prod-thumb"><i class="ti ti-photo" aria-hidden="true" style="font-size:15px;"></i></div>
+          <div class="prod-thumb" style="background:${isChecked?'rgba(255,255,255,0.6)':col.bg};"><i class="ti ti-meat" aria-hidden="true" style="font-size:17px; color:${col.fg};"></i></div>
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         <p class="prod-card-name">${p.name}</p>
@@ -358,12 +395,20 @@ async function renderSupplierCheck(app){
 function renderStaffDone(app){
   app.appendChild(topbar('เช็คสต๊อกเสร็จแล้ว'));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = `<div class="empty-state" style="padding:60px 0;">
-      <div style="font-size:40px; margin-bottom:10px;">✅</div>
-      <p style="font-size:15px; color:var(--text); font-weight:500;">บันทึกข้อมูลแล้ว</p>
-      <p>ขอบคุณที่ช่วยเช็คสต๊อกวันนี้นะครับ</p>
+  const total = SUPPLIERS.length; const doneN = checkedSuppliers.size;
+  c.innerHTML = `<div style="text-align:center; padding:50px 10px 0;">
+      <div style="width:76px; height:76px; border-radius:50%; background:#EAF3DE; border:2px solid #3B6D11; display:flex; align-items:center; justify-content:center; margin:0 auto 18px;">
+        <i class="ti ti-check" style="font-size:34px; color:#3B6D11;" aria-hidden="true"></i>
+      </div>
+      <p style="font-size:17px; font-weight:600; color:var(--text); margin:0 0 6px;">บันทึกข้อมูลแล้ว</p>
+      <p style="font-size:13px; color:var(--text-tertiary); margin:0 0 22px;">ขอบคุณที่ช่วยเช็คสต๊อกวันนี้นะครับ</p>
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:14px; margin-bottom:22px;">
+        <i class="ti ti-flame" style="font-size:18px; color:var(--text);" aria-hidden="true"></i>
+        <span style="font-size:13px; color:var(--text-secondary);">เช็คไปแล้ว <b style="color:var(--text);">${doneN} / ${total}</b> ร้าน</span>
+      </div>
     </div>`;
   const btn = document.createElement('button'); btn.className='btn btn-block'; btn.textContent='กลับไปเช็คเจ้าอื่นต่อ';
+  btn.style.background = 'var(--brand)'; btn.style.color = 'var(--cream)'; btn.style.border = 'none';
   btn.onclick = ()=>go('supplierList');
   c.appendChild(btn);
   app.appendChild(c);
