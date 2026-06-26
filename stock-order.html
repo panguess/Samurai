@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ซามูไรไส้กรอก — เช็คสต๊อก & สั่งของ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --brand:#D64109; --brand-bg:#FAEEDA;
+    --cream:#FCF9F2;
+    --bg:#F1EFE8;
+    --text:#2C2C2A; --text-secondary:#5F5E5A; --text-tertiary:#888780;
+    --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.22);
+    --radius-md:8px; --radius-lg:12px;
+    --green:#085041; --green-bg:#E1F5EE;
+    --amber:#854F0B; --amber-bg:#FAEEDA; --amber-mid:#EF9F27;
+    --purple:#3C3489; --purple-bg:#EEEDFE;
+    --pink:#993556; --pink-bg:#FBEAF0;
+    --danger:#A32D2D; --danger-bg:#FCEBEB;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:'Sarabun',sans-serif; background:var(--bg); color:var(--text); margin:0; -webkit-font-smoothing:antialiased;}
+  #app{max-width:480px; margin:0 auto; min-height:100vh; background:var(--cream); display:flex; flex-direction:column;}
+  .topbar{background:var(--brand); color:var(--cream); padding:14px 16px; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:10;}
+  .topbar h1{font-size:16px; font-weight:600; margin:0; flex:1;}
+  .topbar .back{cursor:pointer; font-size:18px; background:none; border:none; color:var(--cream); padding:4px;}
+  .topbar .meta{font-size:13px; opacity:0.9;}
+  .content{flex:1; padding:14px; padding-bottom:80px;}
+  button{font-family:inherit;}
+  .btn{border:1px solid var(--border-strong); background:var(--cream); color:var(--text); border-radius:var(--radius-md); padding:9px 14px; font-size:13px; cursor:pointer;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--brand); color:var(--cream); border:none; font-weight:600;}
+  .btn-block{width:100%; padding:12px; font-size:14px;}
+  input[type=text], input[type=number], select{
+    font-family:inherit; font-size:14px; border:1px solid var(--border-strong); border-radius:var(--radius-md);
+    padding:8px 10px; width:100%; background:#fff; color:var(--text);
+  }
+  input:focus, select:focus{outline:2px solid var(--brand); outline-offset:1px;}
+  table{border-collapse:collapse;}
+
+  /* employee: supplier list */
+  .progress-track{height:6px; background:var(--bg); border-radius:8px; overflow:hidden; margin:10px 0 14px;}
+  .progress-fill{height:100%; background:var(--cream); opacity:0.8; border-radius:8px;}
+  .sup-row{display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-md); margin-bottom:6px; cursor:pointer; background:#fff;}
+  .sup-row.done{opacity:0.5;}
+  .sup-thumb{width:44px; height:44px; border-radius:var(--radius-md); background:var(--bg); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:18px; flex-shrink:0;}
+  .sup-row p{margin:0; font-size:14px; font-weight:500; flex:1;}
+  .section-label{font-size:13px; color:var(--text-secondary); margin:14px 0 6px; font-weight:500;}
+
+  /* employee: stock check grid */
+  .prod-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .prod-card{border-radius:var(--radius-lg); padding:10px; border:2px solid var(--border);}
+  .prod-card.checked{background:#EAF3DE; border-color:#639922;}
+  .prod-card-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .prod-thumb{width:38px; height:38px; background:#fff; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:15px; flex-shrink:0;}
+  .check-toggle{margin-left:auto; font-size:18px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
+  .prod-card.checked .check-toggle{color:#3B6D11;}
+  .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
+  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px;}
+  .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
+  .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
+  .step-input{width:28px; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
+  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto;}
+  .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
+  .stickybar span{color:var(--cream); font-size:13px;}
+  .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
+
+  /* owner */
+  .nav-tile{background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; cursor:pointer; display:flex; align-items:center; gap:12px; margin-bottom:10px;}
+  .nav-tile.featured{border:2px solid var(--brand);}
+  .nav-tile p{margin:0; font-weight:500; font-size:14px;}
+  .nav-tile small{color:var(--text-secondary); font-size:12px;}
+  .tabs{display:flex; gap:6px; margin-bottom:14px;}
+  .tab{border:1px solid var(--border-strong); background:#fff; border-radius:var(--radius-md); padding:6px 13px; font-size:13px; cursor:pointer;}
+  .tab.active{background:var(--brand); color:var(--cream); border-color:var(--brand);}
+  .metric-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+  .metric{background:var(--bg); border-radius:var(--radius-md); padding:9px;}
+  .metric p:first-child{font-size:12px; color:var(--text-secondary); margin:0 0 4px;}
+  .metric p:last-child{font-size:19px; font-weight:600; margin:0;}
+  .sup-header{padding:7px 10px; border-radius:0; margin:0; border-left:3px solid; font-size:13px; font-weight:600; display:flex; justify-content:space-between; align-items:center; position:sticky; top:48px; z-index:3;}
+  .badge{font-size:11px; padding:2px 8px; border-radius:6px; font-weight:500; display:inline-block;}
+  .empty-state{text-align:center; color:var(--text-secondary); font-size:13px; padding:30px 0;}
+  .copy-toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:8px 16px; border-radius:8px; font-size:13px; z-index:60;}
+
+  /* accordion order rows */
+  .acc-group{border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; margin-bottom:14px;}
+  .acc-row-head{display:flex; align-items:center; gap:7px; padding:9px 10px; cursor:pointer; border-bottom:1px solid var(--border); border-left:3px solid transparent; background:#fff;}
+  .acc-row-head.low{border-left-color:var(--danger);}
+  .acc-name{flex:1; font-size:13px;}
+  .acc-forecast{display:flex; align-items:baseline; gap:4px; margin-right:2px; white-space:nowrap;}
+  .acc-forecast-label{font-size:11px; color:var(--text-tertiary); font-weight:500;}
+  .acc-forecast-val{font-size:12px; color:var(--text-secondary); font-weight:500;}
+  .acc-qty-wrap{display:flex; align-items:baseline; gap:3px;}
+  .acc-input{width:46px; text-align:right; padding:5px 4px; font-size:17px; font-weight:700; color:var(--text); border:1px solid var(--border-strong); border-radius:6px;}
+  .acc-unit{font-size:12px; color:var(--text-secondary); width:28px;}
+  .acc-chev{font-size:13px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
+  .acc-row-body{padding:8px 10px 10px 30px; border-bottom:1px solid var(--border); font-size:12px; background:#fcfcfa;}
+  .acc-row-body table{width:100%;}
+  .acc-row-body td{padding:3px 0;}
+  .acc-row-body tr.safety td{border-left:2px solid var(--danger); padding-left:6px;}
+  .acc-row-body tr.suggest td{padding-left:6px; border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ============ LIVE API CONFIG ============ */
+const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
+
+async function apiGet(action, params){
+  const qs = new URLSearchParams({action, ...(params||{})}).toString();
+  const res = await fetch(`${API_URL}?${qs}`);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+async function apiPost(action, payload){
+  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}) });
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+
+/* ============ LIVE DATA (filled by bootstrap()) ============ */
+let SUPPLIERS = [];
+let PRODUCTS = [];
+let STAFF = [];
+let stockValues = {};       // unitId -> remain qty (today)
+let checkedSuppliers = new Set();
+let checkedProducts = new Set();
+let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
+
+
+/* ============ STATE / ROUTER ============ */
+let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{}, expandedRows:new Set() };
+const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
+function go(screen, extra){ state.screen = screen; Object.assign(state, extra||{}); render(); }
+
+function renderLoading(app, msg){
+  app.innerHTML = `<div class="empty-state" style="padding:80px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>${msg||'กำลังโหลดข้อมูล...'}</p></div>`;
+}
+
+async function bootstrap(){
+  const app = document.getElementById('app');
+  renderLoading(app, 'กำลังโหลดข้อมูลร้าน...');
+  try{
+    const data = await apiGet('bootstrap');
+    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    render();
+  }catch(err){
+    app.innerHTML = `<div class="empty-state" style="padding:80px 14px; color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}<br><br><button class="btn" onclick="bootstrap()">ลองใหม่</button></div>`;
+  }
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  const map = {
+    home: renderHome, staffName: renderStaffName, supplierList: renderSupplierList,
+    supplierCheck: renderSupplierCheck, staffDone: renderStaffDone,
+    ownerMenu: renderOwnerMenu, ownerStockAnalytics: renderOwnerStockAnalytics,
+    orderPage: renderOrderPage, orderMessage: renderOrderMessage,
+  };
+  (map[state.screen] || renderHome)(app);
+}
+
+function topbar(title, opts={}){
+  const bar = document.createElement('div'); bar.className='topbar';
+  if(opts.back){ const b=document.createElement('button'); b.className='back'; b.innerHTML='←'; b.onclick=opts.back; bar.appendChild(b); }
+  const h = document.createElement('h1'); h.textContent = title; bar.appendChild(h);
+  if(opts.meta){ const m=document.createElement('span'); m.className='meta'; m.textContent=opts.meta; bar.appendChild(m); }
+  return bar;
+}
+
+/* ============ HOME ============ */
+function renderHome(app){
+  app.appendChild(topbar('ซามูไร ไส้กรอก'));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">เลือกฝั่งที่จะใช้งาน</p>
+    <div class="nav-tile" id="goStaff"><div style="font-size:20px;">👷</div><div><p>ฝั่งพนักงาน</p><small>เช็คสต๊อกรายวัน</small></div></div>
+    <div class="nav-tile" id="goOwner"><div style="font-size:20px;">🧑‍🍳</div><div><p>ฝั่งเจ้าของร้าน</p><small>สั่งของ / สต๊อก / วิเคราะห์</small></div></div>
+  `;
+  app.appendChild(c);
+  c.querySelector('#goStaff').onclick = ()=>go('staffName');
+  c.querySelector('#goOwner').onclick = ()=>go('ownerMenu');
+}
+
+/* ============ STAFF: choose name ============ */
+function renderStaffName(app){
+  app.appendChild(topbar('เลือกชื่อพนักงาน', {back:()=>go('home')}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+    ${STAFF.map(s=>`
+      <div class="nav-tile staff-pick" data-name="${s.name}" style="justify-content:center; margin-bottom:0;">
+        <div style="width:36px; height:36px; border-radius:50%; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600;">${s.avatar||s.name[1]}</div>
+        <p>${s.name}</p>
+      </div>`).join('')}
+  </div>`;
+  app.appendChild(c);
+  c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('supplierList', {staffName: el.dataset.name}));
+}
+
+/* ============ STAFF: supplier list (all suppliers always shown) ============ */
+async function renderSupplierList(app){
+  renderLoading(app, 'กำลังโหลดสถานะร้าน...');
+  let statusList;
+  try{ statusList = await apiGet('stockStatus'); }
+  catch(err){ app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }
+
+  checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
+  checkedSuppliers = new Set(
+    SUPPLIERS.filter(s=>{
+      const prods = PRODUCTS.filter(p=>p.supplierId===s.id);
+      return prods.length>0 && prods.every(p=>checkedProducts.has(p.id));
+    }).map(s=>s.id)
+  );
+
+  app.innerHTML = '';
+  const pending = SUPPLIERS.filter(s=>!checkedSuppliers.has(s.id));
+  const done = SUPPLIERS.filter(s=>checkedSuppliers.has(s.id));
+
+  app.appendChild(topbar('เลือกร้านที่จะเช็ค', {meta:`${done.length} / ${SUPPLIERS.length}`}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <div class="progress-track"><div class="progress-fill" style="width:${SUPPLIERS.length? done.length/SUPPLIERS.length*100:0}%; background:var(--brand);"></div></div>
+    <input type="text" id="search" placeholder="ค้นหาชื่อร้าน" style="margin-bottom:10px;">
+    <p class="section-label" style="margin-top:0;">ยังไม่เช็ค (${pending.length})</p>
+    <div id="pendingList"></div>
+    <p class="section-label">เช็คแล้ว (${done.length})</p>
+    <div id="doneList"></div>
+  `;
+  app.appendChild(c);
+
+  function renderLists(filter){
+    const f = (filter||'').trim();
+    const pl = c.querySelector('#pendingList'); const dl = c.querySelector('#doneList');
+    pl.innerHTML=''; dl.innerHTML='';
+    pending.filter(s=>s.name.includes(f)).forEach(s=> pl.appendChild(supplierRow(s,false)));
+    done.filter(s=>s.name.includes(f)).forEach(s=> dl.appendChild(supplierRow(s,true)));
+    if(!pl.children.length) pl.innerHTML = '<p class="empty-state">ไม่พบร้านที่ค้นหา</p>';
+  }
+  renderLists('');
+  c.querySelector('#search').oninput = (e)=>renderLists(e.target.value);
+}
+
+function supplierRow(s, isDone){
+  const col = NEUTRAL_COL;
+  const row = document.createElement('div');
+  row.className = 'sup-row' + (isDone?' done':'');
+  row.style.borderLeft = `3px solid ${col.text}`;
+  row.innerHTML = `
+    <div class="sup-thumb"><i class="ti ti-photo" aria-hidden="true" style="font-size:16px;"></i></div>
+    <p>${s.name}</p>
+    ${isDone? '<i class="ti ti-check" style="color:'+col.text+'; font-size:16px;"></i>' : '<i class="ti ti-chevron-right" style="color:var(--text-tertiary); font-size:16px;"></i>'}
+  `;
+  row.onclick = ()=>go('supplierCheck', {currentSupplierId: s.id});
+  return row;
+}
+
+/* ============ STAFF: single-page check (all products, 2-col grid) ============ */
+async function renderSupplierCheck(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.currentSupplierId);
+  const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
+
+  renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
+  try{
+    const statusList = await apiGet('stockStatus');
+    statusList.filter(s=>products.some(p=>p.id===s.productId)).forEach(s=>{
+      Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; });
+      if(s.checked) checkedProducts.add(s.productId);
+    });
+  }catch(err){
+    app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`; return;
+  }
+  app.innerHTML = '';
+
+  app.appendChild(topbar(sup.name, {back:()=>go('supplierList')}));
+  const c = document.createElement('div'); c.className='content';
+  const grid = document.createElement('div'); grid.className='prod-grid';
+  c.appendChild(grid);
+
+  function renderGrid(){
+    grid.innerHTML='';
+    products.forEach(p=>{
+      const isChecked = checkedProducts.has(p.id);
+      const card = document.createElement('div');
+      card.className = 'prod-card' + (isChecked?' checked':'');
+      card.innerHTML = `
+        <div class="prod-card-head">
+          <div class="prod-thumb"><i class="ti ti-photo" aria-hidden="true" style="font-size:15px;"></i></div>
+          <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
+        </div>
+        <p class="prod-card-name">${p.name}</p>
+        ${p.units.map(u=>`
+          <div class="unit-stepper">
+            <button class="step-btn minus" data-unit="${u.id}">−</button>
+            <input type="number" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
+            <button class="step-btn plus" data-unit="${u.id}">+</button>
+            <span class="unit-tag">${u.label}</span>
+          </div>
+        `).join('')}
+      `;
+      grid.appendChild(card);
+    });
+
+    grid.querySelectorAll('.check-toggle').forEach(btn=>{
+      btn.onclick = ()=>{
+        const pid = btn.dataset.pid;
+        if(checkedProducts.has(pid)) checkedProducts.delete(pid); else checkedProducts.add(pid);
+        renderGrid(); updateBar();
+      };
+    });
+    grid.querySelectorAll('.minus, .plus').forEach(btn=>{
+      btn.onclick = ()=>{
+        const uid = btn.dataset.unit;
+        const input = grid.querySelector(`.step-input[data-unit="${uid}"]`);
+        let v = parseInt(input.value||0,10);
+        v = btn.classList.contains('plus') ? v+1 : Math.max(0,v-1);
+        input.value = v; stockValues[uid] = v;
+      };
+    });
+    grid.querySelectorAll('.step-input').forEach(inp=>{
+      inp.oninput = ()=>{ stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10)); };
+    });
+  }
+  renderGrid();
+
+  const bar = document.createElement('div'); bar.className='stickybar';
+  c.appendChild(bar);
+  function updateBar(){
+    const doneCount = products.filter(p=>checkedProducts.has(p.id)).length;
+    bar.innerHTML = `<span><i class="ti ti-list-check" style="font-size:13px; vertical-align:-2px; margin-right:5px;"></i>เช็คแล้ว ${doneCount} จาก ${products.length} รายการ</span>
+      <button class="btn-primary btn" id="finishSup">เสร็จเจ้านี้</button>`;
+    bar.querySelector('#finishSup').onclick = async ()=>{
+      const btn = bar.querySelector('#finishSup');
+      btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+      const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
+      try{
+        await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items });
+        checkedSuppliers.add(sup.id);
+        go('staffDone');
+      }catch(err){
+        btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
+        alert('บันทึกไม่สำเร็จ: ' + err.message);
+      }
+    };
+  }
+  updateBar();
+
+  app.appendChild(c);
+}
+
+function renderStaffDone(app){
+  app.appendChild(topbar('เช็คสต๊อกเสร็จแล้ว'));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<div class="empty-state" style="padding:60px 0;">
+      <div style="font-size:40px; margin-bottom:10px;">✅</div>
+      <p style="font-size:15px; color:var(--text); font-weight:500;">บันทึกข้อมูลแล้ว</p>
+      <p>ขอบคุณที่ช่วยเช็คสต๊อกวันนี้นะครับ</p>
+    </div>`;
+  const btn = document.createElement('button'); btn.className='btn btn-block'; btn.textContent='กลับไปเช็คเจ้าอื่นต่อ';
+  btn.onclick = ()=>go('supplierList');
+  c.appendChild(btn);
+  app.appendChild(c);
+}
+
+/* ============ OWNER MENU (order first) ============ */
+function renderOwnerMenu(app){
+  app.appendChild(topbar('ฝั่งเจ้าของร้าน', {back:()=>go('home')}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <div class="nav-tile featured" id="goOrder"><i class="ti ti-shopping-cart" style="font-size:20px; color:var(--brand);"></i>
+      <div><p>สั่งของ</p><small>เลือกรายการ + ยอดเสนอสั่ง</small></div></div>
+    <div class="nav-tile" id="goStockAnalytics"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);"></i>
+      <div><p>สต๊อก & วิเคราะห์</p><small>Dashboard + แนวโน้มการสั่งซื้อ</small></div></div>
+  `;
+  app.appendChild(c);
+  c.querySelector('#goOrder').onclick = ()=>go('orderPage');
+  c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
+}
+
+/* ============ OWNER: merged Dashboard + Analytics ============ */
+async function renderOwnerStockAnalytics(app){
+  app.appendChild(topbar('สต๊อก & วิเคราะห์', {back:()=>go('ownerMenu')}));
+  const c = document.createElement('div'); c.className='content';
+  const tabs = document.createElement('div'); tabs.className='tabs';
+  tabs.innerHTML = `<div class="tab ${state.ownerTab==='stock'?'active':''}" data-t="stock">สถานะสต๊อก</div>
+                     <div class="tab ${state.ownerTab==='analytics'?'active':''}" data-t="analytics">วิเคราะห์การสั่งซื้อ</div>`;
+  c.appendChild(tabs);
+  const body = document.createElement('div'); body.innerHTML='<p class="empty-state">กำลังโหลด...</p>'; c.appendChild(body);
+  app.appendChild(c);
+
+  tabs.querySelectorAll('.tab').forEach(t=> t.onclick = ()=>{ go('ownerStockAnalytics', {ownerTab:t.dataset.t}); });
+
+  try{
+    if(state.ownerTab === 'stock'){
+      const statusList = await apiGet('stockStatus');
+      statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+      renderStockTab(body);
+    } else {
+      const analytics = await apiGet('analytics', {range:'7d'});
+      renderAnalyticsTab(body, analytics);
+    }
+  }catch(err){
+    body.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
+  }
+}
+
+function renderStockTab(body){
+  const allProducts = PRODUCTS.map(p=>{
+    const total = p.units.reduce((sum,u)=> sum + (stockValues[u.id]||0), 0);
+    return {...p, total, empty: total===0};
+  });
+  const total = allProducts.length;
+  const empty = allProducts.filter(p=>p.empty).length;
+
+  body.innerHTML = `<div class="metric-grid">
+      <div class="metric"><p>สินค้าทั้งหมด</p><p>${total}</p></div>
+      <div class="metric" style="background:var(--green-bg);"><p style="color:var(--green);">ยังมี</p><p style="color:var(--green);">${total-empty}</p></div>
+      <div class="metric" style="background:var(--amber-bg);"><p style="color:var(--amber);">หมด</p><p style="color:var(--amber);">${empty}</p></div>
+    </div>
+    <input type="text" id="search" placeholder="ค้นหาชื่อสินค้า" style="margin-bottom:10px;">
+    <div id="tableWrap"></div>`;
+  const tableWrap = body.querySelector('#tableWrap');
+
+  function renderTable(filter){
+    tableWrap.innerHTML='';
+    SUPPLIERS.forEach(s=>{
+      const items = allProducts.filter(p=>p.supplierId===s.id && p.name.includes(filter||''));
+      if(!items.length) return;
+      const col = NEUTRAL_COL;
+      const head = document.createElement('div'); head.className='sup-header';
+      head.style.background = col.bg; head.style.color = col.text; head.style.borderColor = col.text;
+      head.innerHTML = `<span>${s.name}</span>`;
+      tableWrap.appendChild(head);
+      const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.fontSize='13px'; tbl.style.marginBottom='10px';
+      tbl.innerHTML = items.map(p=>`<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:7px 4px;">${p.name}</td>
+          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${u.label}`).join(' / ')}</td>
+          <td style="padding:7px 4px; text-align:right; width:55px;">${p.empty? '<span class="badge" style="background:var(--amber-mid); color:#412402;">หมด</span>' : '<span style="color:var(--text-secondary); font-size:12px;">ยังมี</span>'}</td>
+        </tr>`).join('');
+      tableWrap.appendChild(tbl);
+    });
+  }
+  renderTable('');
+  body.querySelector('#search').oninput = (e)=>renderTable(e.target.value);
+}
+
+function renderAnalyticsTab(body, analytics){
+  const rows = (analytics?.topProducts||[]).slice(0,5);
+  body.innerHTML = `
+    <div class="tabs"><div class="tab active">7 วัน</div><div class="tab">30 วัน</div><div class="tab">กำหนดเอง</div></div>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; margin-bottom:12px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (7 วันล่าสุด)</p>
+      <table style="width:100%; font-size:13px;">
+        ${rows.length ? rows.map(r=>`<tr><td>${r.name}</td><td style="text-align:right;">${r.total}</td></tr>`).join('')
+                      : '<tr><td colspan="2" style="color:var(--text-secondary);">ยังไม่มีข้อมูลสั่งของในช่วงนี้</td></tr>'}
+      </table>
+    </div>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;">
+      <p style="font-weight:600; font-size:13px; margin:0 0 4px;">แนวโน้มรายสินค้า</p>
+      <p style="font-size:11px; color:var(--text-tertiary); margin:0 0 8px;">* กราฟตัวอย่าง — ยังไม่เชื่อมข้อมูลรายวันจริง (Code.gs ยังไม่มี endpoint ส่งย้อนหลังรายวัน)</p>
+      <svg viewBox="0 0 320 130" style="width:100%;">
+        <line x1="28" y1="10" x2="28" y2="105" stroke="var(--border-strong)"/>
+        <line x1="28" y1="105" x2="300" y2="105" stroke="var(--border-strong)"/>
+        <polyline points="50,75 100,55 150,65 200,35 250,45 290,25" fill="none" stroke="var(--brand)" stroke-width="2"/>
+        ${[[50,75,'6'],[100,55,'8'],[150,65,'6.5'],[200,35,'9.5'],[250,45,'8.5'],[290,25,'10']].map(([x,y,v])=>`
+          <circle cx="${x}" cy="${y}" r="3" fill="var(--brand)"/>
+          <text x="${x}" y="${y-8}" font-size="9" text-anchor="middle" fill="var(--amber)">${v}</text>`).join('')}
+      </svg>
+    </div>
+  `;
+}
+
+/* ============ OWNER: Order page (accordion, grouped by supplier) ============ */
+async function renderOrderPage(app){
+  app.appendChild(topbar('สั่งของ', {back:()=>go('ownerMenu')}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = '<p class="empty-state">กำลังโหลดยอดเสนอสั่ง...</p>';
+  app.appendChild(c);
+
+  try{
+    const [forecastList, statusList] = await Promise.all([apiGet('orderForecast'), apiGet('stockStatus')]);
+    FORECASTS = {}; forecastList.forEach(f=> FORECASTS[f.productId] = f);
+    statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+  }catch(err){
+    c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
+    return;
+  }
+
+  c.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:12px;">
+      <input type="text" id="search" placeholder="ค้นหาชื่อสินค้า" style="flex:1;">
+      <button class="btn" style="padding:8px 10px;"><i class="ti ti-truck" style="font-size:14px;"></i></button>
+    </div>
+    <div id="groups"></div>`;
+  const groups = c.querySelector('#groups');
+  const bar = document.createElement('div'); bar.className='stickybar';
+  c.appendChild(bar);
+
+  function forecast(p){
+    return FORECASTS[p.id] ? FORECASTS[p.id].forecast : 0;
+  }
+
+  function renderGroups(filter){
+    groups.innerHTML='';
+    SUPPLIERS.forEach(s=>{
+      const items = PRODUCTS.filter(p=>p.supplierId===s.id && p.name.includes(filter||''));
+      if(!items.length) return;
+      const col = NEUTRAL_COL;
+      const selCount = items.filter(p=> (state.orderQty[p.id] ?? forecast(p)) > 0).length;
+
+      const head = document.createElement('div'); head.className='sup-header';
+      head.style.background = col.bg; head.style.color = col.text; head.style.borderColor = col.text; head.style.borderRadius='var(--radius-lg) var(--radius-lg) 0 0';
+      head.innerHTML = `<span>${s.name}</span><span style="font-size:12px;">${selCount}/${items.length} รายการ</span>`;
+      groups.appendChild(head);
+
+      const groupBox = document.createElement('div'); groupBox.className='acc-group';
+      items.forEach(p=>{
+        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = forecast(p);
+        const f = forecast(p);
+        const qty = state.orderQty[p.id];
+        const isLow = f > 0;
+        const expanded = state.expandedRows.has(p.id) || isLow;
+
+        const rowHead = document.createElement('div');
+        rowHead.className = 'acc-row-head' + (isLow?' low':'');
+        rowHead.innerHTML = `
+          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
+          ${isLow? '<i class="ti ti-alert-triangle" style="font-size:13px; color:var(--danger); flex-shrink:0;"></i>' : ''}
+          <span class="acc-name">${p.name}</span>
+          <span class="acc-forecast"><span class="acc-forecast-label">เสนอสั่ง</span><span class="acc-forecast-val">${f}</span></span>
+          <span class="acc-qty-wrap">
+            <input type="number" class="acc-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
+            <span class="acc-unit">${p.orderUnit}</span>
+          </span>
+          <i class="ti ti-chevron-down acc-chev" style="${expanded?'transform:rotate(180deg);':''}" data-chev="${p.id}"></i>
+        `;
+        groupBox.appendChild(rowHead);
+
+        const rowBody = document.createElement('div');
+        rowBody.className = 'acc-row-body';
+        rowBody.style.display = expanded ? 'block' : 'none';
+        rowBody.innerHTML = `<table>
+            ${p.units.map(u=>`<tr><td style="color:var(--text-tertiary); font-size:11.5px;">คงเหลือ (${u.label})</td><td style="text-align:right; width:42px; color:var(--text-tertiary); font-size:11.5px;">${stockValues[u.id]||0}</td><td style="width:30px; padding-left:6px; color:var(--text-tertiary); font-size:11.5px;">${u.label}</td></tr>`).join('')}
+            <tr class="safety"><td style="color:var(--danger); font-weight:500;"><i class="ti ti-alert-triangle" style="font-size:11px; vertical-align:-1px; margin-right:3px;"></i>Safety stock</td><td style="text-align:right; color:var(--danger); font-weight:500;">${p.safetyStock}</td><td style="padding-left:6px; color:var(--danger); font-weight:500;">${p.orderUnit}</td></tr>
+          </table>`;
+        groupBox.appendChild(rowBody);
+
+        rowHead.addEventListener('click', (e)=>{
+          if(e.target.closest('input')) return;
+          if(state.expandedRows.has(p.id)) state.expandedRows.delete(p.id); else state.expandedRows.add(p.id);
+          renderGroups(c.querySelector('#search').value);
+        });
+        rowHead.querySelector(`[data-check="${p.id}"]`).onchange = (e)=>{
+          if(!e.target.checked) state.orderQty[p.id]=0; else state.orderQty[p.id]=f;
+          renderGroups(c.querySelector('#search').value);
+        };
+        rowHead.querySelector(`[data-qty="${p.id}"]`).oninput = (e)=>{
+          state.orderQty[p.id] = Math.max(0, Math.round(parseFloat(e.target.value||0)));
+          updateBar();
+        };
+      });
+      groups.appendChild(groupBox);
+    });
+    if(!groups.children.length) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
+    updateBar();
+  }
+
+  function updateBar(){
+    const n = Object.values(state.orderQty).filter(v=>v>0).length;
+    bar.innerHTML = `<span>เลือกแล้ว ${n} รายการ</span><button class="btn-primary btn" id="genMsg" ${n===0?'disabled':''}>สร้างข้อความสั่งของ</button>`;
+    bar.querySelector('#genMsg').onclick = async (e)=>{
+      const btn = e.target; btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+      const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
+        const f = FORECASTS[id] || {};
+        const p = PRODUCTS.find(x=>x.id===id);
+        return { productId:id, forecast: f.forecast||0, orderQty:q, rateUsed: f.rateUsed||1, orderUnit: p.orderUnit };
+      });
+      try{
+        await apiPost('createOrderBatch', { items });
+        go('orderMessage');
+      }catch(err){
+        btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของ';
+        alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
+      }
+    };
+  }
+
+  renderGroups('');
+  c.querySelector('#search').oninput = (e)=>renderGroups(e.target.value);
+}
+
+/* ============ OWNER: Order message ============ */
+function renderOrderMessage(app){
+  app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
+  const c = document.createElement('div'); c.className='content';
+
+  const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>({...PRODUCTS.find(p=>p.id===id), qty:q}));
+  const bySupplier = {};
+  items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
+
+  if(!Object.keys(bySupplier).length){
+    c.innerHTML = '<p class="empty-state">ยังไม่มีรายการที่เลือกสั่ง กลับไปหน้าสั่งของก่อนนะครับ</p>';
+    app.appendChild(c); return;
+  }
+
+  Object.entries(bySupplier).forEach(([supId, list])=>{
+    const sup = SUPPLIERS.find(s=>s.id===supId);
+    const col = NEUTRAL_COL;
+    const maxLen = Math.max(...list.map(i=>i.name.length));
+    const lines = list.map((it,i)=>{
+      const dots = '.'.repeat(Math.max(3, (maxLen - it.name.length) + 8));
+      return `${i+1}. ${it.name}${dots}${it.qty} ${it.orderUnit}`;
+    }).join('\n');
+    const todayLabel = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'});
+    const text = `สั่งสินค้า\nร้านซามูไร ไส้กรอก ตลาดเวิลด์มาเก็ต ทวีวัฒนา\nวันที่สั่ง: ${todayLabel}\n\nรายการสั่งของ\n${lines}`;
+
+    const card = document.createElement('div');
+    card.style.background='#fff'; card.style.border='1px solid var(--border)';
+    card.style.borderLeft = `3px solid ${col.text}`; card.style.borderRadius='0 var(--radius-lg) var(--radius-lg) 0'; card.style.padding='14px'; card.style.marginBottom='12px';
+    card.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <p style="margin:0; font-weight:600; font-size:14px;">${sup.name}</p>
+        <button class="btn copy-btn" style="font-size:12px; padding:6px 10px;"><i class="ti ti-copy" style="font-size:13px;"></i> คัดลอก</button>
+      </div>
+      <pre style="font-family:inherit; font-size:12px; line-height:1.7; margin:0; background:var(--bg); padding:10px; border-radius:8px; white-space:pre-wrap;">${text}</pre>
+    `;
+    card.querySelector('.copy-btn').onclick = ()=>{
+      navigator.clipboard?.writeText(text).catch(()=>{});
+      const toast = document.createElement('div'); toast.className='copy-toast'; toast.textContent='คัดลอกแล้ว';
+      document.body.appendChild(toast); setTimeout(()=>toast.remove(), 1400);
+    };
+    c.appendChild(card);
+  });
+  app.appendChild(c);
+}
+
+bootstrap();
+</script>
+</body>
+</html>
