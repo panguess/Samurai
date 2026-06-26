@@ -453,6 +453,7 @@ function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').tr
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
 var adminQtys={};
+var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set();
 let pickedItems=new Set();
 var params=new URLSearchParams(window.location.search);
 var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
@@ -788,9 +789,12 @@ async function placeOrder(){
       if(orders&&orders.length) realOid=orders[0].order_id;
     }catch(e2){}
     document.getElementById('confirmScreen').style.display='none';
-    document.getElementById('successOid').textContent=realOid+' · '+new Date().toLocaleDateString('th-TH');
+    const nowDateTimeStr=fmtOrderDateTime(new Date().toISOString());
+    const nowDatePart=nowDateTimeStr.split(' ')[0];
+    const nowTimePart=nowDateTimeStr.split(' ').slice(1).join(' ');
+    document.getElementById('successOid').textContent=realOid+' · '+nowDatePart;
     document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
-    document.getElementById('successTime').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
+    document.getElementById('successTime').textContent=nowTimePart;
     document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
     cart={};
     document.getElementById('successScreen').style.display='flex';
@@ -854,7 +858,7 @@ function buildHistoryCard(o){
       <div class="hcard-detail" id="detail${o.order_id}">
         <div class="hcard-divider">
           <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?new Date(o.cancelled_at).toLocaleString('th-TH'):dateTimeStr}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?fmtOrderDateTime(o.cancelled_at):dateTimeStr}</div>
         </div>
       </div>
     </div>`;
@@ -1177,7 +1181,7 @@ function renderAdminOrders(){
     else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:12px" onclick="showOrderSummary('${o.order_id}')"><i class="ti ti-download" aria-hidden="true" style="margin-right:4px"></i>บันทึกรูปภาพ</button>`;
     return`<div class="admin-order-card">
       <div class="admin-order-top">
-        <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?new Date(o.timestamp).toLocaleString('th-TH'):''}</div></div>
+        <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?fmtOrderDateTime(o.timestamp):''}</div></div>
         ${topBadge}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
@@ -1575,14 +1579,14 @@ async function markDone(orderId){
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
       const items=parseItems(order.items);
-      const qtyChanged=items.some((item,i)=>(adminQtys[orderId][i]||item.qty)!==item.qty);
+      const qtyChanged=items.some((item,i)=>adminQtys[orderId][i]!==item.qty);
       if(qtyChanged){
         const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
         products=freshProducts;
         const prodMap=getOrderProdMap(order);
 
-        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]||item.qty}));
-        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0)||order.total;
+        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]})).filter(i=>i.qty>0);
+        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
         await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp});
@@ -1625,8 +1629,7 @@ function showOrderSummary(orderId){
       <span style="flex:0.85;text-align:right;font-weight:600;color:#222;font-family:\'Consolas\',\'Courier New\',monospace;font-variant-numeric:tabular-nums">${fmt(lineTotal)}</span>
     </div>`;
   }).join('');
-  const dt=order.timestamp?new Date(order.timestamp):new Date();
-  const dateStr=dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+' '+dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  const dateStr=order.timestamp?fmtOrderDateTime(order.timestamp):fmtOrderDateTime(new Date().toISOString());
   const overlay=document.createElement('div');
   overlay.id='orderSummaryOverlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
@@ -1767,38 +1770,104 @@ async function openReorderModal(){
       const ds=o.delivery_status||o.status||'';
       return ds==='done'||String(ds).toLowerCase().trim()==='done';
     });
+    reorderOrdersCache=completed;
     if(!completed.length){body.innerHTML='<div class="empty-state">ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์</div>';return;}
-    body.innerHTML=completed.map(o=>{
-      const items=parseItems(o.items);
-      const itemsStr=items.map(i=>i.name+' x'+i.qty).join(', ');
-      return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:10px;padding:10px 12px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-          <div style="flex:1">
-            <div style="font-size:10px;font-family:monospace;color:#888">${o.order_id} · ${o.timestamp?new Date(o.timestamp).toLocaleDateString('th-TH'):''}</div>
-            <div style="font-size:12px;color:#1a1a1a;margin-top:2px">${itemsStr}</div>
-          </div>
-          <button style="font-size:11px;padding:6px 12px;border-radius:7px;border:none;background:#534AB7;color:#fff;font-weight:500;white-space:nowrap;cursor:pointer" onclick='applyReorder(${JSON.stringify(JSON.stringify(items))})'>สั่งซ้ำ</button>
-        </div>
-        <div style="font-size:11px;color:#3B6D11">฿${fmtMoney(o.total)} · เสร็จสมบูรณ์ ✓</div>
-      </div>`;
-    }).join('');
+    renderReorderList();
   }catch(e){body.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
 }
 
-function closeReorderModal(){document.getElementById('reorderModal').style.display='none';}
+function renderReorderList(){
+  const body=document.getElementById('reorderModalBody');
+  body.innerHTML=reorderOrdersCache.map(o=>{
+    const items=parseItems(o.items);
+    const itemsStr=items.map(i=>i.name+' x'+i.qty).join(', ');
+    return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer" onclick="openReorderPicker('${o.order_id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div style="flex:1">
+          <div style="font-size:10px;font-family:monospace;color:#888">${o.order_id} · ${o.timestamp?fmtOrderDateTime(o.timestamp):''}</div>
+          <div style="font-size:12px;color:#1a1a1a;margin-top:2px">${itemsStr}</div>
+        </div>
+        <span style="font-size:16px;color:#ccc;flex-shrink:0;margin-left:6px">›</span>
+      </div>
+      <div style="font-size:11px;color:#3B6D11">฿${fmtMoney(o.total)} · เสร็จสมบูรณ์ ✓</div>
+    </div>`;
+  }).join('');
+}
 
-function applyReorder(itemsJson){
-  const items=JSON.parse(itemsJson);
+function closeReorderModal(){
+  document.getElementById('reorderModal').style.display='none';
+  reorderCurrentOrder=null;
+  reorderSelectedIdx=new Set();
+}
+
+function openReorderPicker(orderId){
+  const order=reorderOrdersCache.find(o=>o.order_id===orderId);
+  if(!order)return;
+  reorderCurrentOrder=order;
+  const items=parseItems(order.items);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  renderReorderPicker();
+}
+
+function renderReorderPicker(){
+  const order=reorderCurrentOrder;
+  if(!order)return;
+  const items=parseItems(order.items);
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
-  items.forEach(item=>{
+  const rowsHtml=items.map((item,idx)=>{
+    const selected=reorderSelectedIdx.has(idx);
+    const checkboxHtml=selected
+      ?`<div style="width:22px;height:22px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-check" style="font-size:14px;color:#fff" aria-hidden="true"></i></div>`
+      :`<div style="width:22px;height:22px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
+    return`<div onclick="toggleReorderItem(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 8px;border-bottom:1px solid #f5f5f5;border-radius:8px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">${checkboxHtml}<span style="font-size:13.5px;color:#1a1a1a">${item.name}</span></div>
+      <span style="font-size:13px;color:#D64109;font-weight:500;flex-shrink:0;margin-left:8px">x${item.qty}</span>
+    </div>`;
+  }).join('');
+  const selectedCount=reorderSelectedIdx.size;
+  let selectedTotal=0;
+  items.forEach((item,idx)=>{
+    if(!reorderSelectedIdx.has(idx))return;
     const prod=prodMap[item.name];
-    if(prod) cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};
+    selectedTotal+=(prod?Number(prod.price)||0:0)*item.qty;
+  });
+  const disabled=selectedCount===0;
+  document.getElementById('reorderModalBody').innerHTML=`
+    <button onclick="renderReorderList()" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;padding:0;margin-bottom:10px">‹ กลับไปเลือกออเดอร์อื่น</button>
+    <div style="font-size:11px;color:#aaa;margin-bottom:2px">${order.order_id} · ${order.timestamp?fmtOrderDateTime(order.timestamp):''}</div>
+    <div style="font-size:11px;color:#888;margin:8px 0 4px">แตะรายการที่ไม่ต้องการเพื่อตัดออก</div>
+    <div>${rowsHtml}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:8px;border-top:1px solid #f0f0f0">
+      <div>
+        <div style="font-size:11px;color:#888">${selectedCount} รายการที่เลือก</div>
+        <div style="font-size:16px;font-weight:600;color:#D64109">฿${fmtMoney(selectedTotal)}</div>
+      </div>
+      <button onclick="applyReorderSelected()" ${disabled?'disabled':''} style="padding:11px 22px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;${disabled?'opacity:0.5;cursor:not-allowed':''}">เพิ่มลงตะกร้า</button>
+    </div>`;
+}
+
+function toggleReorderItem(idx){
+  if(reorderSelectedIdx.has(idx)) reorderSelectedIdx.delete(idx);
+  else reorderSelectedIdx.add(idx);
+  renderReorderPicker();
+}
+
+function applyReorderSelected(){
+  const order=reorderCurrentOrder;
+  if(!order)return;
+  const items=parseItems(order.items);
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
+  let addedCount=0;
+  items.forEach((item,idx)=>{
+    if(!reorderSelectedIdx.has(idx))return;
+    const prod=prodMap[item.name];
+    if(prod){cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};addedCount++;}
   });
   closeReorderModal();
   renderProducts();
   updateCart();
   const toast=document.getElementById('reorderToast');
-  toast.textContent='เติมสินค้าจากออเดอร์เดิมลงตะกร้าแล้ว ✓';
+  toast.textContent=addedCount?'เติมสินค้าจากออเดอร์เดิมลงตะกร้าแล้ว ✓':'ไม่มีสินค้าที่เลือกถูกเติมลงตะกร้า (สินค้าอาจถูกลบไปแล้ว)';
   toast.style.display='block';
   setTimeout(()=>{toast.style.display='none';},4000);
 }
