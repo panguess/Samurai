@@ -1789,9 +1789,9 @@ function renderReorderList(){
     const timePart=dateTimeStr?dateTimeStr.split(' ').slice(1).join(' '):'';
     return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer" onclick="openReorderPicker('${o.order_id}')">
       <div>
-        <div style="font-size:14px;font-weight:600;color:#1a1a1a">${datePart}</div>
-        <div style="font-size:11px;color:#aaa;margin-top:2px">${timePart} · ${items.length} รายการ</div>
-        <div style="font-size:10px;font-family:monospace;color:#ccc;margin-top:3px">${o.order_id}</div>
+        <div style="font-size:14px;font-weight:600;color:#1a1a1a">${datePart} <span style="font-weight:400;color:#aaa;font-size:13px">${timePart}</span></div>
+        <div style="font-size:10px;font-family:monospace;color:#aaa;margin-top:3px">${o.order_id}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px">${items.length} รายการ</div>
         <div style="font-size:10px;color:#3B6D11;margin-top:4px">เสร็จสมบูรณ์ ✓</div>
       </div>
       <div style="text-align:right">
