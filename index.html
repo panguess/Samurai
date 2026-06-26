@@ -1855,7 +1855,14 @@ function renderReorderPicker(){
   document.getElementById('reorderModalBody').innerHTML=`
     <button onclick="${reorderBackToList?'renderReorderList()':'closeReorderModal()'}" style="background:none;border:none;color:#888;font-size:12px;cursor:pointer;padding:0;margin-bottom:10px">‹ ${reorderBackToList?'กลับไปเลือกออเดอร์อื่น':'กลับ'}</button>
     <div style="font-size:11px;color:#aaa;margin-bottom:2px">${order.order_id} · ${order.timestamp?fmtOrderDateTime(order.timestamp):''}</div>
-    <div style="font-size:11px;color:#888;margin:8px 0 4px">แตะรายการที่ไม่ต้องการเพื่อตัดออก</div>
+    <div style="font-size:11px;color:#888;margin:8px 0 4px;display:flex;justify-content:space-between;align-items:center">
+      <span>แตะรายการที่ไม่ต้องการเพื่อตัดออก</span>
+      <span style="flex-shrink:0;margin-left:8px">
+        <button onclick="reorderSelectAll()" style="background:none;border:none;color:#D64109;font-size:11px;cursor:pointer;padding:0;font-weight:500">เลือกทั้งหมด</button>
+        <span style="color:#ddd">|</span>
+        <button onclick="reorderDeselectAll()" style="background:none;border:none;color:#888;font-size:11px;cursor:pointer;padding:0">ไม่เลือกทั้งหมด</button>
+      </span>
+    </div>
     <div>${rowsHtml}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:8px;border-top:1px solid #f0f0f0">
       <div>
@@ -1872,6 +1879,17 @@ function toggleReorderItem(idx){
   renderReorderPicker();
 }
 
+function reorderSelectAll(){
+  const items=parseItems(reorderCurrentOrder.items);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  renderReorderPicker();
+}
+
+function reorderDeselectAll(){
+  reorderSelectedIdx=new Set();
+  renderReorderPicker();
+}
+
 function applyReorderSelected(){
   const order=reorderCurrentOrder;
   if(!order)return;
@@ -1884,6 +1902,7 @@ function applyReorderSelected(){
     if(prod){cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};addedCount++;}
   });
   closeReorderModal();
+  goSection('shop');
   renderProducts();
   updateCart();
   const toast=document.getElementById('reorderToast');
