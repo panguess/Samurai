@@ -1708,8 +1708,11 @@ html2canvas(card,{scale:2,backgroundColor:'#ffffff'}).then(async canvas=>{
   { type: 'image/png' }
 );
 
-// iPhone / Android
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// iOS: ใช้ navigator.share (Safari ไม่รองรับ anchor download)
 if (
+  isIOS &&
   navigator.share &&
   navigator.canShare &&
   navigator.canShare({ files: [file] })
@@ -1719,13 +1722,15 @@ if (
     title: fileName
   });
 }
-// Desktop
+// Android / Desktop: เซฟตรงด้วย anchor download (ไม่เด้ง share sheet)
 else {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.download = fileName;
   link.href = url;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
       resetBtn();
