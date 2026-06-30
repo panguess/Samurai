@@ -262,8 +262,7 @@ async function renderSupplierList(app){
   } else {
     renderLoading(app, 'กำลังโหลดสถานะร้าน...');
     try{ statusList = await apiGet('stockStatus'); }
-    catch(err){ app.innerHTML = \<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }`
-  }
+    catch(err){ app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }
   stockStatusCache = null;
 
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
