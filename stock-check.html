@@ -146,6 +146,7 @@ let STAFF = [];
 let stockValues = {};       // unitId -> remain qty (today)
 let checkedSuppliers = new Set();
 let checkedProducts = new Set();
+let stockStatusCache = null;
 let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
 
 
@@ -179,6 +180,7 @@ async function bootstrap(){
   try{
     const data = await apiGet('bootstrap');
     SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    apiGet('stockStatus').then(s => { stockStatusCache = s; }).catch(()=>{});
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
   }catch(err){
@@ -254,10 +256,15 @@ function renderStaffName(app){
 
 /* ============ STAFF: supplier list (all suppliers always shown) ============ */
 async function renderSupplierList(app){
-  renderLoading(app, 'กำลังโหลดสถานะร้าน...');
   let statusList;
-  try{ statusList = await apiGet('stockStatus'); }
-  catch(err){ app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }
+  if(stockStatusCache){
+    statusList = stockStatusCache;
+  } else {
+    renderLoading(app, 'กำลังโหลดสถานะร้าน...');
+    try{ statusList = await apiGet('stockStatus'); }
+    catch(err){ ... return; }
+  }
+  stockStatusCache = null;
 
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
@@ -390,6 +397,7 @@ async function renderSupplierCheck(app){
       const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
       try{
         await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items });
+        stockStatusCache = null;
         checkedSuppliers.add(sup.id);
         go('staffDone');
       }catch(err){
