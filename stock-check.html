@@ -163,6 +163,7 @@ let PRODUCTS = [];
 let STAFF = [];
 let stockValues = {};       // unitId -> remain qty (today)
 let checkedSuppliers = new Set();
+let sessionCheckedSuppliers = new Set(); // grows-only, never reset during session
 let checkedProducts = new Set();
 let stockStatusCache = null;
 let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
@@ -293,7 +294,6 @@ async function renderSupplierList(app){
   }
   stockStatusCache = null;
 
-  const prevCheckedSuppliers = new Set(checkedSuppliers);
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
     SUPPLIERS.filter(s=>{
@@ -301,7 +301,7 @@ async function renderSupplierList(app){
       return prods.length>0 && prods.every(p=>checkedProducts.has(p.id));
     }).map(s=>s.id)
   );
-  prevCheckedSuppliers.forEach(id => checkedSuppliers.add(id));
+  sessionCheckedSuppliers.forEach(id => checkedSuppliers.add(id));
 
   app.innerHTML = '';
   const pending = SUPPLIERS.filter(s=>!checkedSuppliers.has(s.id));
@@ -428,6 +428,7 @@ async function renderSupplierCheck(app){
         await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items });
         stockStatusCache = null;
         checkedSuppliers.add(sup.id);
+        sessionCheckedSuppliers.add(sup.id);
         go('staffDone');
       }catch(err){
         btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
