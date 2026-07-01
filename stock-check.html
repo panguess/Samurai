@@ -307,7 +307,7 @@ async function renderSupplierList(app){
   const pending = SUPPLIERS.filter(s=>!checkedSuppliers.has(s.id));
   const done = SUPPLIERS.filter(s=>checkedSuppliers.has(s.id));
 
-  app.appendChild(topbar('เลือกร้านที่จะเช็ค', {meta:`${done.length} / ${SUPPLIERS.length}`}));
+  app.appendChild(topbar('เลือกร้านที่จะเช็ค', {back:()=>go('home'), meta:`${done.length} / ${SUPPLIERS.length}`}));
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <div class="progress-track"><div class="progress-fill" style="width:${SUPPLIERS.length? done.length/SUPPLIERS.length*100:0}%; background:var(--brand);"></div></div>
