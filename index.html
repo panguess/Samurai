@@ -484,6 +484,20 @@ function showErrBanner(msg){
 window.onerror=function(msg,src,line,col,err){if(msg==='Script error.'||/^Script error\.?$/.test(msg))return;logError('JS Error',err||{message:msg+' ('+src+':'+line+')'});};
 window.addEventListener('unhandledrejection',function(ev){logError('Promise Error',ev.reason);});
 
+/* ===== Short-lived sessionStorage cache for slow-but-rarely-changing GET calls
+   (product catalog, customer profile) - NOT used for orders/status, which need
+   to stay live. ===== */
+function cacheGet(key){
+  try{
+    const raw=JSON.parse(sessionStorage.getItem('cache_'+key)||'null');
+    if(raw&&(Date.now()-raw.ts)<raw.ttl) return raw.data;
+  }catch(e){}
+  return null;
+}
+function cacheSet(key,data,ttl){
+  try{ sessionStorage.setItem('cache_'+key,JSON.stringify({data,ts:Date.now(),ttl})); }catch(e){}
+}
+
 /* ===== Safe fetch helpers (timeout + JSON guard + fallback) ===== */
 async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
   timeoutMs=timeoutMs||8000;
@@ -543,7 +557,12 @@ async function postAction(payload,label,timeoutMs,retries){
 window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
 async function initCustomer(){
   try{
-    const data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
+    const custCacheKey='customer_'+customerRef;
+    let data=cacheGet(custCacheKey);
+    if(!data){
+      data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
+      if(data&&!data.error) cacheSet(custCacheKey,data,30000);
+    }
     if(data===null){showError(true);return;}
     if(data.error){showError(false);return;}
     customer=data;
@@ -699,8 +718,15 @@ function applyOpenHistoryState(){
 }
 
 async function loadProducts(){
-  products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)',15000,1);
-  if(!Array.isArray(products))products=[];
+  const prodCacheKey='products_'+customer.product_group;
+  const cached=cacheGet(prodCacheKey);
+  if(cached){
+    products=cached;
+  } else {
+    products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)',15000,1);
+    if(!Array.isArray(products))products=[];
+    if(products.length) cacheSet(prodCacheKey,products,30000);
+  }
   renderProducts();
 }
 
@@ -999,8 +1025,14 @@ let adminRefreshFailCount=0;
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp'); 
-  products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
-  if(!Array.isArray(products))products=[];
+  const adminProdCached=cacheGet('products_ALL');
+  if(adminProdCached){
+    products=adminProdCached;
+  } else {
+    products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
+    if(!Array.isArray(products))products=[];
+    if(products.length) cacheSet('products_ALL',products,30000);
+  }
   await loadAdminOrders();
   if(adminRefreshInterval) clearInterval(adminRefreshInterval);
   adminRefreshFailCount=0;
@@ -1586,6 +1618,7 @@ async function markDone(orderId){
       if(qtyChanged){
         const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
         products=freshProducts;
+        if(Array.isArray(freshProducts)&&freshProducts.length) cacheSet('products_ALL',freshProducts,30000);
         const prodMap=getOrderProdMap(order);
 
         const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]})).filter(i=>i.qty>0);
