@@ -177,6 +177,15 @@ function saveSessionChecked(){
 let sessionCheckedSuppliers = loadSessionChecked(); // grows-only, never reset during session (persisted per day so a page reload doesn't lose it)
 let checkedProducts = new Set();
 let stockStatusCache = null;
+let _stockStatusTs = 0;
+const STOCK_STATUS_TTL = 8000; // ms - avoid refetching the whole sheet on every screen hop
+async function getStockStatus(force){
+  if(!force && stockStatusCache && (Date.now() - _stockStatusTs) < STOCK_STATUS_TTL) return stockStatusCache;
+  const data = await apiGet('stockStatus');
+  stockStatusCache = data; _stockStatusTs = Date.now();
+  return data;
+}
+function invalidateStockStatus(){ stockStatusCache = null; _stockStatusTs = 0; }
 let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
 
 
@@ -210,7 +219,7 @@ async function bootstrap(){
   try{
     const data = await apiGet('bootstrap');
     SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
-    apiGet('stockStatus').then(s => { stockStatusCache = s; }).catch(()=>{});
+    getStockStatus().catch(()=>{});
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
   }catch(err){
@@ -300,10 +309,9 @@ async function renderSupplierList(app){
     statusList = stockStatusCache;
   } else {
     renderLoading(app, 'กำลังโหลดสถานะร้าน...');
-    try{ statusList = await apiGet('stockStatus'); }
+    try{ statusList = await getStockStatus(); }
     catch(err){ app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }
   }
-  stockStatusCache = null;
 
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
@@ -363,7 +371,7 @@ async function renderSupplierCheck(app){
 
   renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
   try{
-    const statusList = await apiGet('stockStatus');
+    const statusList = await getStockStatus();
     statusList.filter(s=>products.some(p=>p.id===s.productId)).forEach(s=>{
       Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; });
       if(s.checked) checkedProducts.add(s.productId);
@@ -437,7 +445,7 @@ async function renderSupplierCheck(app){
       const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
       try{
         await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items });
-        stockStatusCache = null;
+        invalidateStockStatus();
         checkedSuppliers.add(sup.id);
         sessionCheckedSuppliers.add(sup.id);
         saveSessionChecked();
@@ -538,7 +546,7 @@ async function renderOwnerStockAnalytics(app){
 
   try{
     if(state.ownerTab === 'stock'){
-      const statusList = await apiGet('stockStatus');
+      const statusList = await getStockStatus();
       statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
       renderStockTab(body);
     } else {
@@ -624,7 +632,7 @@ async function renderOrderPage(app){
   app.appendChild(c);
 
   try{
-    const [forecastList, statusList] = await Promise.all([apiGet('orderForecast'), apiGet('stockStatus')]);
+    const [forecastList, statusList] = await Promise.all([apiGet('orderForecast'), getStockStatus()]);
     FORECASTS = {}; forecastList.forEach(f=> FORECASTS[f.productId] = f);
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
   }catch(err){
