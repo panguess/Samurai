@@ -293,6 +293,7 @@ async function renderSupplierList(app){
   }
   stockStatusCache = null;
 
+  const prevCheckedSuppliers = new Set(checkedSuppliers);
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
     SUPPLIERS.filter(s=>{
@@ -300,6 +301,7 @@ async function renderSupplierList(app){
       return prods.length>0 && prods.every(p=>checkedProducts.has(p.id));
     }).map(s=>s.id)
   );
+  prevCheckedSuppliers.forEach(id => checkedSuppliers.add(id));
 
   app.innerHTML = '';
   const pending = SUPPLIERS.filter(s=>!checkedSuppliers.has(s.id));
