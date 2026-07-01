@@ -122,11 +122,11 @@
   .action-card.bill .act-title{color:#7A4608;}
   .action-card.bill .act-sub{color:rgba(122,70,8,0.6);}
   .action-card.bill .act-chev{color:rgba(122,70,8,0.3);}
-  .act-icon{width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:32px; flex-shrink:0;}
+  .act-icon{width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:37.5px; flex-shrink:0;}
   .act-body{flex:1;}
-  .act-title{font-size:19px; font-weight:700; color:var(--text); margin-bottom:4px;}
-  .act-sub{font-size:14px; color:var(--text-tertiary); line-height:1.4; opacity:0.85;}
-  .act-chev{font-size:15px; color:var(--text-tertiary); flex-shrink:0; opacity:0.7;}
+  .act-title{font-size:22.5px; font-weight:700; color:var(--text); margin-bottom:4px;}
+  .act-sub{font-size:15px; color:var(--text-tertiary); line-height:1.4; opacity:0.75;}
+  .act-chev{font-size:27.5px; color:var(--text-tertiary); flex-shrink:0; opacity:0.35;}
   .icon-card{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:14px; padding:13px; margin-bottom:9px; cursor:pointer;}
   .icon-box{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .pick-row{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:10px 14px; margin-bottom:9px; cursor:pointer;}
@@ -238,18 +238,18 @@ const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <div class="role-label">พนักงาน</div>
     <div class="action-card primary" id="goStaff">
-      <div class="act-icon" style="background:rgba(255,255,255,0.12);"><i class="ti ti-clipboard-list" style="font-size:21px;color:rgba(252,249,242,0.85);" aria-hidden="true"></i></div>
+      <div class="act-icon" style="background:rgba(255,255,255,0.12);"><i class="ti ti-clipboard-list" style="color:rgba(252,249,242,0.85);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">เช็คของวันนี้</div><div class="act-sub">นับสต๊อกและบันทึกของที่เหลือ</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
     <div class="action-card bill" id="goBill">
-      <div class="act-icon" style="background:rgba(122,70,8,0.12);"><i class="ti ti-camera" style="font-size:21px;color:#7A4608;" aria-hidden="true"></i></div>
+      <div class="act-icon" style="background:rgba(122,70,8,0.12);"><i class="ti ti-camera" style="color:#7A4608;" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">รับของ — ถ่ายบิล</div><div class="act-sub">บันทึกต้นทุนของที่ซัพพลายเออร์ส่งมา</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
     <div class="role-label" style="margin-top:6px;">เจ้าของร้าน</div>
     <div class="action-card" id="goOwner">
-      <div class="act-icon" style="background:var(--bg);"><i class="ti ti-layout-dashboard" style="font-size:21px;color:var(--text);" aria-hidden="true"></i></div>
+      <div class="act-icon" style="background:var(--bg);"><i class="ti ti-layout-dashboard" style="color:var(--text);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">จัดการร้าน</div><div class="act-sub">สั่งของ · ดูสต๊อก · วิเคราะห์ยอด</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
