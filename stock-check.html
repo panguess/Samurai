@@ -24,7 +24,7 @@
   }
   *{box-sizing:border-box;}
   body{font-family:'Sarabun',sans-serif; background:var(--bg); color:var(--text); margin:0; -webkit-font-smoothing:antialiased;}
-  #app{max-width:480px; margin:0 auto; min-height:100vh; background:var(--cream); display:flex; flex-direction:column;}
+  #app{max-width:600px; margin:0 auto; min-height:100vh; background:var(--cream); display:flex; flex-direction:column;}
   .topbar{background:var(--brand); color:var(--cream); padding:14px 16px; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:10;}
   .topbar h1{font-size:16px; font-weight:600; margin:0; flex:1;}
   .topbar .back{cursor:pointer; font-size:18px; background:none; border:none; color:var(--cream); padding:4px;}
@@ -163,7 +163,18 @@ let PRODUCTS = [];
 let STAFF = [];
 let stockValues = {};       // unitId -> remain qty (today)
 let checkedSuppliers = new Set();
-let sessionCheckedSuppliers = new Set(); // grows-only, never reset during session
+function todayKey(){ return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
+function loadSessionChecked(){
+  try{
+    const raw = JSON.parse(localStorage.getItem('sessionCheckedSuppliers')||'{}');
+    if(raw.date === todayKey() && Array.isArray(raw.ids)) return new Set(raw.ids);
+  }catch(e){}
+  return new Set();
+}
+function saveSessionChecked(){
+  try{ localStorage.setItem('sessionCheckedSuppliers', JSON.stringify({date: todayKey(), ids:[...sessionCheckedSuppliers]})); }catch(e){}
+}
+let sessionCheckedSuppliers = loadSessionChecked(); // grows-only, never reset during session (persisted per day so a page reload doesn't lose it)
 let checkedProducts = new Set();
 let stockStatusCache = null;
 let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
@@ -429,6 +440,7 @@ async function renderSupplierCheck(app){
         stockStatusCache = null;
         checkedSuppliers.add(sup.id);
         sessionCheckedSuppliers.add(sup.id);
+        saveSessionChecked();
         go('staffDone');
       }catch(err){
         btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
