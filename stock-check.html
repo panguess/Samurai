@@ -94,6 +94,10 @@
 
   /* accordion order rows */
   .acc-group{border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; margin-bottom:14px;}
+  .select-all-row{display:flex; align-items:center; gap:6px; padding:8px 10px; background:#fcfcfa; border-bottom:1px solid var(--border);}
+  .select-all-row .sep{color:var(--border-strong); font-size:11px;}
+  .link-btn{background:none; border:none; padding:0; font-family:inherit; font-size:11.5px; font-weight:600; color:var(--text-secondary); cursor:pointer;}
+  .link-btn:active{opacity:0.6;}
   .prow{display:flex; flex-direction:column; gap:7px; padding:9px 10px; border-bottom:1px solid var(--border); background:#fff;}
   .prow:last-child{border-bottom:none;}
   .prow.low{background:var(--danger-bg);}
@@ -847,6 +851,23 @@ async function renderOrderPage(app){
       card.appendChild(head);
 
       const body = document.createElement('div'); body.className = 'ord-card-body';
+
+      const selectRow = document.createElement('div'); selectRow.className = 'select-all-row';
+      selectRow.innerHTML = `
+        <button type="button" class="link-btn" data-selectall>เลือกทั้งหมด</button>
+        <span class="sep">·</span>
+        <button type="button" class="link-btn" data-selectnone>ไม่เลือกเลย</button>
+      `;
+      selectRow.querySelector('[data-selectall]').onclick = ()=>{
+        items.forEach(p=>{ state.orderQty[p.id] = state.orderQty[p.id] > 0 ? state.orderQty[p.id] : (forecast(p) || 1); });
+        renderGroups(c.querySelector('#search').value);
+      };
+      selectRow.querySelector('[data-selectnone]').onclick = ()=>{
+        items.forEach(p=> state.orderQty[p.id] = 0);
+        renderGroups(c.querySelector('#search').value);
+      };
+      body.appendChild(selectRow);
+
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
 
       items.forEach(p=>{
