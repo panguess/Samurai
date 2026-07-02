@@ -136,6 +136,7 @@
   .badge.ordered{background:var(--green-bg); color:var(--green);}
   .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
   .badge.pending{background:transparent; color:var(--text-tertiary); border:1px dashed var(--border-strong);}
+  .badge.partial{background:var(--amber-bg); color:var(--amber);}
   .ord-card-body{display:none; border-top:1px solid var(--border);}
   .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
@@ -830,7 +831,8 @@ async function renderOrderPage(app){
       let statusBadge;
       // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
       // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
-      if(!fullyChecked) statusBadge = `<span class="badge pending">รอเช็คสต๊อก</span>`;
+      if(checkedCount === 0) statusBadge = `<span class="badge pending">ยังไม่เช็ค</span>`;
+      else if(!fullyChecked) statusBadge = `<span class="badge partial">เช็คแล้วบางส่วน</span>`;
       else if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
       else if(needOrderItems.length) statusBadge = `<span class="badge needorder">ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
       else statusBadge = `<span class="badge noorder">ของพอ ไม่ต้องสั่ง</span>`;
