@@ -58,8 +58,11 @@
   .prod-card{border-radius:16px; padding:10px; border:2px solid var(--border);}
   .prod-card.checked{background:#EAF3DE; border-color:#639922;}
   .prod-card-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
-  .prod-thumb{width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
-  .check-toggle{margin-left:auto; font-size:18px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
+  .prod-thumb{width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;}
+  .prod-thumb img{width:100%; height:100%; object-fit:cover;}
+  .photo-btn{margin-left:auto; font-size:16px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
+  .photo-btn.has-photo{color:#3B6D11;}
+  .check-toggle{font-size:18px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
   .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px;}
@@ -164,6 +167,29 @@ let SUPPLIERS = [];
 let PRODUCTS = [];
 let STAFF = [];
 let stockValues = {};       // unitId -> remain qty (today)
+let productPhotos = {};     // productId -> compressed dataURL (session, sent with saveStock)
+
+function compressImage(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+        else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 let checkedSuppliers = new Set();
 function todayKey(){ return new Date().toLocaleDateString('en-CA'); } // YYYY-MM-DD, local time
 function loadSessionChecked(){
@@ -403,6 +429,22 @@ async function renderSupplierCheck(app){
   const grid = document.createElement('div'); grid.className='prod-grid';
   c.appendChild(grid);
 
+  let photoTargetPid = null;
+  const photoInput = document.createElement('input');
+  photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.capture = 'environment';
+  photoInput.style.display = 'none';
+  c.appendChild(photoInput);
+  photoInput.onchange = async ()=>{
+    const file = photoInput.files[0];
+    const pid = photoTargetPid;
+    photoInput.value = '';
+    if(!file || !pid) return;
+    try{
+      productPhotos[pid] = await compressImage(file, 800, 0.6);
+    }catch(err){ alert('ถ่ายรูปไม่สำเร็จ: ' + err.message); }
+    renderGrid();
+  };
+
   function renderGrid(){
     grid.innerHTML='';
     products.forEach((p, idx)=>{
@@ -412,7 +454,8 @@ async function renderSupplierCheck(app){
       card.className = 'prod-card' + (isChecked?' checked':'');
       card.innerHTML = `
         <div class="prod-card-head">
-          <div class="prod-thumb" style="background:${isChecked?'rgba(255,255,255,0.6)':col.bg};"><i class="ti ti-meat" aria-hidden="true" style="font-size:17px; color:${col.fg};"></i></div>
+          <div class="prod-thumb" style="background:${isChecked?'rgba(255,255,255,0.6)':col.bg};">${productPhotos[p.id] ? `<img src="${productPhotos[p.id]}" alt="">` : `<i class="ti ti-meat" aria-hidden="true" style="font-size:17px; color:${col.fg};"></i>`}</div>
+          <button class="photo-btn${productPhotos[p.id]?' has-photo':''}" data-pid="${p.id}" aria-label="ถ่ายรูปสินค้า"><i class="ti ${productPhotos[p.id]?'ti-camera-check':'ti-camera'}" aria-hidden="true"></i></button>
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         <p class="prod-card-name">${p.name}</p>
@@ -434,6 +477,9 @@ async function renderSupplierCheck(app){
         if(checkedProducts.has(pid)) checkedProducts.delete(pid); else checkedProducts.add(pid);
         renderGrid(); updateBar();
       };
+    });
+    grid.querySelectorAll('.photo-btn').forEach(btn=>{
+      btn.onclick = ()=>{ photoTargetPid = btn.dataset.pid; photoInput.click(); };
     });
     grid.querySelectorAll('.minus, .plus').forEach(btn=>{
       btn.onclick = ()=>{
@@ -460,8 +506,9 @@ async function renderSupplierCheck(app){
       const btn = bar.querySelector('#finishSup');
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
+      const photos = products.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
       try{
-        await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items });
+        await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items, photos });
         patchStockStatusChecked(products, items);
         checkedSuppliers.add(sup.id);
         sessionCheckedSuppliers.add(sup.id);
