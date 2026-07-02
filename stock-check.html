@@ -94,24 +94,20 @@
 
   /* accordion order rows */
   .acc-group{border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; margin-bottom:14px;}
-  .col-head{padding:6px 10px; background:#fcfcfa; border-bottom:1px solid var(--border);}
-  .col-head .nm{display:block; margin-left:26px; font-size:10px; color:var(--text-tertiary); font-weight:600;}
-  .col-head-bottom{display:flex; align-items:center; gap:8px; margin-top:3px;}
-  .col-head .stat3{grid-template-columns:32px 32px 32px;}
-  .col-head .stat3 span{font-size:9px; color:var(--text-tertiary); font-weight:600;}
-  .col-head .stepper-spacer{visibility:hidden; margin-left:auto;}
-  .prow{display:flex; flex-direction:column; gap:6px; padding:8px 10px; border-bottom:1px solid var(--border); background:#fff;}
+  .prow{display:flex; flex-direction:column; gap:7px; padding:9px 10px; border-bottom:1px solid var(--border); background:#fff;}
   .prow:last-child{border-bottom:none;}
   .prow.low{background:var(--danger-bg);}
   .prow-top{display:flex; align-items:center; gap:9px;}
-  .prow-bottom{display:flex; align-items:center; gap:8px;}
+  .prow-bottom{display:flex; align-items:center; gap:6px;}
   .prow input[type=checkbox]{flex-shrink:0; width:17px; height:17px;}
   .prow-name{flex:1; min-width:0; font-size:13px; color:var(--text); line-height:1.3;}
   .prow.low .prow-name{font-weight:600;}
-  .stat3{display:grid; grid-template-columns:32px 32px 32px; gap:6px; flex-shrink:0;}
-  .stat3 .v{font-size:12.5px; font-weight:700; text-align:right; color:var(--text);}
-  .stat3 .v.danger{color:var(--danger);}
-  .stat3 .v.muted{color:var(--text-tertiary); font-weight:500;}
+  .stat{display:flex; flex-direction:column; align-items:flex-end; min-width:38px;}
+  .stat .lbl{font-size:8.5px; color:var(--text-tertiary); font-weight:600; line-height:1.3;}
+  .stat .v{font-size:13px; font-weight:700; color:var(--text); line-height:1.2;}
+  .stat .v .u{font-size:9px; font-weight:500; margin-left:1px;}
+  .stat .v.muted{color:var(--text-tertiary); font-weight:500;}
+  .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
   .stepper{display:flex; align-items:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:#fff; flex-shrink:0; margin-left:auto;}
   .stepper button{width:26px; height:28px; border:none; background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; flex-shrink:0;}
   input.stepper-input{width:36px; flex-shrink:0; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); font-size:13px; font-weight:700; padding:5px 0;}
@@ -853,27 +849,16 @@ async function renderOrderPage(app){
       const body = document.createElement('div'); body.className = 'ord-card-body';
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
 
-      const colHead = document.createElement('div'); colHead.className = 'col-head';
-      colHead.innerHTML = `
-        <span class="nm">สินค้า</span>
-        <div class="col-head-bottom">
-          <span class="stat3"><span>คงเหลือ</span><span>ขั้นต่ำ</span><span>เสนอสั่ง</span></span>
-          <div class="stepper stepper-spacer">
-            <button type="button">−</button>
-            <input type="text" class="stepper-input" value="0">
-            <button type="button">+</button>
-          </div>
-        </div>
-      `;
-      groupBox.appendChild(colHead);
-
       items.forEach(p=>{
         if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = forecast(p);
         const f = forecast(p);
         const qty = state.orderQty[p.id];
         const fc = FORECASTS[p.id] || {};
         const isLow = fullyChecked && f > 0;
-        const remainDisplay = fullyChecked ? (fc.currentStock ?? 0) : '–';
+        const remainUnit = fc.unitLabel || p.orderUnit;
+        const remainDisplay = fullyChecked
+          ? `${fc.currentStock ?? 0}<span class="u">${remainUnit}</span>`
+          : '–';
 
         const row = document.createElement('div');
         row.className = 'prow' + (isLow?' low':'');
@@ -883,11 +868,9 @@ async function renderOrderPage(app){
             <div class="prow-name">${p.name}</div>
           </div>
           <div class="prow-bottom">
-            <div class="stat3">
-              <span class="v ${isLow?'danger':'muted'}">${remainDisplay}</span>
-              <span class="v ${isLow?'danger':'muted'}">${p.safetyStock}</span>
-              <span class="v ${isLow?'danger':''}">${f}</span>
-            </div>
+            <div class="stat${isLow?' danger':''}"><span class="lbl">คงเหลือ</span><span class="v ${isLow?'':'muted'}">${remainDisplay}</span></div>
+            <div class="stat${isLow?' danger':''}"><span class="lbl">ขั้นต่ำ</span><span class="v ${isLow?'':'muted'}">${p.safetyStock}<span class="u">${p.orderUnit}</span></span></div>
+            <div class="stat${isLow?' danger':''}"><span class="lbl">เสนอสั่ง</span><span class="v">${f}<span class="u">${p.orderUnit}</span></span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
               <input type="number" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
