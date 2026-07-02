@@ -120,19 +120,19 @@
   .stat-card.danger .n{color:var(--danger);}
   .stat-card.green .n{color:var(--green);}
   .stat-card.amber .n{color:var(--amber);}
-  .sup-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff;}
-  .sup-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
-  .sup-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
-  .sup-card.open .sup-card-head .chev{transform:rotate(180deg);}
-  .sup-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
+  .ord-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff;}
+  .ord-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
+  .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
+  .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
+  .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
   .sup-badges{display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;}
   .badge.checked{background:var(--green-bg); color:var(--green);}
   .badge.unchecked{background:var(--danger-bg); color:var(--danger);}
   .badge.needorder{background:var(--danger-bg); color:var(--danger);}
   .badge.ordered{background:var(--green-bg); color:var(--green);}
   .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
-  .sup-card-body{display:none; border-top:1px solid var(--border);}
-  .sup-card.open .sup-card-body{display:block;}
+  .ord-card-body{display:none; border-top:1px solid var(--border);}
+  .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
 
   /* playful redesign additions */
@@ -818,16 +818,16 @@ async function renderOrderPage(app){
       const isOrdered = orderedSuppliers.has(s.id);
       const open = expandedSuppliers.has(s.id);
 
-      const card = document.createElement('div'); card.className = 'sup-card' + (open?' open':'');
+      const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'');
       let statusBadge;
       if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
       else if(needOrderItems.length) statusBadge = `<span class="badge needorder">ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
       else statusBadge = `<span class="badge noorder">ของพอ ไม่ต้องสั่ง</span>`;
 
-      const head = document.createElement('div'); head.className = 'sup-card-head';
+      const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
-        <span class="sup-card-name">${s.name}</span>
+        <span class="ord-card-name">${s.name}</span>
         <div class="sup-badges">
           <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">เช็คแล้ว ${checkedCount}/${allItems.length}</span>
           ${statusBadge}
@@ -839,7 +839,7 @@ async function renderOrderPage(app){
       };
       card.appendChild(head);
 
-      const body = document.createElement('div'); body.className = 'sup-card-body';
+      const body = document.createElement('div'); body.className = 'ord-card-body';
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
       items.forEach(p=>{
         if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = forecast(p);
