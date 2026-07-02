@@ -63,6 +63,7 @@
   .photo-placeholder{display:flex; flex-direction:column; align-items:center; gap:5px;}
   .photo-placeholder span{font-size:11px; color:var(--text-tertiary);}
   .prod-photo-area .check-toggle{position:absolute; top:6px; right:6px; background:rgba(255,255,255,0.9); border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; color:var(--text-tertiary); border:none; padding:0;}
+  .retake-badge{position:absolute; top:6px; left:6px; background:rgba(255,255,255,0.9); border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:14px; color:var(--text-tertiary); pointer-events:none;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
   .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px;}
@@ -168,6 +169,10 @@ let PRODUCTS = [];
 let STAFF = [];
 let stockValues = {};       // unitId -> remain qty (today)
 let productPhotos = {};     // productId -> compressed dataURL (session, sent with saveStock)
+// TEMPORARY: keep the camera button available even after a product already has a
+// photo, so photos can be retaken/corrected during the initial rollout period.
+// Flip this to false (or remove) once the reference photos are considered final.
+const ALLOW_PHOTO_RETAKE = true;
 
 function compressImage(file, maxDim, quality){
   return new Promise((resolve, reject)=>{
@@ -466,10 +471,11 @@ async function renderSupplierCheck(app){
       card.className = 'prod-card' + (isChecked?' checked':'');
       const photoSrc = productPhotos[p.id] || p.photoUrl; // p.photoUrl: persisted one-time reference photo, once backend supports it
       card.innerHTML = `
-        <div class="prod-photo-area${photoSrc?'':' no-photo'}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)};">
+        <div class="prod-photo-area${(!photoSrc || ALLOW_PHOTO_RETAKE)?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)};">
           ${photoSrc
             ? `<img src="${photoSrc}" alt="">`
             : `<div class="photo-placeholder"><i class="ti ti-camera" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>แตะเพื่อถ่ายรูป</span></div>`}
+          ${(photoSrc && ALLOW_PHOTO_RETAKE) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         <p class="prod-card-name">${p.name}</p>
