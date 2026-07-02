@@ -94,10 +94,12 @@
 
   /* accordion order rows */
   .acc-group{border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; margin-bottom:14px;}
-  .acc-row-head{display:flex; align-items:center; gap:7px; padding:9px 10px; cursor:pointer; border-bottom:1px solid var(--border); border-left:3px solid transparent; background:#fff;}
+  .acc-row-head{display:flex; flex-direction:column; gap:6px; padding:9px 10px; cursor:pointer; border-bottom:1px solid var(--border); border-left:3px solid transparent; background:#fff;}
   .acc-row-head.low{border-left-color:var(--danger);}
-  .acc-name{flex:1; font-size:13px;}
-  .acc-forecast{display:flex; align-items:baseline; gap:4px; margin-right:2px; white-space:nowrap;}
+  .acc-row-top{display:flex; align-items:center; gap:7px;}
+  .acc-row-bottom{display:flex; align-items:center; gap:7px;}
+  .acc-name{flex:1; min-width:0; font-size:13px;}
+  .acc-forecast{display:flex; align-items:baseline; gap:4px; margin-right:2px; margin-left:auto; white-space:nowrap;}
   .acc-forecast-label{font-size:11px; color:var(--text-tertiary); font-weight:500;}
   .acc-forecast-val{font-size:12px; color:var(--text-secondary); font-weight:500;}
   .acc-qty-wrap{display:flex; align-items:baseline; gap:3px;}
@@ -762,15 +764,19 @@ async function renderOrderPage(app){
         const rowHead = document.createElement('div');
         rowHead.className = 'acc-row-head' + (isLow?' low':'');
         rowHead.innerHTML = `
-          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
-          ${isLow? '<i class="ti ti-alert-triangle" style="font-size:13px; color:var(--danger); flex-shrink:0;"></i>' : ''}
-          <span class="acc-name">${p.name}</span>
-          <span class="acc-forecast"><span class="acc-forecast-label">เสนอสั่ง</span><span class="acc-forecast-val">${f}</span></span>
-          <span class="acc-qty-wrap">
-            <input type="number" class="acc-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
-            <span class="acc-unit">${p.orderUnit}</span>
-          </span>
-          <i class="ti ti-chevron-down acc-chev" style="${expanded?'transform:rotate(180deg);':''}" data-chev="${p.id}"></i>
+          <div class="acc-row-top">
+            <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
+            ${isLow? '<i class="ti ti-alert-triangle" style="font-size:13px; color:var(--danger); flex-shrink:0;"></i>' : ''}
+            <span class="acc-name">${p.name}</span>
+          </div>
+          <div class="acc-row-bottom">
+            <span class="acc-forecast"><span class="acc-forecast-label">เสนอสั่ง</span><span class="acc-forecast-val">${f}</span></span>
+            <span class="acc-qty-wrap">
+              <input type="number" class="acc-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
+              <span class="acc-unit">${p.orderUnit}</span>
+            </span>
+            <i class="ti ti-chevron-down acc-chev" style="${expanded?'transform:rotate(180deg);':''}" data-chev="${p.id}"></i>
+          </div>
         `;
         groupBox.appendChild(rowHead);
 
