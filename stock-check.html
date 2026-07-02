@@ -851,7 +851,7 @@ async function renderOrderPage(app){
 
       const body = document.createElement('div'); body.className = 'ord-card-body';
 
-      const allSelected = items.length > 0 && items.every(p=> (state.orderQty[p.id] ?? forecast(p)) > 0);
+      const allSelected = items.length > 0 && items.every(p=> (state.orderQty[p.id] ?? 0) > 0);
       const selectRow = document.createElement('div'); selectRow.className = 'select-all-row';
       selectRow.innerHTML = `<button type="button" class="link-btn" data-selecttoggle>${allSelected ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด'}</button>`;
       selectRow.querySelector('[data-selecttoggle]').onclick = ()=>{
@@ -864,7 +864,9 @@ async function renderOrderPage(app){
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
 
       items.forEach(p=>{
-        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = forecast(p);
+        // Nothing is pre-selected: staff work supplier-by-supplier and use
+        // "เลือกทั้งหมด" per card once they're ready to order that supplier.
+        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
         const f = forecast(p);
         const qty = state.orderQty[p.id];
         const fc = FORECASTS[p.id] || {};
@@ -918,7 +920,7 @@ async function renderOrderPage(app){
         btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : `สั่งของเจ้านี้ (${needOrderItems.length} รายการ)`;
         btn.onclick = async (e)=>{
           e.stopPropagation();
-          const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? forecast(p)) > 0).map(p=>{
+          const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
             const fc = FORECASTS[p.id] || {};
             return { productId:p.id, forecast: fc.forecast||0, orderQty: state.orderQty[p.id], rateUsed: fc.rateUsed||1, orderUnit: p.orderUnit };
           });
