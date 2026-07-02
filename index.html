@@ -423,6 +423,7 @@
   <div class="admin-sticky-wrap">
   <div class="admin-header">
     <h1>🗂 รายการที่ต้องจัด</h1>
+    <p id="adminHeaderDate" style="font-size:13.5px;color:#d8a98f;margin:5px 0 0;font-weight:400">📅 <span id="adminHeaderDateText"></span></p>
     <p id="adminSubtitle" style="display:none">กำลังโหลด...</p>
   </div>
   <div class="tabs">
@@ -1143,19 +1144,28 @@ function buildPendingAdminCard(o){
 }
 
 function renderAdminOrders(){
+  const hdrDateEl=document.getElementById('adminHeaderDateText');
+  if(hdrDateEl) hdrDateEl.textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
+  const isToday=o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return false;
+    const d=new Date(t);
+    const n=new Date();
+    return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+  };
   let filtered;
   if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
   else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
-  else filtered=allAdminOrders.filter(ds_done);
+  else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
   const list=document.getElementById('adminList');
   const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
   const packingCount2=allAdminOrders.filter(ds_packing).length;
-  const doneCount2=allAdminOrders.filter(ds_done).length;
+  const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
   document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
   document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
   document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
@@ -1403,8 +1413,8 @@ function renderAdminOverview(){
     const active=overviewView===view;
     return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:15.5px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
   };
-  const sortSelect=`<div style="position:relative;flex-shrink:0">
-    <select onchange="setOverviewSortMode(this.value)" style="appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:15px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
+  const sortSelect=`<div style="position:relative;flex:1 1 140px;min-width:0">
+    <select onchange="setOverviewSortMode(this.value)" style="width:100%;box-sizing:border-box;appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13.5px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
       <option value="recent" ${overviewSortMode==='recent'?'selected':''}>ล่าสุดที่จัดเสร็จ</option>
       <option value="total" ${overviewSortMode==='total'?'selected':''}>ยอดรวม (มาก→น้อย)</option>
       <option value="count" ${overviewSortMode==='count'?'selected':''}>จำนวนออเดอร์ (มาก→น้อย)</option>
@@ -1416,6 +1426,7 @@ function renderAdminOverview(){
     ${chip('yesterday','เมื่อวาน')}
     ${chip('7days','7 วันที่แล้ว')}
     ${chip('month','เดือนนี้')}
+    ${chip('all','ทั้งหมด')}
     <button type="button" onclick="openOverviewDatePicker(this)" style="position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;font-size:15px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${overviewDateMode==='custom'?'#D64109':'#ddd'};background:${overviewDateMode==='custom'?'#D64109':'#fff'};color:${overviewDateMode==='custom'?'#fff':'#555'};font-family:inherit">
       📅 ${overviewDateMode==='custom'?overviewDateLabel():'เลือกวันที่'}
       <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer">
@@ -1438,8 +1449,8 @@ function renderAdminOverview(){
   if(overviewView==='product'){
     filterHtml+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:16px;font-family:inherit;box-sizing:border-box" oninput="onOverviewSearch(this.value)">`;
   } else {
-    filterHtml+=`<div style="display:flex;gap:8px">
-      <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:16px;font-family:inherit" oninput="onOverviewSearch(this.value)">
+    filterHtml+=`<div style="display:flex;flex-wrap:wrap;gap:8px">
+      <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1 1 160px;min-width:0;box-sizing:border-box;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:16px;font-family:inherit" oninput="onOverviewSearch(this.value)">
       ${sortSelect}
     </div>`;
   }
