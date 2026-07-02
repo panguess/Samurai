@@ -112,6 +112,29 @@
   .acc-row-body tr.safety td{border-left:2px solid var(--danger); padding-left:6px;}
   .acc-row-body tr.suggest td{padding-left:6px; border-radius:4px;}
 
+  /* order overview + collapsible supplier cards */
+  .stat-strip{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
+  .stat-card{background:#fff; border:1px solid var(--border); border-radius:var(--radius-md); padding:9px 6px; text-align:center;}
+  .stat-card .n{font-size:19px; font-weight:700; line-height:1.1;}
+  .stat-card .lbl{font-size:10.5px; color:var(--text-tertiary); margin-top:2px; line-height:1.2;}
+  .stat-card.danger .n{color:var(--danger);}
+  .stat-card.green .n{color:var(--green);}
+  .stat-card.amber .n{color:var(--amber);}
+  .sup-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff;}
+  .sup-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
+  .sup-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
+  .sup-card.open .sup-card-head .chev{transform:rotate(180deg);}
+  .sup-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
+  .sup-badges{display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;}
+  .badge.checked{background:var(--green-bg); color:var(--green);}
+  .badge.unchecked{background:var(--danger-bg); color:var(--danger);}
+  .badge.needorder{background:var(--danger-bg); color:var(--danger);}
+  .badge.ordered{background:var(--green-bg); color:var(--green);}
+  .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
+  .sup-card-body{display:none; border-top:1px solid var(--border);}
+  .sup-card.open .sup-card-body{display:block;}
+  .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
+
   /* playful redesign additions */
   .hero{background:var(--brand); padding:1.8rem 1.5rem 1rem; text-align:center;}
   .hero-logo{width:180px; max-width:70vw; height:auto; display:block; margin:0 auto 6px;}
@@ -210,6 +233,17 @@ function saveSessionChecked(){
   try{ localStorage.setItem('sessionCheckedSuppliers', JSON.stringify({date: todayKey(), ids:[...sessionCheckedSuppliers]})); }catch(e){}
 }
 let sessionCheckedSuppliers = loadSessionChecked(); // grows-only, never reset during session (persisted per day so a page reload doesn't lose it)
+function loadSessionOrdered(){
+  try{
+    const raw = JSON.parse(localStorage.getItem('sessionOrderedSuppliers')||'{}');
+    if(raw.date === todayKey() && Array.isArray(raw.ids)) return new Set(raw.ids);
+  }catch(e){}
+  return new Set();
+}
+function saveSessionOrdered(){
+  try{ localStorage.setItem('sessionOrderedSuppliers', JSON.stringify({date: todayKey(), ids:[...orderedSuppliers]})); }catch(e){}
+}
+let orderedSuppliers = loadSessionOrdered(); // suppliers already ordered today, resets daily like sessionCheckedSuppliers
 let checkedProducts = new Set();
 let stockStatusCache = null;
 let _stockStatusTs = 0;
@@ -718,42 +752,95 @@ async function renderOrderPage(app){
   c.innerHTML = '<p class="empty-state">กำลังโหลดยอดเสนอสั่ง...</p>';
   app.appendChild(c);
 
+  let statusList;
   try{
-    const [forecastList, statusList] = await Promise.all([apiGet('orderForecast'), getStockStatus()]);
+    const [forecastList, sl] = await Promise.all([apiGet('orderForecast'), getStockStatus()]);
+    statusList = sl;
     FORECASTS = {}; forecastList.forEach(f=> FORECASTS[f.productId] = f);
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
   }
+  const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
 
-  c.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:12px;">
-      <input type="text" id="search" placeholder="ค้นหาชื่อสินค้า" style="flex:1;">
-      <button class="btn" style="padding:8px 10px;"><i class="ti ti-truck" style="font-size:14px;"></i></button>
+  c.innerHTML = `<div id="stats" class="stat-strip"></div>
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <input type="text" id="search" placeholder="ค้นหาชื่อสินค้าหรือชื่อเจ้า" style="flex:1;">
     </div>
     <div id="groups"></div>`;
+  const statsEl = c.querySelector('#stats');
   const groups = c.querySelector('#groups');
   const bar = document.createElement('div'); bar.className='stickybar';
   c.appendChild(bar);
+
+  const expandedSuppliers = new Set();
 
   function forecast(p){
     return FORECASTS[p.id] ? FORECASTS[p.id].forecast : 0;
   }
 
+  function supplierStats(s){
+    const items = PRODUCTS.filter(p=>p.supplierId===s.id);
+    const checkedCount = items.filter(p=>statusByProduct[p.id]).length;
+    const needOrderItems = items.filter(p=>forecast(p) > 0);
+    return { items, checkedCount, needOrderItems };
+  }
+
+  function renderStats(){
+    const withItems = SUPPLIERS.filter(s=> PRODUCTS.some(p=>p.supplierId===s.id));
+    let checkedSuppliers = 0, needOrderSuppliers = 0, orderedOfNeeded = 0;
+    withItems.forEach(s=>{
+      const { items, checkedCount, needOrderItems } = supplierStats(s);
+      if(items.length && checkedCount === items.length) checkedSuppliers++;
+      if(needOrderItems.length){
+        needOrderSuppliers++;
+        if(orderedSuppliers.has(s.id)) orderedOfNeeded++;
+      }
+    });
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="n">${withItems.length}</div><div class="lbl">เจ้าทั้งหมด</div></div>
+      <div class="stat-card green"><div class="n">${checkedSuppliers}</div><div class="lbl">เช็คสต๊อกแล้ว</div></div>
+      <div class="stat-card danger"><div class="n">${needOrderSuppliers}</div><div class="lbl">ต้องสั่งของ</div></div>
+      <div class="stat-card amber"><div class="n">${orderedOfNeeded}/${needOrderSuppliers}</div><div class="lbl">สั่งแล้ว</div></div>
+    `;
+  }
+
   function renderGroups(filter){
     groups.innerHTML='';
     SUPPLIERS.forEach(s=>{
-      const items = PRODUCTS.filter(p=>p.supplierId===s.id && p.name.includes(filter||''));
+      const allItems = PRODUCTS.filter(p=>p.supplierId===s.id);
+      if(!allItems.length) return;
+      const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
-      const col = NEUTRAL_COL;
-      const selCount = items.filter(p=> (state.orderQty[p.id] ?? forecast(p)) > 0).length;
 
-      const head = document.createElement('div'); head.className='sup-header';
-      head.style.background = col.bg; head.style.color = col.text; head.style.borderColor = col.text; head.style.borderRadius='var(--radius-lg) var(--radius-lg) 0 0';
-      head.innerHTML = `<span>${s.name}</span><span style="font-size:12px;">${selCount}/${items.length} รายการ</span>`;
-      groups.appendChild(head);
+      const { checkedCount, needOrderItems } = supplierStats(s);
+      const isOrdered = orderedSuppliers.has(s.id);
+      const open = expandedSuppliers.has(s.id);
 
-      const groupBox = document.createElement('div'); groupBox.className='acc-group';
+      const card = document.createElement('div'); card.className = 'sup-card' + (open?' open':'');
+      let statusBadge;
+      if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
+      else if(needOrderItems.length) statusBadge = `<span class="badge needorder">ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
+      else statusBadge = `<span class="badge noorder">ของพอ ไม่ต้องสั่ง</span>`;
+
+      const head = document.createElement('div'); head.className = 'sup-card-head';
+      head.innerHTML = `
+        <i class="ti ti-chevron-down chev"></i>
+        <span class="sup-card-name">${s.name}</span>
+        <div class="sup-badges">
+          <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">เช็คแล้ว ${checkedCount}/${allItems.length}</span>
+          ${statusBadge}
+        </div>
+      `;
+      head.onclick = ()=>{
+        if(expandedSuppliers.has(s.id)) expandedSuppliers.delete(s.id); else expandedSuppliers.add(s.id);
+        renderGroups(c.querySelector('#search').value);
+      };
+      card.appendChild(head);
+
+      const body = document.createElement('div'); body.className = 'sup-card-body';
+      const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
       items.forEach(p=>{
         if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = forecast(p);
         const f = forecast(p);
@@ -803,7 +890,37 @@ async function renderOrderPage(app){
           updateBar();
         };
       });
-      groups.appendChild(groupBox);
+      body.appendChild(groupBox);
+
+      if(needOrderItems.length){
+        const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
+        btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : `สั่งของเจ้านี้ (${needOrderItems.length} รายการ)`;
+        btn.onclick = async (e)=>{
+          e.stopPropagation();
+          const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? forecast(p)) > 0).map(p=>{
+            const fc = FORECASTS[p.id] || {};
+            return { productId:p.id, forecast: fc.forecast||0, orderQty: state.orderQty[p.id], rateUsed: fc.rateUsed||1, orderUnit: p.orderUnit };
+          });
+          if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
+          btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+          try{
+            await apiPost('createOrderBatch', { items: supItems });
+            orderedSuppliers.add(s.id); saveSessionOrdered();
+            renderStats();
+            renderGroups(c.querySelector('#search').value);
+          }catch(err){
+            btn.disabled = false; btn.textContent = 'สั่งของเจ้านี้';
+            alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
+          }
+        };
+        btnRow.appendChild(btn);
+        body.appendChild(btnRow);
+      }
+
+      card.appendChild(body);
+      groups.appendChild(card);
     });
     if(!groups.children.length) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
     updateBar();
@@ -811,7 +928,7 @@ async function renderOrderPage(app){
 
   function updateBar(){
     const n = Object.values(state.orderQty).filter(v=>v>0).length;
-    bar.innerHTML = `<span>เลือกแล้ว ${n} รายการ</span><button class="btn-primary btn" id="genMsg" ${n===0?'disabled':''}>สร้างข้อความสั่งของ</button>`;
+    bar.innerHTML = `<span>เลือกแล้ว ${n} รายการ</span><button class="btn-primary btn" id="genMsg" ${n===0?'disabled':''}>สร้างข้อความสั่งของทั้งหมด</button>`;
     bar.querySelector('#genMsg').onclick = async (e)=>{
       const btn = e.target; btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
@@ -821,16 +938,20 @@ async function renderOrderPage(app){
       });
       try{
         await apiPost('createOrderBatch', { items });
+        const suppliersInBatch = new Set(items.map(it=> PRODUCTS.find(p=>p.id===it.productId)?.supplierId));
+        suppliersInBatch.forEach(sid=> sid && orderedSuppliers.add(sid));
+        saveSessionOrdered();
         go('orderMessage');
       }catch(err){
-        btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของ';
+        btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของทั้งหมด';
         alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
       }
     };
   }
 
+  renderStats();
   renderGroups('');
-  c.querySelector('#search').oninput = (e)=>renderGroups(e.target.value);
+  c.querySelector('#search').oninput = (e)=>{ renderStats(); renderGroups(e.target.value); };
 }
 
 /* ============ OWNER: Order message ============ */
