@@ -94,10 +94,12 @@
 
   /* accordion order rows */
   .acc-group{border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; margin-bottom:14px;}
-  .col-head{display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fcfcfa; border-bottom:1px solid var(--border);}
-  .col-head .nm{flex:1; font-size:10px; color:var(--text-tertiary); font-weight:600;}
+  .col-head{padding:6px 10px; background:#fcfcfa; border-bottom:1px solid var(--border);}
+  .col-head .nm{font-size:10px; color:var(--text-tertiary); font-weight:600;}
+  .col-head-bottom{display:flex; align-items:center; gap:8px; margin-top:3px;}
   .col-head .stat3{grid-template-columns:32px 32px 32px;}
   .col-head .stat3 span{font-size:9px; color:var(--text-tertiary); font-weight:600;}
+  .col-head .stepper-spacer{visibility:hidden; margin-left:auto;}
   .prow{display:flex; flex-direction:column; gap:6px; padding:8px 10px; border-bottom:1px solid var(--border); background:#fff;}
   .prow:last-child{border-bottom:none;}
   .prow.low{background:var(--danger-bg);}
@@ -854,7 +856,14 @@ async function renderOrderPage(app){
       const colHead = document.createElement('div'); colHead.className = 'col-head';
       colHead.innerHTML = `
         <span class="nm">สินค้า</span>
-        <span class="stat3"><span>คงเหลือ</span><span>ขั้นต่ำ</span><span>เสนอสั่ง</span></span>
+        <div class="col-head-bottom">
+          <span class="stat3"><span>คงเหลือ</span><span>ขั้นต่ำ</span><span>เสนอสั่ง</span></span>
+          <div class="stepper stepper-spacer">
+            <button type="button">−</button>
+            <input type="text" class="stepper-input" value="0">
+            <button type="button">+</button>
+          </div>
+        </div>
       `;
       groupBox.appendChild(colHead);
 
