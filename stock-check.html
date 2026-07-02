@@ -57,11 +57,12 @@
   .prod-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .prod-card{border-radius:16px; padding:10px; border:2px solid var(--border);}
   .prod-card.checked{background:#EAF3DE; border-color:#639922;}
-  .prod-card-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
-  .prod-thumb{width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden;}
-  .prod-thumb img{width:100%; height:100%; object-fit:cover;}
-  .photo-btn{margin-left:auto; font-size:16px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
-  .check-toggle{margin-left:auto; font-size:18px; cursor:pointer; color:var(--text-tertiary); background:none; border:none; padding:2px;}
+  .prod-photo-area{position:relative; width:100%; aspect-ratio:1/1; border-radius:12px; overflow:hidden; margin-bottom:8px; display:flex; align-items:center; justify-content:center;}
+  .prod-photo-area.no-photo{cursor:pointer;}
+  .prod-photo-area img{width:100%; height:100%; object-fit:cover; display:block;}
+  .photo-placeholder{display:flex; flex-direction:column; align-items:center; gap:5px;}
+  .photo-placeholder span{font-size:11px; color:var(--text-tertiary);}
+  .prod-photo-area .check-toggle{position:absolute; top:6px; right:6px; background:rgba(255,255,255,0.9); border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; color:var(--text-tertiary); border:none; padding:0;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
   .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px;}
@@ -453,9 +454,10 @@ async function renderSupplierCheck(app){
       card.className = 'prod-card' + (isChecked?' checked':'');
       const photoSrc = productPhotos[p.id] || p.photoUrl; // p.photoUrl: persisted one-time reference photo, once backend supports it
       card.innerHTML = `
-        <div class="prod-card-head">
-          <div class="prod-thumb" style="background:${isChecked?'rgba(255,255,255,0.6)':col.bg};">${photoSrc ? `<img src="${photoSrc}" alt="">` : `<i class="ti ti-meat" aria-hidden="true" style="font-size:17px; color:${col.fg};"></i>`}</div>
-          ${photoSrc ? '' : `<button class="photo-btn" data-pid="${p.id}" aria-label="ถ่ายรูปสินค้า"><i class="ti ti-camera" aria-hidden="true"></i></button>`}
+        <div class="prod-photo-area${photoSrc?'':' no-photo'}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)};">
+          ${photoSrc
+            ? `<img src="${photoSrc}" alt="">`
+            : `<div class="photo-placeholder"><i class="ti ti-camera" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>แตะเพื่อถ่ายรูป</span></div>`}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         <p class="prod-card-name">${p.name}</p>
@@ -472,14 +474,15 @@ async function renderSupplierCheck(app){
     });
 
     grid.querySelectorAll('.check-toggle').forEach(btn=>{
-      btn.onclick = ()=>{
+      btn.onclick = (e)=>{
+        e.stopPropagation();
         const pid = btn.dataset.pid;
         if(checkedProducts.has(pid)) checkedProducts.delete(pid); else checkedProducts.add(pid);
         renderGrid(); updateBar();
       };
     });
-    grid.querySelectorAll('.photo-btn').forEach(btn=>{
-      btn.onclick = ()=>{ photoTargetPid = btn.dataset.pid; photoInput.click(); };
+    grid.querySelectorAll('.prod-photo-area.no-photo').forEach(area=>{
+      area.onclick = ()=>{ photoTargetPid = area.dataset.pid; photoInput.click(); };
     });
     grid.querySelectorAll('.minus, .plus').forEach(btn=>{
       btn.onclick = ()=>{
