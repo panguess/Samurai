@@ -1150,12 +1150,6 @@ function renderAdminOrders(){
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
-  let filtered;
-  if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
-  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
-  else filtered=allAdminOrders.filter(ds_done);
-  const list=document.getElementById('adminList');
-  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
   const isToday=o=>{
     const t=o.done_at||o.timestamp;
     if(!t)return false;
@@ -1163,6 +1157,12 @@ function renderAdminOrders(){
     const n=new Date();
     return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
   };
+  let filtered;
+  if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
+  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
+  else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
+  const list=document.getElementById('adminList');
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
   const packingCount2=allAdminOrders.filter(ds_packing).length;
   const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
