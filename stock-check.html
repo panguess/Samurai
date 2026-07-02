@@ -128,6 +128,9 @@
   .ord-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
+  .ord-card.done{border-color:var(--green-bg);}
+  .ord-card.done .ord-card-head{background:var(--green-bg);}
+  .order-done-check{width:17px; height:17px; border-radius:50%; background:var(--green); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
   .sup-badges{display:grid; grid-template-columns:82px 108px; gap:5px; flex-shrink:0;}
   .sup-badges .badge{text-align:center; white-space:nowrap;}
@@ -829,19 +832,21 @@ async function renderOrderPage(app){
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
-      const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'');
+      const orderDone = needOrderItems.length > 0 && isOrdered;
+      const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'') + (orderDone?' done':'');
       let statusBadge;
       // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
       // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
       if(checkedCount === 0) statusBadge = `<span class="badge pending">🛒 ยังไม่เช็ค</span>`;
       else if(!fullyChecked) statusBadge = `<span class="badge partial">🛒 เช็คแล้วบางส่วน</span>`;
-      else if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
+      else if(orderDone) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
       else if(needOrderItems.length) statusBadge = `<span class="badge needorder">🛒 ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
       else statusBadge = `<span class="badge noorder">🛒 ของพอ ไม่ต้องสั่ง</span>`;
 
       const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
+        ${orderDone ? '<span class="order-done-check">✓</span>' : ''}
         <span class="ord-card-name">${s.name}</span>
         <div class="sup-badges">
           <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">📋 ${checkedCount}/${allItems.length}</span>
