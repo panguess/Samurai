@@ -243,17 +243,10 @@ function saveSessionChecked(){
   try{ localStorage.setItem('sessionCheckedSuppliers', JSON.stringify({date: todayKey(), ids:[...sessionCheckedSuppliers]})); }catch(e){}
 }
 let sessionCheckedSuppliers = loadSessionChecked(); // grows-only, never reset during session (persisted per day so a page reload doesn't lose it)
-function loadSessionOrdered(){
-  try{
-    const raw = JSON.parse(localStorage.getItem('sessionOrderedSuppliers')||'{}');
-    if(raw.date === todayKey() && Array.isArray(raw.ids)) return new Set(raw.ids);
-  }catch(e){}
-  return new Set();
-}
-function saveSessionOrdered(){
-  try{ localStorage.setItem('sessionOrderedSuppliers', JSON.stringify({date: todayKey(), ids:[...orderedSuppliers]})); }catch(e){}
-}
-let orderedSuppliers = loadSessionOrdered(); // suppliers already ordered today, resets daily like sessionCheckedSuppliers
+// Which products have an OrderLogs entry today — fetched fresh from the sheet
+// (via the `orderedToday` action) each time the order page loads, so "สั่งแล้ว"
+// is the same for every device instead of a per-browser localStorage guess.
+let orderedProductIds = new Set();
 let checkedProducts = new Set();
 let stockStatusCache = null;
 let _stockStatusTs = 0;
@@ -765,10 +758,11 @@ async function renderOrderPage(app){
 
   let statusList;
   try{
-    const [forecastList, sl] = await Promise.all([apiGet('orderForecast'), getStockStatus()]);
+    const [forecastList, sl, orderedRes] = await Promise.all([apiGet('orderForecast'), getStockStatus(), apiGet('orderedToday')]);
     statusList = sl;
     FORECASTS = {}; forecastList.forEach(f=> FORECASTS[f.productId] = f);
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+    orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
@@ -796,19 +790,20 @@ async function renderOrderPage(app){
     const items = PRODUCTS.filter(p=>p.supplierId===s.id);
     const checkedCount = items.filter(p=>statusByProduct[p.id]).length;
     const needOrderItems = items.filter(p=>forecast(p) > 0);
-    return { items, checkedCount, needOrderItems };
+    const isOrdered = items.some(p=> orderedProductIds.has(p.id));
+    return { items, checkedCount, needOrderItems, isOrdered };
   }
 
   function renderStats(){
     const withItems = SUPPLIERS.filter(s=> PRODUCTS.some(p=>p.supplierId===s.id));
     let checkedSuppliers = 0, needOrderSuppliers = 0, orderedOfNeeded = 0;
     withItems.forEach(s=>{
-      const { items, checkedCount, needOrderItems } = supplierStats(s);
+      const { items, checkedCount, needOrderItems, isOrdered } = supplierStats(s);
       const fullyChecked = items.length > 0 && checkedCount === items.length;
       if(fullyChecked) checkedSuppliers++;
       if(fullyChecked && needOrderItems.length){
         needOrderSuppliers++;
-        if(orderedSuppliers.has(s.id)) orderedOfNeeded++;
+        if(isOrdered) orderedOfNeeded++;
       }
     });
     statsEl.innerHTML = `
@@ -827,8 +822,7 @@ async function renderOrderPage(app){
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
 
-      const { checkedCount, needOrderItems } = supplierStats(s);
-      const isOrdered = orderedSuppliers.has(s.id);
+      const { checkedCount, needOrderItems, isOrdered } = supplierStats(s);
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
@@ -938,7 +932,7 @@ async function renderOrderPage(app){
           btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
           try{
             await apiPost('createOrderBatch', { items: supItems });
-            orderedSuppliers.add(s.id); saveSessionOrdered();
+            supItems.forEach(it=> orderedProductIds.add(it.productId));
             renderStats();
             renderGroups(c.querySelector('#search').value);
           }catch(err){
@@ -969,9 +963,7 @@ async function renderOrderPage(app){
       });
       try{
         await apiPost('createOrderBatch', { items });
-        const suppliersInBatch = new Set(items.map(it=> PRODUCTS.find(p=>p.id===it.productId)?.supplierId));
-        suppliersInBatch.forEach(sid=> sid && orderedSuppliers.add(sid));
-        saveSessionOrdered();
+        items.forEach(it=> orderedProductIds.add(it.productId));
         go('orderMessage');
       }catch(err){
         btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของทั้งหมด';
