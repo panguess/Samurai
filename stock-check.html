@@ -826,7 +826,9 @@ async function renderOrderPage(app){
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
-      const orderDone = needOrderItems.length > 0 && isOrdered;
+      // Gate on fullyChecked too: needOrderItems/forecast() aren't trustworthy until
+      // the supplier's stock is fully checked today, so don't show "ordered" (green) early.
+      const orderDone = fullyChecked && needOrderItems.length > 0 && isOrdered;
       const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'') + (orderDone?' done':'');
       let statusBadge;
       // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
