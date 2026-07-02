@@ -615,31 +615,32 @@ function renderOwnerPin(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <p style="font-size:13px; color:var(--text-secondary); margin:0 0 16px;">กรอกรหัสผ่านเพื่อเข้าฝั่งเจ้าของร้าน</p>
-    <input type="password" inputmode="numeric" id="pinInput" maxlength="6" placeholder="••••" style="font-size:22px; text-align:center; letter-spacing:6px; padding:14px;">
-    <p id="pinError" style="color:var(--danger); font-size:12px; margin:8px 0 0; min-height:16px;"></p>
-    <button class="btn btn-primary btn-block" id="pinSubmit" style="margin-top:14px;">เข้าระบบ</button>
+    <input type="password" inputmode="numeric" id="pinInput" maxlength="4" placeholder="••••" style="font-size:22px; text-align:center; letter-spacing:6px; padding:14px;">
+    <p id="pinError" style="color:var(--danger); font-size:12px; margin:8px 0 0; min-height:16px; text-align:center;"></p>
   `;
   app.appendChild(c);
   const input = c.querySelector('#pinInput');
   const errEl = c.querySelector('#pinError');
-  const btn = c.querySelector('#pinSubmit');
   input.focus();
 
+  let checking = false;
   async function trySubmit(){
+    if(checking) return;
     const val = input.value.trim();
-    if(!val){ errEl.textContent = 'กรุณากรอกรหัส'; return; }
-    btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+    if(val.length < 4) return;
+    checking = true;
+    input.disabled = true; errEl.textContent = 'กำลังตรวจสอบ...'; errEl.style.color = 'var(--text-secondary)';
     try{
       const res = await apiGet('checkPin', {pin: val});
-      if(res && res.valid){ go('ownerMenu'); }
-      else { errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; input.value=''; input.focus(); }
+      if(res && res.valid){ go('ownerMenu'); return; }
+      errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; errEl.style.color = 'var(--danger)';
+      input.value='';
     }catch(err){
-      errEl.textContent = 'ตรวจสอบรหัสไม่สำเร็จ: ' + err.message;
+      errEl.textContent = 'ตรวจสอบรหัสไม่สำเร็จ: ' + err.message; errEl.style.color = 'var(--danger)';
     }
-    btn.disabled = false; btn.textContent = 'เข้าระบบ';
+    checking = false; input.disabled = false; input.focus();
   }
-  btn.onclick = trySubmit;
-  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') trySubmit(); });
+  input.addEventListener('input', trySubmit);
 }
 
 /* ============ OWNER MENU (order first) ============ */
