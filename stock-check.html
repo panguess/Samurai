@@ -123,6 +123,7 @@
   .stat-card.danger .n{color:var(--danger);}
   .stat-card.green .n{color:var(--green);}
   .stat-card.amber .n{color:var(--amber);}
+  .badge-legend{font-size:11px; color:var(--text-tertiary); margin:-4px 0 12px; text-align:center;}
   .ord-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff;}
   .ord-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
@@ -772,6 +773,7 @@ async function renderOrderPage(app){
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
+    <div class="badge-legend">📋 = ลูกจ้างเช็คสต๊อก &nbsp;·&nbsp; 🛒 = สถานะสั่งของ</div>
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <input type="text" id="search" placeholder="ค้นหาชื่อสินค้าหรือชื่อเจ้า" style="flex:1;">
     </div>
@@ -831,18 +833,18 @@ async function renderOrderPage(app){
       let statusBadge;
       // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
       // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
-      if(checkedCount === 0) statusBadge = `<span class="badge pending">ยังไม่เช็ค</span>`;
-      else if(!fullyChecked) statusBadge = `<span class="badge partial">เช็คแล้วบางส่วน</span>`;
-      else if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
-      else if(needOrderItems.length) statusBadge = `<span class="badge needorder">ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
-      else statusBadge = `<span class="badge noorder">ของพอ ไม่ต้องสั่ง</span>`;
+      if(checkedCount === 0) statusBadge = `<span class="badge pending">🛒 ยังไม่เช็ค</span>`;
+      else if(!fullyChecked) statusBadge = `<span class="badge partial">🛒 เช็คแล้วบางส่วน</span>`;
+      else if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
+      else if(needOrderItems.length) statusBadge = `<span class="badge needorder">🛒 ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
+      else statusBadge = `<span class="badge noorder">🛒 ของพอ ไม่ต้องสั่ง</span>`;
 
       const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
         <span class="ord-card-name">${s.name}</span>
         <div class="sup-badges">
-          <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">เช็คแล้ว ${checkedCount}/${allItems.length}</span>
+          <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">📋 ${checkedCount}/${allItems.length}</span>
           ${statusBadge}
         </div>
       `;
