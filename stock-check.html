@@ -125,12 +125,14 @@
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
-  .sup-badges{display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;}
+  .sup-badges{display:grid; grid-template-columns:82px 108px; gap:5px; flex-shrink:0;}
+  .sup-badges .badge{text-align:center; white-space:nowrap;}
   .badge.checked{background:var(--green-bg); color:var(--green);}
   .badge.unchecked{background:var(--danger-bg); color:var(--danger);}
   .badge.needorder{background:var(--danger-bg); color:var(--danger);}
   .badge.ordered{background:var(--green-bg); color:var(--green);}
   .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
+  .badge.pending{background:transparent; color:var(--text-tertiary); border:1px dashed var(--border-strong);}
   .ord-card-body{display:none; border-top:1px solid var(--border);}
   .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
@@ -792,8 +794,9 @@ async function renderOrderPage(app){
     let checkedSuppliers = 0, needOrderSuppliers = 0, orderedOfNeeded = 0;
     withItems.forEach(s=>{
       const { items, checkedCount, needOrderItems } = supplierStats(s);
-      if(items.length && checkedCount === items.length) checkedSuppliers++;
-      if(needOrderItems.length){
+      const fullyChecked = items.length > 0 && checkedCount === items.length;
+      if(fullyChecked) checkedSuppliers++;
+      if(fullyChecked && needOrderItems.length){
         needOrderSuppliers++;
         if(orderedSuppliers.has(s.id)) orderedOfNeeded++;
       }
@@ -816,11 +819,15 @@ async function renderOrderPage(app){
 
       const { checkedCount, needOrderItems } = supplierStats(s);
       const isOrdered = orderedSuppliers.has(s.id);
+      const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
       const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'');
       let statusBadge;
-      if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
+      // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
+      // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
+      if(!fullyChecked) statusBadge = `<span class="badge pending">รอเช็คสต๊อก</span>`;
+      else if(needOrderItems.length && isOrdered) statusBadge = `<span class="badge ordered">สั่งแล้ว ✓</span>`;
       else if(needOrderItems.length) statusBadge = `<span class="badge needorder">ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
       else statusBadge = `<span class="badge noorder">ของพอ ไม่ต้องสั่ง</span>`;
 
