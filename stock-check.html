@@ -141,6 +141,7 @@
   .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
   .badge.pending{background:transparent; color:var(--text-tertiary); border:1px dashed var(--border-strong);}
   .badge.partial{background:var(--amber-bg); color:var(--amber);}
+  .badge.draft{background:var(--purple-bg); color:var(--purple);}
   .ord-card-body{display:none; border-top:1px solid var(--border);}
   .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
@@ -829,13 +830,17 @@ async function renderOrderPage(app){
       // Gate on fullyChecked too: needOrderItems/forecast() aren't trustworthy until
       // the supplier's stock is fully checked today, so don't show "ordered" (green) early.
       const orderDone = fullyChecked && needOrderItems.length > 0 && isOrdered;
+      // Staff may key in quantities for this supplier without pressing "สั่งของเจ้านี้" yet —
+      // surface that as its own state so it's clear the numbers are staged but not sent.
+      const hasDraft = !orderDone && allItems.some(p=> (state.orderQty[p.id]||0) > 0);
       const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'') + (orderDone?' done':'');
       let statusBadge;
       // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
       // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
-      if(checkedCount === 0) statusBadge = `<span class="badge pending">🛒 ยังไม่เช็ค</span>`;
+      if(orderDone) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
+      else if(hasDraft) statusBadge = `<span class="badge draft">🛒 กรอกแล้ว รอส่ง</span>`;
+      else if(checkedCount === 0) statusBadge = `<span class="badge pending">🛒 ยังไม่เช็ค</span>`;
       else if(!fullyChecked) statusBadge = `<span class="badge partial">🛒 เช็คแล้วบางส่วน</span>`;
-      else if(orderDone) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
       else if(needOrderItems.length) statusBadge = `<span class="badge needorder">🛒 ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
       else statusBadge = `<span class="badge noorder">🛒 ของพอ ไม่ต้องสั่ง</span>`;
 
