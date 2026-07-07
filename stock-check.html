@@ -123,24 +123,25 @@
   .stat-card.danger .n{color:var(--danger);}
   .stat-card.green .n{color:var(--green);}
   .stat-card.amber .n{color:var(--amber);}
-  .badge-legend{font-size:11px; color:var(--text-tertiary); margin:-4px 0 12px; text-align:center;}
-  .ord-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff;}
+  .ord-card{border:1px solid var(--border); border-radius:var(--radius-lg); margin-bottom:10px; overflow:hidden; background:#fff; display:flex;}
+  .ord-card-strip{width:5px; flex-shrink:0; background:var(--border-strong);}
+  .ord-card.state-needorder .ord-card-strip{background:var(--danger);}
+  .ord-card.state-partial .ord-card-strip{background:var(--amber);}
+  .ord-card.state-ordered .ord-card-strip{background:var(--green);}
+  .ord-card-main{flex:1; min-width:0;}
   .ord-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
-  .ord-card.done{border-color:var(--green-bg);}
-  .ord-card.done .ord-card-head{background:var(--green-bg);}
+  .ord-card.state-ordered .ord-card-head{background:var(--green-bg);}
   .order-done-check{width:17px; height:17px; border-radius:50%; background:var(--green); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
-  .sup-badges{display:grid; grid-template-columns:82px 108px; gap:5px; flex-shrink:0;}
-  .sup-badges .badge{text-align:center; white-space:nowrap;}
-  .badge.checked{background:var(--green-bg); color:var(--green);}
-  .badge.unchecked{background:var(--danger-bg); color:var(--danger);}
-  .badge.needorder{background:var(--danger-bg); color:var(--danger);}
-  .badge.ordered{background:var(--green-bg); color:var(--green);}
-  .badge.noorder{background:var(--brand-bg); color:var(--text-tertiary); border:1px solid var(--border-strong);}
-  .badge.pending{background:transparent; color:var(--text-tertiary); border:1px dashed var(--border-strong);}
-  .badge.partial{background:var(--amber-bg); color:var(--amber);}
+  .ord-card-status{display:flex; flex-direction:column; gap:2px; align-items:flex-end; flex-shrink:0;}
+  .status-line{font-size:13px; font-weight:600; white-space:nowrap;}
+  .status-line.wait{color:var(--text-tertiary);}
+  .status-line.partial{color:var(--amber);}
+  .status-line.needorder{color:var(--danger);}
+  .status-line.ordered{color:var(--green);}
+  .status-sub{font-size:11px; color:var(--text-tertiary); white-space:nowrap;}
   .ord-card-body{display:none; border-top:1px solid var(--border);}
   .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
@@ -770,7 +771,6 @@ async function renderOrderPage(app){
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
-    <div class="badge-legend">📋 = ลูกจ้างเช็คสต๊อก &nbsp;·&nbsp; 🛒 = สถานะสั่งของ</div>
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <input type="text" id="search" placeholder="ค้นหาชื่อสินค้าหรือชื่อเจ้า" style="flex:1;">
     </div>
@@ -829,31 +829,35 @@ async function renderOrderPage(app){
       // Gate on fullyChecked too: needOrderItems/forecast() aren't trustworthy until
       // the supplier's stock is fully checked today, so don't show "ordered" (green) early.
       const orderDone = fullyChecked && needOrderItems.length > 0 && isOrdered;
-      const card = document.createElement('div'); card.className = 'ord-card' + (open?' open':'') + (orderDone?' done':'');
-      let statusBadge;
-      // "ต้องสั่ง N รายการ" only means something once the supplier is fully checked today —
-      // before that, forecast() treats unchecked stock as 0, so it would falsely flag almost every item.
-      if(orderDone) statusBadge = `<span class="badge ordered">🛒 สั่งแล้ว ✓</span>`;
-      else if(checkedCount === 0) statusBadge = `<span class="badge pending">🛒 ยังไม่เช็ค</span>`;
-      else if(!fullyChecked) statusBadge = `<span class="badge partial">🛒 เช็คแล้วบางส่วน</span>`;
-      else if(needOrderItems.length) statusBadge = `<span class="badge needorder">🛒 ต้องสั่ง ${needOrderItems.length} รายการ</span>`;
-      else statusBadge = `<span class="badge noorder">🛒 ของพอ ไม่ต้องสั่ง</span>`;
+      // Single combined status per supplier — one line, one color, states an action
+      // rather than two badges (stock-check count vs order status) that read as unrelated.
+      let stateClass, statusText, subText;
+      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText='เช็คสต๊อกครบแล้ว'; }
+      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (0/${allItems.length} รายการ)`; }
+      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedCount}/${allItems.length} รายการ`; }
+      else if(needOrderItems.length){ stateClass='needorder'; statusText=`🛒 ต้องสั่งของ ${needOrderItems.length} รายการ`; subText='เช็คสต๊อกครบแล้ว'; }
+      else{ stateClass='wait'; statusText='✓ เช็คครบแล้ว ไม่ต้องสั่ง'; subText='เช็คสต๊อกครบแล้ว'; }
+
+      const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
+      const strip = document.createElement('div'); strip.className = 'ord-card-strip';
+      card.appendChild(strip);
+      const main = document.createElement('div'); main.className = 'ord-card-main';
 
       const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
         ${orderDone ? '<span class="order-done-check">✓</span>' : ''}
         <span class="ord-card-name">${s.name}</span>
-        <div class="sup-badges">
-          <span class="badge ${checkedCount===allItems.length?'checked':'unchecked'}">📋 ${checkedCount}/${allItems.length}</span>
-          ${statusBadge}
+        <div class="ord-card-status">
+          <span class="status-line ${stateClass}">${statusText}</span>
+          <span class="status-sub">${subText}</span>
         </div>
       `;
       head.onclick = ()=>{
         if(expandedSuppliers.has(s.id)) expandedSuppliers.delete(s.id); else expandedSuppliers.add(s.id);
         renderGroups(c.querySelector('#search').value);
       };
-      card.appendChild(head);
+      main.appendChild(head);
 
       const body = document.createElement('div'); body.className = 'ord-card-body';
 
@@ -946,7 +950,8 @@ async function renderOrderPage(app){
         body.appendChild(btnRow);
       }
 
-      card.appendChild(body);
+      main.appendChild(body);
+      card.appendChild(main);
       groups.appendChild(card);
     });
     if(!groups.children.length) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
