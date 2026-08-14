@@ -1300,61 +1300,88 @@ let overviewSearchTerm='';
 let overviewView='customer';
 let overviewSortMode='recent';
 let openOverviewCustomers=new Set();
-let overviewDateMode='today';
-let overviewCustomDate='';
+let overviewDateMode='today'; // 'today' | 'month' | 'all'
+let overviewSelectedMonth=''; // 'YYYY-M' (ค.ศ., M=0-indexed) ใช้เมื่อ overviewDateMode==='month'
+let overviewCompareMode='mom'; // 'mom' | 'yoy'
+
+// เดือนปัจจุบันในรูปแบบ 'YYYY-M' (M = 0-indexed ตาม JS Date)
+function currentMonthKey(){
+  const now=new Date();
+  return now.getFullYear()+'-'+now.getMonth();
+}
+
+// รายการเดือนที่ "มีข้อมูลจริง" ใน order ทั้งหมด (คำนวณจาก allAdminOrders ที่ได้จาก backend
+// ซึ่งรวมทุก sheet order ข้ามปีมาแล้ว — ดู getAllOrderRows() ฝั่ง Code.gs)
+// เรียงล่าสุดก่อน ใช้ generate month picker ให้ตรงกับข้อมูลจริงเท่านั้น (ไม่โชว์เดือนว่าง)
+function getAvailableOverviewMonths(){
+  const set=new Set();
+  (allAdminOrders||[]).forEach(o=>{
+    const t=o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(isNaN(d))return;
+    set.add(d.getFullYear()+'-'+d.getMonth());
+  });
+  const arr=Array.from(set).map(k=>{const[y,m]=k.split('-').map(Number);return{key:k,y,m};});
+  arr.sort((a,b)=>(b.y-a.y)||(b.m-a.m));
+  return arr;
+}
+
+function monthLabelTh(y,m){
+  return new Date(y,m,1).toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+}
 
 function getOverviewRange(){
   const now=new Date();
   const startOfDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
   const endOfDay=d=>{const x=new Date(d);x.setHours(23,59,59,999);return x;};
   if(overviewDateMode==='all'){return[new Date(2000,0,1),endOfDay(now)];}
-  if(overviewDateMode==='yesterday'){const y=new Date(now);y.setDate(y.getDate()-1);return[startOfDay(y),endOfDay(y)];}
-  if(overviewDateMode==='7days'){const s=new Date(now);s.setDate(s.getDate()-6);return[startOfDay(s),endOfDay(now)];}
-  if(overviewDateMode==='month'){const s=new Date(now.getFullYear(),now.getMonth(),1);return[startOfDay(s),endOfDay(now)];}
-  if(overviewDateMode==='custom'&&overviewCustomDate){const d=new Date(overviewCustomDate+'T00:00:00');return[startOfDay(d),endOfDay(d)];}
+  if(overviewDateMode==='month'){
+    const[y,m]=(overviewSelectedMonth||currentMonthKey()).split('-').map(Number);
+    const s=new Date(y,m,1);
+    const e=new Date(y,m+1,0);
+    return[startOfDay(s),endOfDay(e)];
+  }
   return[startOfDay(now),endOfDay(now)];
+}
+
+// ช่วงวันที่ของเดือนใดๆ (ใช้คำนวณ MoM/YoY โดยไม่ต้องผ่าน overviewSelectedMonth)
+function monthRange(y,m){
+  const s=new Date(y,m,1);const sx=new Date(s);sx.setHours(0,0,0,0);
+  const e=new Date(y,m+1,0);const ex=new Date(e);ex.setHours(23,59,59,999);
+  return[sx,ex];
 }
 
 function overviewDateLabel(){
   if(overviewDateMode==='all')return'ทั้งหมด';
   if(overviewDateMode==='today')return'วันนี้';
-  if(overviewDateMode==='yesterday')return'เมื่อวาน';
-  if(overviewDateMode==='7days')return'7 วันที่แล้ว';
-  if(overviewDateMode==='month')return'เดือนนี้';
-  if(overviewDateMode==='custom'&&overviewCustomDate)return new Date(overviewCustomDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+  if(overviewDateMode==='month'){
+    const[y,m]=(overviewSelectedMonth||currentMonthKey()).split('-').map(Number);
+    return monthLabelTh(y,m);
+  }
   return'วันนี้';
 }
 
 function setOverviewDateMode(mode){
   overviewDateMode=mode;
-  if(mode!=='custom')overviewCustomDate='';
+  if(mode==='month'&&!overviewSelectedMonth){
+    const months=getAvailableOverviewMonths();
+    overviewSelectedMonth=months.length?months[0].key:currentMonthKey();
+  }
   renderAdminOverview();
 }
 
-function onOverviewCustomDate(val){
-  if(!val){
-    overviewCustomDate='';
-    overviewDateMode='today';
-    renderAdminOverview();
-    return;
-  }
-  overviewCustomDate=val;
-  overviewDateMode='custom';
+function onOverviewMonthChange(val){
+  overviewSelectedMonth=val;
+  overviewDateMode='month';
   renderAdminOverview();
 }
 
-function openOverviewDatePicker(btn){
-  const input=btn.querySelector('input[type="date"]');
-  if(!input)return;
-  if(typeof input.showPicker==='function'){
-    try{input.showPicker();return;}catch(e){
-      input.focus();
-    }
-  } else {
-    input.focus();
-  }
+function setOverviewCompareMode(mode){
+  overviewCompareMode=mode;
+  renderAdminOverview();
 }
-  
+
 function setOverviewView(view){
   overviewView=view;
   renderAdminOverview();
@@ -1365,11 +1392,115 @@ function setOverviewSortMode(mode){
   renderAdminOverview();
 }
 
+// ---- helper สถานะออเดอร์ (ใช้ร่วมกันทั้ง list หลัก, กราฟเทรนด์, และส่วนเปรียบเทียบ) ----
+function ov_isCancelled(o){return o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';}
+function ov_isDone(o){return o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';}
+
+// ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่กำหนด (ใช้เป็น scope เดียวกับ stat cards หลัก)
+function ov_doneOrdersInRange(start,end){
+  return allAdminOrders.filter(o=>{
+    if(ov_isCancelled(o)||!ov_isDone(o))return false;
+    const tStamp=o.done_at||o.timestamp;
+    if(!tStamp)return false;
+    const t=new Date(tStamp);
+    return t>=start&&t<=end;
+  });
+}
+
+// ---- กราฟเทรนด์ยอดขายรายวันของเดือนที่เลือก (แท่ง) ----
+function renderOverviewMonthChart(rangeOrders,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const byDay=new Array(daysInMonth+1).fill(0);
+  rangeOrders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(d.getFullYear()===y&&d.getMonth()===m) byDay[d.getDate()]+=Number(o.total)||0;
+  });
+  const maxVal=Math.max(1,...byDay.slice(1));
+  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+  let bars='';
+  for(let day=1;day<=daysInMonth;day++){
+    const val=byDay[day];
+    const hPct=Math.round((val/maxVal)*100);
+    const showLabel=(day===1||day===daysInMonth||day%showLabelEvery===0);
+    bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0">
+      <div title="วันที่ ${day}: ฿${fmtMoney(val)}" style="width:100%;max-width:14px;height:${Math.max(hPct,val>0?3:0)}%;background:${val>0?'#D64109':'#f0eae5'};border-radius:3px 3px 0 0"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:3px;white-space:nowrap">${showLabel?day:''}</div>
+    </div>`;
+  }
+  return`<div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;padding:12px 10px 8px;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:10px">📈 เทรนด์ยอดขายรายวัน — ${monthLabelTh(y,m)}</div>
+    <div style="display:flex;align-items:flex-end;height:110px;gap:2px">${bars}</div>
+  </div>`;
+}
+
+// ---- เปรียบเทียบยอดขาย: เดือนนี้ vs เดือนก่อนหน้า (MoM) หรือ เดือนเดียวกันปีก่อน (YoY) ----
+function renderOverviewComparison(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const[curStart,curEnd]=monthRange(y,m);
+  const curOrders=ov_doneOrdersInRange(curStart,curEnd);
+  const curTotal=curOrders.reduce((s,o)=>s+Number(o.total),0);
+  const curCount=curOrders.length;
+
+  const prevM=m===0?11:m-1, prevY=m===0?y-1:y;
+  const[pStart,pEnd]=monthRange(prevY,prevM);
+  const prevOrders=ov_doneOrdersInRange(pStart,pEnd);
+  const prevTotal=prevOrders.reduce((s,o)=>s+Number(o.total),0);
+  const prevCount=prevOrders.length;
+
+  const yoyY=y-1;
+  const[yStart,yEnd]=monthRange(yoyY,m);
+  const yoyOrders=ov_doneOrdersInRange(yStart,yEnd);
+  const yoyHasData=yoyOrders.length>0;
+  const yoyTotal=yoyOrders.reduce((s,o)=>s+Number(o.total),0);
+  const yoyCount=yoyOrders.length;
+
+  const mode=overviewCompareMode==='yoy'&&yoyHasData?'yoy':'mom';
+  const compTotal=mode==='yoy'?yoyTotal:prevTotal;
+  const compCount=mode==='yoy'?yoyCount:prevCount;
+  const compLabel=mode==='yoy'?monthLabelTh(yoyY,m):monthLabelTh(prevY,prevM);
+
+  const pctChange=(cur,base)=>base>0?((cur-base)/base*100):(cur>0?100:0);
+  const totalPct=pctChange(curTotal,compTotal);
+  const countPct=pctChange(curCount,compCount);
+  const fmtPct=p=>`${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}%`;
+  const pctColor=p=>p>=0?'#3B6D11':'#A32D2D';
+  const pctBg=p=>p>=0?'#EAF3DE':'#FCEAEA';
+
+  const toggleBtn=(md,label,disabled)=>{
+    const active=mode===md;
+    return`<button ${disabled?'disabled':''} onclick="setOverviewCompareMode('${md}')" style="flex:1;text-align:center;padding:7px 0;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:${disabled?'not-allowed':'pointer'};background:${active?'#D64109':'transparent'};color:${disabled?'#ccc':active?'#fff':'#888'}">${label}</button>`;
+  };
+
+  return`<div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;padding:12px;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:8px">🔀 เปรียบเทียบยอดขาย</div>
+    <div style="display:flex;background:#f7f5f2;border-radius:8px;padding:3px;margin-bottom:10px">
+      ${toggleBtn('mom','เทียบเดือนก่อนหน้า',false)}
+      ${toggleBtn('yoy','เทียบปีก่อน (YoY)',!yoyHasData)}
+    </div>
+    ${!yoyHasData&&overviewCompareMode==='yoy'?`<div style="font-size:11.5px;color:#aaa;margin-bottom:8px">ยังไม่มีข้อมูลปีก่อนช่วงเดียวกัน — แสดงเทียบเดือนก่อนหน้าแทน</div>`:''}
+    <div style="font-size:11px;color:#aaa;margin-bottom:8px">${monthLabelTh(y,m)} เทียบกับ ${compLabel}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:#f7f5f2;border-radius:8px;padding:8px 10px">
+        <div style="font-size:11px;color:#888">ยอดขายรวม</div>
+        <div style="font-size:16px;font-weight:600;color:#333;margin-top:2px">฿${fmtMoney(curTotal)}</div>
+        <div style="display:inline-block;font-size:11px;font-weight:600;color:${pctColor(totalPct)};background:${pctBg(totalPct)};padding:2px 6px;border-radius:20px;margin-top:4px">${fmtPct(totalPct)}</div>
+      </div>
+      <div style="background:#f7f5f2;border-radius:8px;padding:8px 10px">
+        <div style="font-size:11px;color:#888">จำนวนออเดอร์</div>
+        <div style="font-size:16px;font-weight:600;color:#333;margin-top:2px">${curCount} ออเดอร์</div>
+        <div style="display:inline-block;font-size:11px;font-weight:600;color:${pctColor(countPct)};background:${pctBg(countPct)};padding:2px 6px;border-radius:20px;margin-top:4px">${fmtPct(countPct)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
-  const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
-  const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
-  const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
+  const ds_cancelled=ov_isCancelled;
+  const ds_done=ov_isDone;
   const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
 
   const[rangeStart,rangeEnd]=getOverviewRange();
@@ -1421,16 +1552,17 @@ function renderAdminOverview(){
       <option value="name" ${overviewSortMode==='name'?'selected':''}>ชื่อ A-Z</option>
     </select>
   </div>`;
-  let filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">
+  const availableMonths=getAvailableOverviewMonths();
+  const activeMonthKey=overviewSelectedMonth||currentMonthKey();
+  const monthSelect=`<div style="position:relative;flex-shrink:0">
+    <select onchange="onOverviewMonthChange(this.value)" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#D64109':'#fff'};border:1px solid ${overviewDateMode==='month'?'#D64109':'#ddd'};cursor:pointer;font-family:inherit">
+      ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}" ${mo.key===activeMonthKey?'selected':''}>${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
+    </select>
+  </div>`;
+  let filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;align-items:center">
     ${chip('today','วันนี้')}
-    ${chip('yesterday','เมื่อวาน')}
-    ${chip('7days','7 วันที่แล้ว')}
-    ${chip('month','เดือนนี้')}
+    ${monthSelect}
     ${chip('all','ทั้งหมด')}
-    <button type="button" onclick="openOverviewDatePicker(this)" style="position:relative;flex-shrink:0;display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${overviewDateMode==='custom'?'#D64109':'#ddd'};background:${overviewDateMode==='custom'?'#D64109':'#fff'};color:${overviewDateMode==='custom'?'#fff':'#555'};font-family:inherit">
-      📅 ${overviewDateMode==='custom'?overviewDateLabel():'เลือกวันที่'}
-      <input type="date" value="${overviewCustomDate}" onchange="onOverviewCustomDate(this.value)" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer">
-    </button>
   </div>
   <div style="display:flex;background:#fff;border:1px solid #e8e2dc;border-radius:10px;padding:3px;margin-bottom:10px">
     ${viewBtn('customer','ดูตามลูกค้า','👤')}
@@ -1446,6 +1578,10 @@ function renderAdminOverview(){
       <div style="font-size:11px;color:#888;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
   </div>`;
+  if(overviewDateMode==='month'){
+    filterHtml+=renderOverviewMonthChart(rangeOrders,activeMonthKey);
+    filterHtml+=renderOverviewComparison(activeMonthKey);
+  }
   if(overviewView==='product'){
     filterHtml+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;font-family:inherit;box-sizing:border-box" oninput="onOverviewSearch(this.value)">`;
   } else {
