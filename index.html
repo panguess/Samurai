@@ -1575,14 +1575,19 @@ function renderOverviewNoteIconButton(monthKey){
     ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#D64109;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
   </div>`;
 }
-async function addOverviewNote(){
+async function addOverviewNote(monthKey){
   const input=document.getElementById('overviewNoteInput');
   const text=(input?input.value:'').trim();
   if(!text)return;
   const btn=document.getElementById('overviewNoteSaveBtn');
   if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+  // ให้โน้ตอ้างอิง "เดือนที่กำลังดูอยู่ตอนพิมพ์" ไม่ใช่วันที่จริงของตอนนี้เสมอไป
+  // (ถ้าวันนี้อยู่ในเดือนนั้นอยู่แล้วก็ใช้เวลาจริงตามปกติ เพื่อให้เรียงลำดับล่าสุดถูกต้อง)
+  const[y,m]=monthKey.split('-').map(Number);
+  const now=new Date();
+  const noteDate=(now.getFullYear()===y&&now.getMonth()===m)?now:new Date(y,m,15,12,0,0);
   try{
-    const result=await postAction({action:'addBusinessNote',text},'addBusinessNote');
+    const result=await postAction({action:'addBusinessNote',text,date:noteDate.toISOString()},'addBusinessNote');
     if(!result||result.success===false){
       // ไม่ปิดฟอร์ม ไม่ล้างข้อความที่พิมพ์ไว้ เผื่อผู้ใช้กดบันทึกซ้ำได้โดยไม่ต้องพิมพ์ใหม่
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่')+'\n\nเช็คว่ามี sheet ชื่อ "BusinessNote" พร้อมหัวคอลัมน์ note_id/date/text ในไฟล์ Google Sheet หรือยัง');
@@ -1622,7 +1627,7 @@ function renderOverviewNotePanel(monthKey){
     <textarea id="overviewNoteInput" placeholder="เช่น เดือนนี้โรงเรียนปิดเทอม, ช่วงนี้มีเทศกาล, ปิดร้าน 3 วัน..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;resize:none;height:56px;background:#fff;margin-bottom:8px;box-sizing:border-box"></textarea>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button onclick="toggleOverviewNoteForm(false)" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#eee;color:#888">ยกเลิก</button>
-      <button id="overviewNoteSaveBtn" onclick="addOverviewNote()" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
+      <button id="overviewNoteSaveBtn" onclick="addOverviewNote('${monthKey}')" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
     </div>
   </div>`;
   const listHtml=notes.length
