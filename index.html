@@ -542,17 +542,31 @@ async function postAction(payload,label,timeoutMs,retries){
       if(!res.ok){
         logError(label||'postAction','HTTP '+res.status);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
-        return false;
+        return null;
       }
-      return true;
+      const text=await res.text();
+      let data;
+      try{ data=JSON.parse(text); }
+      catch(e){
+        // backend อาจส่งหน้า error/HTML กลับมาแทน JSON (เช่น exception ที่ยังไม่ได้ครอบ try/catch)
+        // HTTP status เป็น 200 ได้ทั้งที่ไม่สำเร็จจริง เลยต้อง treat แบบนี้เป็น "ไม่สำเร็จ" เสมอ
+        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120));
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return null;
+      }
+      if(data&&data.error){
+        logError(label||'postAction','backend error: '+data.error);
+        return {success:false,error:data.error};
+      }
+      return data||{success:true};
     }catch(e){
       clearTimeout(t);
       logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
-      return false;
+      return null;
     }
   }
-  return false;
+  return null;
 }
 
 window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
@@ -1325,7 +1339,6 @@ let overviewSortMode='recent';
 let openOverviewCustomers=new Set();
 let overviewDateMode='today'; // 'today' | 'month' | 'all'
 let overviewSelectedMonth=''; // 'YYYY-M' (ค.ศ., M=0-indexed) ใช้เมื่อ overviewDateMode==='month'
-let overviewCompareMode='mom'; // 'mom' | 'yoy'
 
 // เดือนปัจจุบันในรูปแบบ 'YYYY-M' (M = 0-indexed ตาม JS Date)
 function currentMonthKey(){
@@ -1400,11 +1413,6 @@ function onOverviewMonthChange(val){
   renderAdminOverview();
 }
 
-function setOverviewCompareMode(mode){
-  overviewCompareMode=mode;
-  renderAdminOverview();
-}
-
 function setOverviewView(view){
   overviewView=view;
   renderAdminOverview();
@@ -1430,7 +1438,7 @@ function ov_doneOrdersInRange(start,end){
   });
 }
 
-// ---- กราฟเทรนด์ยอดขายรายวันของเดือนที่เลือก (แท่ง) + วันหยุดนักขัตฤกษ์จริง ----
+// ---- กราฟเทรนด์ยอดขายรายวันของเดือนที่เลือก (แท่ง) + วันหยุดนักขัตฤกษ์จริง + ไอคอนโน้ตมุมบนขวา ----
 function renderOverviewMonthChart(rangeOrders,monthKey){
   const[y,m]=monthKey.split('-').map(Number);
   ensureThaiHolidaysLoaded(y); // fire-and-forget, จะ re-render เองเมื่อโหลดเสร็จ
@@ -1443,110 +1451,197 @@ function renderOverviewMonthChart(rangeOrders,monthKey){
     const d=new Date(t);
     if(d.getFullYear()===y&&d.getMonth()===m) byDay[d.getDate()]+=Number(o.total)||0;
   });
-  const maxVal=Math.max(1,...byDay.slice(1));
-  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+  const maxRaw=Math.max(1,...byDay.slice(1));
+  const gridStep=niceStepTh(maxRaw);
+  const gridMax=Math.ceil(maxRaw/gridStep)*gridStep;
   const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+
+  // เส้น gridline บอกสเกลยอดขาย (ฉากหลังบางๆ ให้กะยอดได้โดยไม่ต้องแตะทุกแท่ง)
+  let gridlines='';
+  for(let v=0; v<=gridMax; v+=gridStep){
+    const pct=(v/gridMax)*100;
+    gridlines+=`<div style="position:absolute;left:0;right:0;bottom:${pct}%;border-top:1px dashed #ececec">
+      <div style="position:absolute;left:0;top:-8px;font-size:10px;color:#bbb;background:#fff;padding-right:4px">${v>=1000?Math.round(v/1000)+'k':v}</div>
+    </div>`;
+  }
+
   let bars='';
   const monthHolidayEntries=[];
   for(let day=1;day<=daysInMonth;day++){
     const val=byDay[day];
-    const hPct=Math.round((val/maxVal)*100);
+    const hPct=Math.max((val/gridMax)*100,val>0?2:0);
     const showLabel=(day===1||day===daysInMonth||day%showLabelEvery===0);
     const dateKey=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dow=new Date(y,m,day).getDay();
     const isWeekend=dow===0||dow===6;
     const holidayName=holidays[dateKey];
     if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
-    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':(val>0?'#D64109':'#f0eae5');
-    const tagText=holidayName?'หยุด':(isWeekend?dayNamesTh[dow]:'');
-    bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0">
-      <div title="วันที่ ${day} (${dayNamesTh[dow]})${holidayName?' — '+holidayName:''}: ฿${fmtMoney(val)}" style="width:100%;max-width:14px;height:${Math.max(hPct,val>0?3:0)}%;background:${barColor};border-radius:3px 3px 0 0"></div>
-      <div style="font-size:9px;color:#aaa;margin-top:3px;white-space:nowrap">${showLabel?day:''}</div>
-      <div style="font-size:8px;margin-top:1px;line-height:1;color:${holidayName?'#5a67c9':'#c17a3f'};font-weight:${holidayName?600:400}">${tagText}</div>
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    bars+=`<div onclick="showOverviewChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
+      <div id="ovBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
     </div>`;
   }
-  const legend=`<div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap;font-size:11px;color:#888">
-    <div style="display:flex;align-items:center;gap:4px"><div style="width:9px;height:9px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
-    <div style="display:flex;align-items:center;gap:4px"><div style="width:9px;height:9px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
-    <div style="display:flex;align-items:center;gap:4px"><div style="width:9px;height:9px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
+
+  const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#888;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
   </div>`;
-  const holidayList=monthHolidayEntries.length
-    ? `<div style="display:flex;flex-direction:column;gap:4px;margin-top:12px;padding-top:10px;border-top:1px dashed #eee">
-        <div style="font-size:11px;color:#999;margin-bottom:2px">🎌 วันหยุดนักขัตฤกษ์เดือนนี้</div>
-        ${monthHolidayEntries.map(h=>`<div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#555"><span style="flex-shrink:0;width:64px;color:#7c8fd6;font-weight:600">${h.day} ${monthLabelTh(y,m).split(' ')[0].slice(0,3)}. (${dayNamesTh[h.dow]})</span><span>${h.name}</span></div>`).join('')}
+
+  const holidayOpen=overviewHolidayListOpen;
+  const holidayToggle=`<div onclick="toggleOverviewHolidayList()" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;margin-top:10px;border-top:1px solid #f2ede8;cursor:pointer">
+    <div style="font-size:12px;color:#777">🎌 วันหยุดนักขัตฤกษ์เดือนนี้ (${monthHolidayEntries.length})</div>
+    <div style="font-size:10px;color:#bbb;transform:rotate(${holidayOpen?180:0}deg);transition:transform .2s">▾</div>
+  </div>`;
+  const holidayList=holidayOpen
+    ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+        ${monthHolidayEntries.length?monthHolidayEntries.map(h=>`<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#555"><span style="flex-shrink:0;width:60px;color:#5a67c9;font-weight:600">${h.day} ${monthLabelTh(y,m).split(' ')[0].slice(0,3)}. (${dayNamesTh[h.dow]})</span><span>${h.name}</span></div>`).join(''):(thaiHolidaysCache[y]?`<div style="font-size:11.5px;color:#bbb;font-style:italic">ไม่มีวันหยุดนักขัตฤกษ์ในเดือนนี้</div>`:`<div style="font-size:11.5px;color:#bbb">กำลังโหลดข้อมูลวันหยุด...</div>`)}
       </div>`
-    : (thaiHolidaysCache[y]?'':`<div style="font-size:11px;color:#bbb;margin-top:10px">กำลังโหลดข้อมูลวันหยุด...</div>`);
-  return`<div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;padding:12px 10px 10px;margin-bottom:10px">
-    <div style="font-size:12px;color:#aaa;margin-bottom:10px">แตะแท่งเพื่อดูวันที่ / วัน / ยอดขาย</div>
-    <div style="display:flex;align-items:flex-end;height:100px;gap:2px">${bars}</div>
+    : '';
+
+  return`
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">${renderOverviewNoteIconButton(monthKey)}</div>
+    ${overviewNotePanelOpen?renderOverviewNotePanel(monthKey):''}
+    <div style="position:relative;height:180px;margin-bottom:6px">
+      ${gridlines}
+      <div style="position:absolute;left:34px;right:0;top:0;bottom:0;display:flex;align-items:flex-end;gap:3px">${bars}</div>
+    </div>
+    <div id="ovTooltipBox" style="display:none;margin-top:10px;background:#faf8f5;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#555"></div>
     ${legend}
+    ${holidayToggle}
     ${holidayList}
-  </div>`;
+  `;
 }
 
-// ---- เปรียบเทียบยอดขาย: เดือนนี้ vs เดือนก่อนหน้า (MoM) หรือ เดือนเดียวกันปีก่อน (YoY) ----
-function renderOverviewComparison(monthKey){
+// หาสเกลกริดที่ดูกลมๆ (ปัดขึ้นเป็น 1/2/5 x 10^n) จากยอดสูงสุดในกราฟ
+function niceStepTh(maxVal){
+  const rough=maxVal/4;
+  const mag=Math.pow(10,Math.floor(Math.log10(rough||1)));
+  const norm=rough/mag;
+  if(norm<1.5)return 1*mag;
+  if(norm<3.5)return 2*mag;
+  if(norm<7.5)return 5*mag;
+  return 10*mag;
+}
+
+function showOverviewChartTooltip(day,dow,val,isWeekend,holidayName){
+  document.querySelectorAll('[id^="ovBar-"]').forEach(el=>el.style.outline='none');
+  const barEl=document.getElementById('ovBar-'+day);
+  if(barEl) barEl.style.outline='2px solid #1a0a06';
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const box=document.getElementById('ovTooltipBox');
+  if(!box)return;
+  box.style.display='block';
+  const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
+}
+
+let overviewHolidayListOpen=false;
+function toggleOverviewHolidayList(){
+  overviewHolidayListOpen=!overviewHolidayListOpen;
+  renderAdminOverview();
+}
+
+// ---- บันทึกเหตุการณ์สำคัญ: ยังเก็บแบบ log อิสระในฝั่ง backend (ไม่ผูกเดือนใน schema)
+// แต่ตอนแสดงผล กรองด้วยวันที่ของโน้ตให้ตรงกับเดือนที่กำลังดูอยู่ ("บอกแค่ว่าเดือนนั้นๆ มีอะไร") ----
+let overviewNotePanelOpen=false;
+let overviewNoteFormOpen=false;
+function toggleOverviewNotePanel(){
+  overviewNotePanelOpen=!overviewNotePanelOpen;
+  if(!overviewNotePanelOpen) overviewNoteFormOpen=false;
+  renderAdminOverview();
+}
+function toggleOverviewNoteForm(show){
+  overviewNoteFormOpen=show;
+  renderAdminOverview();
+  if(show){
+    const el=document.getElementById('overviewNoteInput');
+    if(el) el.focus();
+  }
+}
+function notesInMonth(monthKey){
   const[y,m]=monthKey.split('-').map(Number);
-  const[curStart,curEnd]=monthRange(y,m);
-  const curOrders=ov_doneOrdersInRange(curStart,curEnd);
-  const curTotal=curOrders.reduce((s,o)=>s+Number(o.total),0);
-  const curCount=curOrders.length;
-
-  const prevM=m===0?11:m-1, prevY=m===0?y-1:y;
-  const[pStart,pEnd]=monthRange(prevY,prevM);
-  const prevOrders=ov_doneOrdersInRange(pStart,pEnd);
-  const prevTotal=prevOrders.reduce((s,o)=>s+Number(o.total),0);
-  const prevCount=prevOrders.length;
-
-  const yoyY=y-1;
-  const[yStart,yEnd]=monthRange(yoyY,m);
-  const yoyOrders=ov_doneOrdersInRange(yStart,yEnd);
-  const yoyHasData=yoyOrders.length>0;
-  const yoyTotal=yoyOrders.reduce((s,o)=>s+Number(o.total),0);
-  const yoyCount=yoyOrders.length;
-
-  const mode=overviewCompareMode==='yoy'&&yoyHasData?'yoy':'mom';
-  const compTotal=mode==='yoy'?yoyTotal:prevTotal;
-  const compCount=mode==='yoy'?yoyCount:prevCount;
-  const compLabel=mode==='yoy'?monthLabelTh(yoyY,m):monthLabelTh(prevY,prevM);
-
-  const pctChange=(cur,base)=>base>0?((cur-base)/base*100):(cur>0?100:0);
-  const totalPct=pctChange(curTotal,compTotal);
-  const countPct=pctChange(curCount,compCount);
-  const fmtPct=p=>`${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}%`;
-  const pctColor=p=>p>=0?'#3B6D11':'#A32D2D';
-  const pctBg=p=>p>=0?'#EAF3DE':'#FCEAEA';
-
-  const toggleBtn=(md,label,disabled)=>{
-    const active=mode===md;
-    return`<button ${disabled?'disabled':''} onclick="setOverviewCompareMode('${md}')" style="flex:1;text-align:center;padding:7px 0;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:${disabled?'not-allowed':'pointer'};background:${active?'#D64109':'transparent'};color:${disabled?'#ccc':active?'#fff':'#888'}">${label}</button>`;
-  };
-
-  return`<div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;padding:12px;margin-bottom:10px">
-    <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:8px">🔀 เปรียบเทียบยอดขาย</div>
-    <div style="display:flex;background:#f7f5f2;border-radius:8px;padding:3px;margin-bottom:10px">
-      ${toggleBtn('mom','เทียบเดือนก่อนหน้า',false)}
-      ${toggleBtn('yoy','เทียบปีก่อน (YoY)',!yoyHasData)}
+  return businessNotes.filter(n=>{
+    const d=new Date(n.date);
+    return !isNaN(d)&&d.getFullYear()===y&&d.getMonth()===m;
+  });
+}
+function renderOverviewNoteIconButton(monthKey){
+  const count=notesInMonth(monthKey).length;
+  return`<div onclick="toggleOverviewNotePanel()" title="บันทึกเหตุการณ์เดือนนี้" style="position:relative;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#faf8f5;border:1px solid #efe9e3;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer">
+    📝
+    ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#D64109;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
+  </div>`;
+}
+async function addOverviewNote(){
+  const input=document.getElementById('overviewNoteInput');
+  const text=(input?input.value:'').trim();
+  if(!text)return;
+  const btn=document.getElementById('overviewNoteSaveBtn');
+  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+  try{
+    const result=await postAction({action:'addBusinessNote',text},'addBusinessNote');
+    if(!result||result.success===false){
+      // ไม่ปิดฟอร์ม ไม่ล้างข้อความที่พิมพ์ไว้ เผื่อผู้ใช้กดบันทึกซ้ำได้โดยไม่ต้องพิมพ์ใหม่
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่')+'\n\nเช็คว่ามี sheet ชื่อ "BusinessNote" พร้อมหัวคอลัมน์ note_id/date/text ในไฟล์ Google Sheet หรือยัง');
+      if(btn){btn.disabled=false;btn.textContent='บันทึก';}
+      return;
+    }
+    overviewNoteFormOpen=false;
+    await loadBusinessNotes();
+    renderAdminOverview();
+  }catch(e){
+    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    if(btn){btn.disabled=false;btn.textContent='บันทึก';}
+  }
+}
+async function deleteOverviewNote(noteId){
+  if(!confirm('ลบบันทึกนี้?'))return;
+  try{
+    const result=await postAction({action:'deleteBusinessNote',note_id:noteId},'deleteBusinessNote');
+    if(!result||result.success===false){
+      alert('ลบไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      return;
+    }
+    await loadBusinessNotes();
+    renderAdminOverview();
+  }catch(e){ alert('ลบไม่สำเร็จ กรุณาลองใหม่'); }
+}
+function formatNoteDateTh(iso){
+  const d=new Date(iso);
+  if(isNaN(d))return iso;
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+function renderOverviewNotePanel(monthKey){
+  const notes=notesInMonth(monthKey);
+  const[y,m]=monthKey.split('-').map(Number);
+  const formHtml=`<button id="overviewNoteAddBtn" onclick="toggleOverviewNoteForm(true)" style="background:#fdf1ea;color:#D64109;width:100%;padding:8px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;margin-bottom:10px;${overviewNoteFormOpen?'display:none':''}">+ เพิ่มโน้ตสำหรับเดือนนี้</button>
+  <div style="${overviewNoteFormOpen?'':'display:none'}">
+    <textarea id="overviewNoteInput" placeholder="เช่น เดือนนี้โรงเรียนปิดเทอม, ช่วงนี้มีเทศกาล, ปิดร้าน 3 วัน..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;resize:none;height:56px;background:#fff;margin-bottom:8px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button onclick="toggleOverviewNoteForm(false)" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#eee;color:#888">ยกเลิก</button>
+      <button id="overviewNoteSaveBtn" onclick="addOverviewNote()" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
     </div>
-    ${!yoyHasData&&overviewCompareMode==='yoy'?`<div style="font-size:11.5px;color:#aaa;margin-bottom:8px">ยังไม่มีข้อมูลปีก่อนช่วงเดียวกัน — แสดงเทียบเดือนก่อนหน้าแทน</div>`:''}
-    <div style="font-size:11px;color:#aaa;margin-bottom:8px">${monthLabelTh(y,m)} เทียบกับ ${compLabel}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div style="background:#f7f5f2;border-radius:8px;padding:8px 10px">
-        <div style="font-size:11px;color:#888">ยอดขายรวม</div>
-        <div style="font-size:16px;font-weight:600;color:#333;margin-top:2px">฿${fmtMoney(curTotal)}</div>
-        <div style="display:inline-block;font-size:11px;font-weight:600;color:${pctColor(totalPct)};background:${pctBg(totalPct)};padding:2px 6px;border-radius:20px;margin-top:4px">${fmtPct(totalPct)}</div>
-      </div>
-      <div style="background:#f7f5f2;border-radius:8px;padding:8px 10px">
-        <div style="font-size:11px;color:#888">จำนวนออเดอร์</div>
-        <div style="font-size:16px;font-weight:600;color:#333;margin-top:2px">${curCount} ออเดอร์</div>
-        <div style="display:inline-block;font-size:11px;font-weight:600;color:${pctColor(countPct)};background:${pctBg(countPct)};padding:2px 6px;border-radius:20px;margin-top:4px">${fmtPct(countPct)}</div>
-      </div>
-    </div>
+  </div>`;
+  const listHtml=notes.length
+    ? `<div style="display:flex;flex-direction:column;gap:8px">${notes.map(n=>`
+        <div style="background:#fff;border:1px solid #f0eae4;border-radius:8px;padding:9px 11px;position:relative">
+          <button onclick="deleteOverviewNote('${n.note_id}')" style="position:absolute;top:8px;right:9px;font-size:11px;color:#c99;background:none;border:none;cursor:pointer">ลบ</button>
+          <div style="font-size:10.5px;color:#b5a89a;font-weight:600;margin-bottom:3px">${formatNoteDateTh(n.date)}</div>
+          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${n.text}</div>
+        </div>`).join('')}</div>`
+    : `<div style="font-size:12.5px;color:#bbb;font-style:italic;text-align:center;padding:8px 0">ยังไม่มีบันทึกสำหรับเดือนนี้</div>`;
+  return`<div style="background:#faf8f5;border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12px;color:#999;margin-bottom:10px">📝 เหตุการณ์ในเดือน${monthLabelTh(y,m)}</div>
+    ${formHtml}
+    ${listHtml}
   </div>`;
 }
 
 // ---- Accordion card แบบทั่วไป (พับ/กาง) — ลดความสูงหน้าจอเพราะ header ด้านบนถูก freeze ไว้ ----
-let overviewAccordionOpen={chart:false,comparison:false,notes:false};
+let overviewAccordionOpen={chart:false,comparison:false};
 function toggleOverviewAccordion(key){
   overviewAccordionOpen[key]=!overviewAccordionOpen[key];
   renderAdminOverview();
@@ -1564,64 +1659,54 @@ function renderAccordionCard(key,title,subtitle,isOpen,bodyHtml){
   </div>`;
 }
 
-// ---- บันทึกเหตุการณ์สำคัญ: log อิสระ ไม่ผูกกับเดือนไหน เพิ่ม/ลบได้ตลอดเวลา ----
-let overviewNoteFormOpen=false;
-function toggleOverviewNoteForm(show){
-  overviewNoteFormOpen=show;
-  renderAdminOverview();
-  if(show){
-    const el=document.getElementById('overviewNoteInput');
-    if(el) el.focus();
+// ---- เปรียบเทียบยอดขาย: กราฟแท่งยอดขายรวมรายเดือน 6 เดือนล่าสุด (ไม่ใช่รายวัน)
+// ดูภาพเดียวจบ: รูปทรงแท่งบอกแนวโน้มยาว + badge % บนแท่งปัจจุบันบอกเทียบเดือนก่อนหน้า ----
+const THAI_MONTH_ABBR=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function renderOverviewMonthlyTrend(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i, yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const total=ov_doneOrdersInRange(s,e).reduce((sum,o)=>sum+Number(o.total),0);
+    months.push({y:yy,m:mm,total,current:i===0});
   }
-}
-async function addOverviewNote(){
-  const input=document.getElementById('overviewNoteInput');
-  const text=(input?input.value:'').trim();
-  if(!text)return;
-  const btn=document.getElementById('overviewNoteSaveBtn');
-  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
-  try{
-    await postAction({action:'addBusinessNote',text},'addBusinessNote');
-    overviewNoteFormOpen=false;
-    await loadBusinessNotes();
-    renderAdminOverview();
-  }catch(e){
-    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
-    if(btn){btn.disabled=false;btn.textContent='บันทึก';}
-  }
-}
-async function deleteOverviewNote(noteId){
-  if(!confirm('ลบบันทึกนี้?'))return;
-  try{
-    await postAction({action:'deleteBusinessNote',note_id:noteId},'deleteBusinessNote');
-    await loadBusinessNotes();
-    renderAdminOverview();
-  }catch(e){ alert('ลบไม่สำเร็จ กรุณาลองใหม่'); }
-}
-function formatNoteDateTh(iso){
-  const d=new Date(iso);
-  if(isNaN(d))return iso;
-  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
-}
-function renderOverviewNotes(){
-  const formHtml=`<button id="overviewNoteAddBtn" onclick="toggleOverviewNoteForm(true)" style="font-size:11.5px;color:#fff;background:#D64109;border:none;border-radius:20px;padding:5px 12px;cursor:pointer;font-weight:500;${overviewNoteFormOpen?'display:none':''}">+ เพิ่มโน้ต</button>
-  <div style="${overviewNoteFormOpen?'':'display:none'};background:#f7f5f2;border-radius:8px;padding:10px;margin-top:10px">
-    <textarea id="overviewNoteInput" placeholder="เช่น เดือนนี้โรงเรียนปิดเทอม, ช่วงนี้มีเทศกาล, ปิดร้าน 3 วัน..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;resize:none;height:60px;background:#fff;margin-bottom:8px;box-sizing:border-box"></textarea>
-    <div style="display:flex;gap:8px">
-      <button onclick="toggleOverviewNoteForm(false)" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#eee;color:#888">ยกเลิก</button>
-      <button id="overviewNoteSaveBtn" onclick="addOverviewNote()" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
+  const maxVal=Math.max(1,...months.map(mo=>mo.total));
+
+  let bars='';
+  months.forEach((mo,i)=>{
+    const pctHeight=Math.max((mo.total/maxVal)*100,mo.total>0?2:0);
+    let badgeHtml='';
+    if(mo.current&&i>0){
+      const prevTotal=months[i-1].total;
+      const pct=prevTotal>0?((mo.total-prevTotal)/prevTotal*100):(mo.total>0?100:0);
+      const up=pct>=0;
+      badgeHtml=`<div style="position:absolute;top:-2px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:20px;white-space:nowrap;color:${up?'#3B6D11':'#A32D2D'};background:${up?'#EAF3DE':'#FCEAEA'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(0)}%</div>`;
+    }
+    bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative">
+      ${badgeHtml}
+      <div style="font-size:${mo.current?'11.5px':'10.5px'};color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-bottom:4px;white-space:nowrap">${Math.round(mo.total/1000)}k</div>
+      <div style="width:100%;max-width:34px;height:${pctHeight}%;border-radius:5px 5px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-top:7px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  });
+
+  const cur=months[months.length-1];
+  const prev=months[months.length-2];
+  const momPct=prev.total>0?((cur.total-prev.total)/prev.total*100):(cur.total>0?100:0);
+  const first=months[0];
+  const trendPct=first.total>0?((cur.total-first.total)/first.total*100):(cur.total>0?100:0);
+
+  return`
+    <div style="font-size:11.5px;color:#999;margin-bottom:16px">ยอดขายรวม 6 เดือนล่าสุด</div>
+    <div style="position:relative;height:150px;display:flex;align-items:flex-end;gap:10px;padding-top:24px">${bars}</div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f2ede8;font-size:12.5px;color:#555;line-height:1.6">
+      เดือนนี้<b style="color:#D64109">${momPct>=0?'เพิ่มขึ้น':'ลดลง'} ${Math.abs(momPct).toFixed(0)}%</b> จากเดือนก่อน และเมื่อเทียบกับ 6 เดือนที่แล้ว ยอดขายโดยรวม<b style="color:#D64109">${trendPct>=0?'เติบโต':'ลดลง'} ${Math.abs(trendPct).toFixed(0)}%</b>
     </div>
-  </div>`;
-  const listHtml=businessNotes.length
-    ? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">${businessNotes.map(n=>`
-        <div style="background:#f7f5f2;border-radius:8px;padding:9px 11px;position:relative">
-          <button onclick="deleteOverviewNote('${n.note_id}')" style="position:absolute;top:8px;right:9px;font-size:11px;color:#c99;background:none;border:none;cursor:pointer">ลบ</button>
-          <div style="font-size:10.5px;color:#b5a89a;font-weight:600;margin-bottom:3px">${formatNoteDateTh(n.date)}</div>
-          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${n.text}</div>
-        </div>`).join('')}</div>`
-    : `<div style="font-size:12.5px;color:#bbb;font-style:italic;text-align:center;padding:14px 0">ยังไม่มีบันทึก — กด "+ เพิ่มโน้ต" เพื่อเริ่มบันทึกเหตุการณ์สำคัญ</div>`;
-  return formHtml+listHtml;
+  `;
 }
+
 
 function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
@@ -1680,9 +1765,12 @@ function renderAdminOverview(){
   </div>`;
   const availableMonths=getAvailableOverviewMonths();
   const activeMonthKey=overviewSelectedMonth||currentMonthKey();
+  // dropdown เลือกเดือน: label คงที่ "เลือกเดือน" เสมอ ไม่โชว์ชื่อเดือนที่เลือกอยู่บนตัวปุ่ม
+  // (เดือนที่กำลังดูอยู่จริงไปโชว์ที่ hint เหนือกราฟแทน กันสับสนว่าปุ่มนี้คือ picker ไม่ใช่สถานะค้าง)
   const monthSelect=`<div style="position:relative;flex-shrink:0">
     <select onchange="onOverviewMonthChange(this.value)" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#D64109':'#fff'};border:1px solid ${overviewDateMode==='month'?'#D64109':'#ddd'};cursor:pointer;font-family:inherit">
-      ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}" ${mo.key===activeMonthKey?'selected':''}>${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
+      <option value="" disabled selected hidden>เลือกเดือน</option>
+      ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}">${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
     </select>
   </div>`;
   let filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;align-items:center">
@@ -1706,9 +1794,8 @@ function renderAdminOverview(){
   </div>`;
   if(overviewDateMode==='month'){
     filterHtml+=renderAccordionCard('chart','📈 เทรนด์ยอดขายรายวัน',`${monthLabelTh(activeMonthKey.split('-').map(Number)[0],activeMonthKey.split('-').map(Number)[1])} · แตะเพื่อดูกราฟ`,overviewAccordionOpen.chart,renderOverviewMonthChart(rangeOrders,activeMonthKey));
-    filterHtml+=renderAccordionCard('comparison','🔀 เปรียบเทียบยอดขาย','แตะเพื่อดู MoM/YoY',overviewAccordionOpen.comparison,renderOverviewComparison(activeMonthKey));
+    filterHtml+=renderAccordionCard('comparison','🔀 เปรียบเทียบยอดขาย','ยอดขาย 6 เดือนล่าสุด · แตะเพื่อดู',overviewAccordionOpen.comparison,renderOverviewMonthlyTrend(activeMonthKey));
   }
-  filterHtml+=renderAccordionCard('notes','📝 บันทึกเหตุการณ์สำคัญ',`${businessNotes.length} รายการ · แตะเพื่อดู/เพิ่ม`,overviewAccordionOpen.notes,renderOverviewNotes());
   if(overviewView==='product'){
     filterHtml+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;font-family:inherit;box-sizing:border-box" oninput="onOverviewSearch(this.value)">`;
   } else {
