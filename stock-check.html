@@ -57,9 +57,10 @@
   .prod-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .prod-card{border-radius:16px; padding:10px; border:2px solid var(--border);}
   .prod-card.checked{background:#EAF3DE; border-color:#639922;}
-  .prod-photo-area{position:relative; width:100%; aspect-ratio:1/1; border-radius:12px; overflow:hidden; margin-bottom:8px; display:flex; align-items:center; justify-content:center;}
+  .prod-photo-area{position:relative; width:100%; padding-top:100%; border-radius:12px; overflow:hidden; margin-bottom:8px;}
+  .prod-photo-area .photo-inner{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;}
   .prod-photo-area.no-photo{cursor:pointer;}
-  .prod-photo-area img{width:100%; height:100%; object-fit:cover; display:block;}
+  .prod-photo-area img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;}
   .photo-placeholder{display:flex; flex-direction:column; align-items:center; gap:5px;}
   .photo-placeholder span{font-size:11px; color:var(--text-tertiary);}
   .prod-photo-area .check-toggle{position:absolute; top:6px; right:6px; background:rgba(255,255,255,0.9); border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; color:var(--text-tertiary); border:none; padding:0;}
@@ -751,7 +752,7 @@ async function renderSupplierCheck(app){
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
             ? `<img src="${photoSrc}" alt="">`
-            : `<div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div>`}
+            : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
