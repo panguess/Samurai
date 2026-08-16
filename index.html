@@ -823,7 +823,15 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group});
+    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group},'placeOrder');
+    // postAction คืน null เมื่อเชื่อมต่อไม่ได้/timeout/ตอบกลับไม่ใช่ JSON
+    // และคืน {success:false,error:...} เมื่อ backend ทำงานแต่บันทึกไม่สำเร็จ
+    // ต้องเช็คทั้งสองกรณีนี้ก่อน ห้ามโชว์หน้าสำเร็จถ้ายังไม่ยืนยันว่าบันทึกจริง
+    if(!result||result.success===false){
+      alert('บันทึกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือแจ้งร้านค้าโดยตรงหากยังไม่สำเร็จซ้ำๆ'+(result&&result.error?('\n('+result.error+')'):''));
+      btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
+      return;
+    }
     // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
     let realOid=pendingOid;
     try{
