@@ -1656,6 +1656,8 @@ function renderOverviewNotePanel(monthKey){
 
 // ---- Accordion card แบบทั่วไป (พับ/กาง) — ลดความสูงหน้าจอเพราะ header ด้านบนถูก freeze ไว้ ----
 let overviewAccordionOpen={chart:false,comparison:false};
+let overviewBridgeOpen=false;
+let overviewBridgeTab='new';
 function toggleOverviewAccordion(key){
   overviewAccordionOpen[key]=!overviewAccordionOpen[key];
   renderAdminOverview();
@@ -1717,6 +1719,101 @@ function renderOverviewMonthlyTrend(monthKey){
     <div style="position:relative;height:150px;display:flex;align-items:flex-end;gap:10px;padding-top:24px">${bars}</div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f2ede8;font-size:12.5px;color:#555;line-height:1.6">
       เดือนนี้<b style="color:#D64109">${momPct>=0?'เพิ่มขึ้น':'ลดลง'} ${Math.abs(momPct).toFixed(0)}%</b> จากเดือนก่อน และเมื่อเทียบกับ 6 เดือนที่แล้ว ยอดขายโดยรวม<b style="color:#D64109">${trendPct>=0?'เติบโต':'ลดลง'} ${Math.abs(trendPct).toFixed(0)}%</b>
+    </div>
+    ${renderOverviewCustomerBridge(monthKey)}
+  `;
+}
+
+// ---- ที่มาของการเปลี่ยนแปลงยอดขาย (เดือนนี้ vs เดือนก่อน) แยกตามพฤติกรรมลูกค้า:
+// ลูกค้าใหม่ / สั่งเพิ่ม / สั่งลด / หายไป — group ด้วย customer_name เหมือนส่วนอื่นของหน้านี้ ----
+function computeCustomerBridge(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  let py=y,pm=m-1;
+  if(pm<0){pm=11;py--;}
+  const[curS,curE]=monthRange(y,m);
+  const[prevS,prevE]=monthRange(py,pm);
+
+  const sumByCustomer=orders=>{
+    const map={};
+    orders.forEach(o=>{
+      const name=o.customer_name||'ไม่ระบุชื่อ';
+      map[name]=(map[name]||0)+Number(o.total);
+    });
+    return map;
+  };
+  const curMap=sumByCustomer(ov_doneOrdersInRange(curS,curE));
+  const prevMap=sumByCustomer(ov_doneOrdersInRange(prevS,prevE));
+
+  const result={neu:[],up:[],down:[],churn:[]};
+  Object.keys(curMap).forEach(name=>{
+    const cur=curMap[name], prev=prevMap[name]||0;
+    if(!(name in prevMap)) result.neu.push({name,total:cur,diff:cur});
+    else if(cur>prev) result.up.push({name,total:cur,prevTotal:prev,diff:cur-prev});
+    else if(cur<prev) result.down.push({name,total:cur,prevTotal:prev,diff:cur-prev});
+  });
+  Object.keys(prevMap).forEach(name=>{
+    if(!(name in curMap)) result.churn.push({name,total:0,prevTotal:prevMap[name],diff:-prevMap[name]});
+  });
+  ['neu','up','down','churn'].forEach(k=>result[k].sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff)));
+  return result;
+}
+
+function toggleBridgeDetail(){
+  overviewBridgeOpen=!overviewBridgeOpen;
+  renderAdminOverview();
+}
+function setBridgeTab(tab){
+  overviewBridgeTab=tab;
+  renderAdminOverview();
+}
+
+function renderOverviewCustomerBridge(monthKey){
+  const b=computeCustomerBridge(monthKey);
+  const sumDiff=arr=>arr.reduce((s,x)=>s+x.diff,0);
+  const rows=[
+    {key:'neu',icon:'🆕',label:'ลูกค้าใหม่',arr:b.neu},
+    {key:'up',icon:'📈',label:'สั่งเพิ่ม',arr:b.up},
+    {key:'down',icon:'📉',label:'สั่งลด',arr:b.down},
+    {key:'churn',icon:'❌',label:'หายไป',arr:b.churn}
+  ];
+  const netTotal=rows.reduce((s,r)=>s+sumDiff(r.arr),0);
+  const fmtDiff=d=>`${d>=0?'+':'-'}${fmtMoney(Math.abs(d))}`;
+
+  const summaryRows=rows.map(r=>{
+    const diff=sumDiff(r.arr);
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12.5px">
+      <span style="color:#555">${r.icon} ${r.label} ${r.arr.length} ราย</span>
+      <span style="font-weight:600;font-variant-numeric:tabular-nums;color:${diff>=0?'#3B6D11':'#A32D2D'}">${fmtDiff(diff)}</span>
+    </div>`;
+  }).join('');
+
+  const activeArr=rows.find(r=>r.key===overviewBridgeTab).arr;
+  const tabBtn=r=>`<button onclick="setBridgeTab('${r.key}')" style="flex:1;text-align:center;padding:6px 2px;border:none;border-radius:7px;font-size:11.5px;font-weight:500;cursor:pointer;background:${overviewBridgeTab===r.key?'#D64109':'transparent'};color:${overviewBridgeTab===r.key?'#fff':'#888'}">${r.icon} ${r.label}${r.arr.length}</button>`;
+
+  const detailList=activeArr.length
+    ? activeArr.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:13px">
+        <span style="color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${x.name}</span>
+        <span style="font-weight:500;font-variant-numeric:tabular-nums;flex-shrink:0;color:${x.diff>=0?'#3B6D11':'#A32D2D'}">${fmtDiff(x.diff)}</span>
+      </div>`).join('')
+    : `<div style="text-align:center;color:#bbb;font-size:12.5px;padding:14px 0">ไม่มีรายการในกลุ่มนี้</div>`;
+
+  return`
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f2ede8">
+      <div style="font-size:11.5px;color:#999;margin-bottom:8px">ที่มาของการเปลี่ยนแปลง (เดือนนี้ vs เดือนก่อน)</div>
+      ${summaryRows}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:7px;margin-top:4px;border-top:1px solid #f2ede8;font-size:12.5px;font-weight:600">
+        <span style="color:#555">สุทธิ</span>
+        <span style="color:${netTotal>=0?'#3B6D11':'#A32D2D'}">${fmtDiff(netTotal)}</span>
+      </div>
+      <div onclick="toggleBridgeDetail()" style="text-align:center;margin-top:10px;font-size:12px;color:#D64109;font-weight:500;cursor:pointer">
+        ${overviewBridgeOpen?'ซ่อนรายชื่อ ▴':'ดูรายชื่อ ▾'}
+      </div>
+      ${overviewBridgeOpen?`
+        <div style="margin-top:8px;display:flex;background:#faf8f5;border:1px solid #efe9e3;border-radius:8px;padding:3px">
+          ${rows.map(tabBtn).join('')}
+        </div>
+        <div style="margin-top:4px;max-height:220px;overflow-y:auto">${detailList}</div>
+      `:''}
     </div>
   `;
 }
