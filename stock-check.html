@@ -204,7 +204,7 @@
   .sup-card-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:9px;}
   .sup-card{display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:14px 8px; text-align:center; cursor:pointer;}
   .sup-card.done{opacity:0.55;}
-  .sup-icon{width:42px; height:42px; border-radius:13px; border:2px solid var(--text); display:flex; align-items:center; justify-content:center;}
+  .sup-icon{width:42px; height:42px; border-radius:13px; border:2px solid var(--text); display:flex; align-items:center; justify-content:center; overflow:hidden;}
 </style>
 </head>
 <body>
@@ -301,6 +301,88 @@ function openPhotoMatchScreen(files, products, onDone){
         const p = products.find(x=>x.id===productId);
         if(p) p.photoUrl = photo; // อัปเดตให้เห็นผลทันทีในเครื่อง; รูปจริงบน Drive จะมาแทนตอนโหลดใหม่
       });
+      close();
+      onDone();
+    }catch(err){
+      saveBtn.disabled = false;
+      alert('บันทึกรูปไม่สำเร็จ: ' + err.message);
+      updateProgress();
+    }
+  };
+}
+
+/* ============ supplier photo match screen ============ */
+// เปิดหน้าจับคู่รูปที่เลือกจากเครื่อง (files) กับซัพพลายเออร์ (suppliers)
+// ต่างจาก openPhotoMatchScreen ตรงที่ backend รับทีละรูป (uploadSupplierPhoto) ไม่ใช่แบบ batch
+// เมื่อบันทึกสำเร็จจะเรียก onDone() เพื่อให้หน้าเดิม re-render
+function openSupplierPhotoMatchScreen(files, suppliers, onDone){
+  const overlay = document.createElement('div');
+  overlay.className = 'match-overlay';
+  overlay.innerHTML = `
+    <div class="match-sheet">
+      <div class="match-sheet-header">
+        <h2>จับคู่รูปกับซัพพลายเออร์</h2>
+        <p id="supMatchProgress">เลือกไว้ ${files.length} รูป · จับคู่แล้ว 0 จาก ${files.length}</p>
+      </div>
+      <div class="match-list" id="supMatchList"></div>
+      <div class="match-sheet-footer">
+        <button class="btn" style="width:100%; margin-bottom:8px;" id="supMatchCancel">ยกเลิก</button>
+        <button class="btn btn-primary btn-block" id="supMatchSave" disabled>บันทึกรูปที่จับคู่แล้ว (0)</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const matches = files.map(()=>null); // index -> supplierId | null
+  const list = overlay.querySelector('#supMatchList');
+  const progressEl = overlay.querySelector('#supMatchProgress');
+  const saveBtn = overlay.querySelector('#supMatchSave');
+
+  function updateProgress(){
+    const n = matches.filter(Boolean).length;
+    progressEl.textContent = `เลือกไว้ ${files.length} รูป · จับคู่แล้ว ${n} จาก ${files.length}`;
+    saveBtn.textContent = `บันทึกรูปที่จับคู่แล้ว (${n})`;
+    saveBtn.disabled = n === 0;
+  }
+
+  files.forEach((file, i)=>{
+    const row = document.createElement('div');
+    row.className = 'match-row';
+    const url = URL.createObjectURL(file);
+    row.innerHTML = `
+      <img class="match-thumb" src="${url}" alt="">
+      <div style="flex:1; min-width:0;">
+        <p class="match-fname">${file.name}</p>
+        <select data-idx="${i}">
+          <option value="" selected disabled>เลือกซัพพลายเออร์...</option>
+          ${suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}
+        </select>
+      </div>
+      <span class="match-status pending" data-idx="${i}"><i class="ti ti-circle-dashed" aria-hidden="true"></i></span>
+    `;
+    row.querySelector('select').onchange = (e)=>{
+      matches[i] = e.target.value || null;
+      const statusEl = row.querySelector('.match-status');
+      statusEl.className = 'match-status ' + (matches[i] ? 'done' : 'pending');
+      statusEl.innerHTML = matches[i] ? '<i class="ti ti-check" aria-hidden="true"></i>' : '<i class="ti ti-circle-dashed" aria-hidden="true"></i>';
+      updateProgress();
+    };
+    list.appendChild(row);
+  });
+
+  function close(){ overlay.remove(); }
+  overlay.querySelector('#supMatchCancel').onclick = close;
+
+  saveBtn.onclick = async ()=>{
+    saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...';
+    try{
+      // ส่งทีละรูป เพราะ backend (uploadSupplierPhoto) รับทีละ supplierId ไม่ใช่แบบ batch
+      for(let i=0; i<files.length; i++){
+        if(!matches[i]) continue;
+        const dataUrl = await compressImage(files[i], 800, 0.6);
+        const { imageUrl } = await apiPost('uploadSupplierPhoto', { supplierId: matches[i], photo: dataUrl });
+        const s = suppliers.find(x=>x.id===matches[i]);
+        if(s) s.imageUrl = imageUrl; // อัปเดตให้เห็นผลทันทีในเครื่อง
+      }
       close();
       onDone();
     }catch(err){
@@ -508,6 +590,7 @@ function render(){
     home: renderHome, staffName: renderStaffName, supplierList: renderSupplierList,
     supplierCheck: renderSupplierCheck, staffDone: renderStaffDone,
     ownerMenu: renderOwnerMenu, ownerPin: renderOwnerPin, ownerStockAnalytics: renderOwnerStockAnalytics,
+    ownerSupplierPhotos: renderOwnerSupplierPhotos,
     orderPage: renderOrderPage, orderMessage: renderOrderMessage,
   };
   (map[state.screen] || renderHome)(app);
@@ -668,11 +751,14 @@ async function renderSupplierList(app){
 
 function supplierCard(s, isDone, idx){
   const col = iconColor(idx);
+  const hasPhoto = !!s.imageUrl;
   const card = document.createElement('div');
   card.className = 'sup-card' + (isDone?' done':'');
   card.innerHTML = `
-    <div class="sup-icon" style="background:${isDone?'var(--bg)':col.bg}; border-color:${isDone?'var(--border-strong)':'var(--text)'};">
-      <i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:19px; color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>
+    <div class="sup-icon" style="background:${isDone?'var(--bg)':(hasPhoto?'transparent':col.bg)}; border-color:${isDone?'var(--border-strong)':(hasPhoto?col.fg:'var(--text)')};">
+      ${hasPhoto
+        ? `<img src="${s.imageUrl}" alt="" style="width:100%; height:100%; object-fit:cover; opacity:${isDone?'0.55':'1'};">`
+        : `<i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:19px; color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>`}
     </div>
     <p style="margin:0; font-size:13px; font-weight:600; color:${isDone?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
   `;
@@ -901,10 +987,71 @@ function renderOwnerMenu(app){
       <div><p>สั่งของ</p><small>เลือกรายการ + ยอดเสนอสั่ง</small></div></div>
     <div class="nav-tile" id="goStockAnalytics"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);"></i>
       <div><p>สต๊อก & วิเคราะห์</p><small>Dashboard + แนวโน้มการสั่งซื้อ</small></div></div>
+    <div class="nav-tile" id="goSupplierPhotos"><i class="ti ti-photo" style="font-size:20px; color:var(--text-secondary);"></i>
+      <div><p>รูปซัพพลายเออร์</p><small>อัปโหลดรูปสินค้าเด่นแทนแต่ละเจ้า</small></div></div>
   `;
   app.appendChild(c);
   c.querySelector('#goOrder').onclick = ()=>go('orderPage');
   c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
+  c.querySelector('#goSupplierPhotos').onclick = ()=>go('ownerSupplierPhotos');
+}
+
+/* ============ OWNER: bulk-upload รูปสินค้าเด่นแทนซัพพลายเออร์ ============ */
+function renderOwnerSupplierPhotos(app){
+  app.appendChild(topbar('รูปซัพพลายเออร์', {back:()=>go('ownerMenu')}));
+  const c = document.createElement('div'); c.className='content';
+
+  const intro = document.createElement('div');
+  intro.innerHTML = `
+    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 12px;">อัปโหลดรูปสินค้าเด่นของแต่ละเจ้า ให้พนักงานจำร้านได้จากรูปแทนการอ่านชื่อ</p>
+    <p class="section-label" style="margin-top:0;" id="supPhotoCount">อัปโหลดแล้ว ${SUPPLIERS.filter(s=>s.imageUrl).length} / ${SUPPLIERS.length}</p>
+  `;
+  c.appendChild(intro);
+
+  const pickBtn = document.createElement('button');
+  pickBtn.className = 'btn btn-block';
+  pickBtn.style.marginBottom = '14px';
+  pickBtn.innerHTML = '<i class="ti ti-photo-plus" style="font-size:16px; vertical-align:-3px; margin-right:6px;" aria-hidden="true"></i>เลือกรูปสินค้าเด่น (หลายไฟล์)';
+  c.appendChild(pickBtn);
+
+  const grid = document.createElement('div'); grid.className='sup-card-grid';
+  c.appendChild(grid);
+  app.appendChild(c);
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.multiple = true;
+  fileInput.style.display = 'none';
+  c.appendChild(fileInput);
+  pickBtn.onclick = ()=> fileInput.click();
+  fileInput.onchange = ()=>{
+    const files = Array.from(fileInput.files || []);
+    fileInput.value = '';
+    if(!files.length) return;
+    openSupplierPhotoMatchScreen(files, SUPPLIERS, ()=>{
+      renderGrid();
+      c.querySelector('#supPhotoCount').textContent = `อัปโหลดแล้ว ${SUPPLIERS.filter(s=>s.imageUrl).length} / ${SUPPLIERS.length}`;
+    });
+  };
+
+  function renderGrid(){
+    grid.innerHTML = '';
+    SUPPLIERS.forEach((s, idx)=>{
+      const col = iconColor(idx);
+      const hasPhoto = !!s.imageUrl;
+      const card = document.createElement('div');
+      card.className = 'sup-card';
+      card.innerHTML = `
+        <div class="sup-icon" style="background:${hasPhoto?'transparent':col.bg}; border-color:${col.fg};">
+          ${hasPhoto
+            ? `<img src="${s.imageUrl}" alt="" style="width:100%; height:100%; object-fit:cover;">`
+            : `<i class="ti ti-photo-off" style="font-size:18px; color:${col.fg};" aria-hidden="true"></i>`}
+        </div>
+        <p style="margin:0; font-size:13px; font-weight:600; color:var(--text); line-height:1.3;">${s.name}</p>
+      `;
+      grid.appendChild(card);
+    });
+  }
+  renderGrid();
 }
 
 /* ============ OWNER: merged Dashboard + Analytics ============ */
