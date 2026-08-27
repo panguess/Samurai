@@ -1200,9 +1200,10 @@ async function renderOrderPage(app){
         const f = forecast(p);
         const qty = state.orderQty[p.id];
         const fc = FORECASTS[p.id] || {};
-        const isLow = fullyChecked && f > 0;
+        const itemChecked = !!statusByProduct[p.id];
+        const isLow = itemChecked && f > 0;
         const remainUnit = fc.unitLabel || p.orderUnit;
-        const remainDisplay = fullyChecked
+        const remainDisplay = itemChecked
           ? `${fc.currentStock ?? 0}<span class="u">${remainUnit}</span>`
           : '–';
 
