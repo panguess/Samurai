@@ -56,8 +56,13 @@
   /* employee: stock check grid */
   .prod-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; align-items:stretch;}
   .prod-card{border-radius:16px; padding:10px; border:2px solid var(--border); display:flex; flex-direction:column; height:100%;}
+  .prod-card.multi-unit{grid-column:1 / -1;}
   .prod-card.checked{background:#EAF3DE; border-color:#639922;}
+  .prod-card-row{display:flex; gap:10px; align-items:center;}
+  .prod-card-body{flex:1; min-width:0;}
+  .prod-card-body .prod-card-name{margin-bottom:6px;}
   .prod-photo-area{position:relative; width:100%; padding-top:100%; border-radius:12px; overflow:hidden; margin-bottom:8px;}
+  .prod-photo-area.small{width:64px; height:64px; padding-top:0; flex-shrink:0; margin-bottom:0;}
   .prod-photo-area .photo-inner{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;}
   .prod-photo-area.no-photo{cursor:pointer;}
   .prod-photo-area img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;}
@@ -96,13 +101,12 @@
   .match-sheet-footer{padding:12px 16px; border-top:1px solid var(--border); flex-shrink:0;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
-  .unit-steppers-row{display:flex; gap:4px;}
-  .unit-stepper{display:flex; flex-direction:column; align-items:center; gap:2px; background:#fff; border-radius:var(--radius-md); padding:4px 2px; margin-bottom:6px; flex:1; min-width:0;}
+  .unit-steppers-row{display:flex; gap:6px;}
+  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px; flex:1; min-width:0;}
   .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
-  .unit-stepper-controls{display:flex; align-items:center; justify-content:center; gap:2px; width:100%;}
-  .step-btn{width:20px; height:20px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:12px; flex-shrink:0; cursor:pointer; line-height:1;}
-  .step-input{width:0; flex:1; min-width:16px; max-width:26px; text-align:center; border:none; background:transparent; font-size:12px; padding:0;}
-  .unit-tag{font-size:9.5px; color:var(--text-secondary); white-space:nowrap;}
+  .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
+  .step-input{width:28px; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
+  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
   .stickybar span{color:var(--cream); font-size:13px;}
   .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
@@ -803,32 +807,40 @@ async function renderSupplierCheck(app){
       const col = iconColor(idx);
       const photoSrc = productPhotos[p.id] || p.photoUrl; // p.photoUrl: persisted one-time reference photo, once backend supports it
       const isCover = ALLOW_SET_COVER_PHOTO && !!p.photoUrl && sup.imageUrl === p.photoUrl;
+      const isMultiUnit = p.units.length > 1;
       const card = document.createElement('div');
-      card.className = 'prod-card' + (isChecked?' checked':'') + (isCover?' is-cover':'');
-      card.innerHTML = `
-        <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
+      card.className = 'prod-card' + (isChecked?' checked':'') + (isCover?' is-cover':'') + (isMultiUnit?' multi-unit':'');
+
+      const photoHtml = `
+        <div class="prod-photo-area${isMultiUnit?' small':''}${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
             ? `<img src="${photoSrc}" alt="">`
-            : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
+            : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:${isMultiUnit?18:28}px; color:${col.fg};" aria-hidden="true"></i>${isMultiUnit?'':'<span>ยังไม่มีรูป</span>'}</div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
-        </div>
-        <p class="prod-card-name">${p.name}</p>
-        ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}
+        </div>`;
+
+      const stepperRowHtml = `
         <div class="unit-steppers-row">
           ${p.units.map(u=>`
             <div class="unit-stepper">
-              <div class="unit-stepper-controls">
-                <button class="step-btn minus" data-unit="${u.id}">−</button>
-                <input type="number" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
-                <button class="step-btn plus" data-unit="${u.id}">+</button>
-              </div>
+              <button class="step-btn minus" data-unit="${u.id}">−</button>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
+              <button class="step-btn plus" data-unit="${u.id}">+</button>
               <span class="unit-tag">${u.label}</span>
             </div>
           `).join('')}
-        </div>
-      `;
+        </div>`;
+
+      const nameHtml = `<p class="prod-card-name">${p.name}</p>
+        ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}`;
+
+      // สินค้าหลายหน่วยต้องการพื้นที่แนวนอนให้ 2 stepper อยู่ข้างกันแบบพอกดง่าย —
+      // เลยวางรูปเป็น thumbnail เล็กด้านซ้าย แทนที่จะขยายรูปสี่เหลี่ยมจัตุรัสเต็มการ์ด (จะสูงเกินไป)
+      card.innerHTML = isMultiUnit
+        ? `<div class="prod-card-row">${photoHtml}<div class="prod-card-body">${nameHtml}${stepperRowHtml}</div></div>`
+        : `${photoHtml}${nameHtml}${stepperRowHtml}`;
       grid.appendChild(card);
     });
 
@@ -1222,7 +1234,7 @@ async function renderOrderPage(app){
             <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${uLabel}</span></span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
-              <input type="number" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
               <button type="button" data-step="1">+</button>
               <span class="unit-tag">${uLabel}</span>
             </div>
