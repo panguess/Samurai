@@ -526,6 +526,9 @@ async function bootstrap(){
     apiGet('bootstrap').then(data=>{
       SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
       writeBootstrapCache(data);
+      // ข้อมูลจริงมาแล้ว (เช่น หน่วยสินค้าที่เพิ่งเพิ่มในชีต) — render จากข้อมูลเก่าไปแล้วตอนต้นฟังก์ชัน
+      // ต้อง render ซ้ำอีกครั้งไม่งั้นหน้าจอจะค้างข้อมูลเก่าไปตลอด session จนกว่าจะปิดแท็บ
+      render();
     }).catch(()=>{});
     return;
   }
