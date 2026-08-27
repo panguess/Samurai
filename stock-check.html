@@ -1194,13 +1194,13 @@ async function renderOrderPage(app){
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
 
       items.forEach(p=>{
-        // Nothing is pre-selected: staff work supplier-by-supplier and use
-        // "เลือกทั้งหมด" per card once they're ready to order that supplier.
-        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
         const f = forecast(p);
+        const itemChecked = !!statusByProduct[p.id];
+        // เติมยอดเสนอสั่งให้อัตโนมัติทันทีที่รายการนั้นเช็คสต๊อกแล้วและมียอดเสนอสั่ง —
+        // เจ้าของยังปรับตัวเลขเองได้ตามปกติ ค่านี้แค่ตั้งครั้งแรกที่เห็นรายการนี้เท่านั้น
+        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = (itemChecked && f > 0) ? f : 0;
         const qty = state.orderQty[p.id];
         const fc = FORECASTS[p.id] || {};
-        const itemChecked = !!statusByProduct[p.id];
         const isLow = itemChecked && f > 0;
         const remainUnit = fc.unitLabel || p.orderUnit;
         const remainDisplay = itemChecked
