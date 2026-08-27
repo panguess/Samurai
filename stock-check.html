@@ -96,7 +96,8 @@
   .match-sheet-footer{padding:12px 16px; border-top:1px solid var(--border); flex-shrink:0;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
-  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px;}
+  .unit-steppers-row{display:flex; gap:6px;}
+  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px; flex:1; min-width:0;}
   .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   .step-input{width:28px; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
@@ -476,6 +477,11 @@ function patchStockStatusChecked(products, items){
 }
 
 
+// สั่งของเป็นหน่วยใหญ่สุดของสินค้าเสมอ (หน่วยสุดท้ายใน p.units ซึ่งเรียงเล็ก→ใหญ่ตาม SortOrder)
+function orderUnitLabel(p){
+  return p.units[p.units.length-1]?.label || p.orderUnit;
+}
+
 /* ============ STATE / ROUTER ============ */
 let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{} };
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
@@ -806,14 +812,16 @@ async function renderSupplierCheck(app){
         </div>
         <p class="prod-card-name">${p.name}</p>
         ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}
-        ${p.units.map(u=>`
-          <div class="unit-stepper">
-            <button class="step-btn minus" data-unit="${u.id}">−</button>
-            <input type="number" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
-            <button class="step-btn plus" data-unit="${u.id}">+</button>
-            <span class="unit-tag">${u.label}</span>
-          </div>
-        `).join('')}
+        <div class="unit-steppers-row">
+          ${p.units.map(u=>`
+            <div class="unit-stepper">
+              <button class="step-btn minus" data-unit="${u.id}">−</button>
+              <input type="number" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
+              <button class="step-btn plus" data-unit="${u.id}">+</button>
+              <span class="unit-tag">${u.label}</span>
+            </div>
+          `).join('')}
+        </div>
       `;
       grid.appendChild(card);
     });
@@ -1186,12 +1194,15 @@ async function renderOrderPage(app){
         const itemChecked = !!statusByProduct[p.id];
         if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
         const qty = state.orderQty[p.id];
-        const baseUnit = p.units[0];
+        // สินค้าที่มีหลายหน่วย (เล็ก→ใหญ่ เรียงตาม SortOrder) แสดงคงเหลือของทุกหน่วย
+        // แต่สั่งของเป็นหน่วยใหญ่สุดเสมอ
+        const uLabel = orderUnitLabel(p);
         const remainEntry = statusByEntry[p.id];
-        const remainQty = baseUnit && remainEntry ? remainEntry.remain[baseUnit.id] : null;
-        const remainDisplay = itemChecked && remainQty !== null && remainQty !== undefined
-          ? `${remainQty}<span class="u">${baseUnit?.label || p.orderUnit}</span>`
-          : '–';
+        const remainParts = p.units.map(u=>{
+          const v = remainEntry ? remainEntry.remain[u.id] : null;
+          return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
+        }).filter(Boolean);
+        const remainDisplay = itemChecked && remainParts.length ? remainParts.join(' ') : '–';
 
         const row = document.createElement('div');
         row.className = 'prow';
@@ -1202,11 +1213,12 @@ async function renderOrderPage(app){
           </div>
           <div class="prow-bottom">
             <div class="stat"><span class="lbl">คงเหลือ</span><span class="v muted">${remainDisplay}</span></div>
-            <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${p.orderUnit}</span></span></div>
+            <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${uLabel}</span></span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
               <input type="number" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
               <button type="button" data-step="1">+</button>
+              <span class="unit-tag">${uLabel}</span>
             </div>
           </div>
         `;
@@ -1237,7 +1249,7 @@ async function renderOrderPage(app){
         btn.onclick = async (e)=>{
           e.stopPropagation();
           const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
-            return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: p.orderUnit };
+            return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: orderUnitLabel(p) };
           });
           if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
           btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
@@ -1270,7 +1282,7 @@ async function renderOrderPage(app){
       const btn = e.target; btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
         const p = PRODUCTS.find(x=>x.id===id);
-        return { productId:id, forecast: 0, orderQty:q, rateUsed: 1, orderUnit: p.orderUnit };
+        return { productId:id, forecast: 0, orderQty:q, rateUsed: 1, orderUnit: orderUnitLabel(p) };
       });
       try{
         await apiPost('createOrderBatch', { items });
@@ -1293,7 +1305,10 @@ function renderOrderMessage(app){
   app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
   const c = document.createElement('div'); c.className='content';
 
-  const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>({...PRODUCTS.find(p=>p.id===id), qty:q}));
+  const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
+    const p = PRODUCTS.find(x=>x.id===id);
+    return {...p, orderUnit: orderUnitLabel(p), qty:q};
+  });
   const bySupplier = {};
   items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
 
