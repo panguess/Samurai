@@ -218,18 +218,31 @@
 /* ============ LIVE API CONFIG ============ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
 
+const API_TIMEOUT_MS = 12000;
 async function apiGet(action, params){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
-  const res = await fetch(`${API_URL}?${qs}`);
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
-  return data;
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), API_TIMEOUT_MS);
+  try{
+    const res = await fetch(`${API_URL}?${qs}`, { signal: controller.signal });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    return data;
+  }catch(err){
+    throw err.name==='AbortError' ? new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง') : err;
+  }finally{ clearTimeout(t); }
 }
 async function apiPost(action, payload){
-  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}) });
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
-  return data;
+  const controller = new AbortController();
+  const t = setTimeout(()=>controller.abort(), API_TIMEOUT_MS);
+  try{
+    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    return data;
+  }catch(err){
+    throw err.name==='AbortError' ? new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง') : err;
+  }finally{ clearTimeout(t); }
 }
 
 /* ============ product photo match screen ============ */
@@ -488,8 +501,30 @@ function renderLoading(app, msg){
   app.innerHTML = `<div class="empty-state" style="padding:80px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>${msg||'กำลังโหลดข้อมูล...'}</p></div>`;
 }
 
+const BOOTSTRAP_CACHE_KEY = 'samurai_bootstrap_cache_v1';
+function readBootstrapCache(){
+  try{ return JSON.parse(sessionStorage.getItem(BOOTSTRAP_CACHE_KEY)); }catch(e){ return null; }
+}
+function writeBootstrapCache(data){
+  try{ sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(data)); }catch(e){}
+}
 async function bootstrap(){
   const app = document.getElementById('app');
+  // ร้าน/สินค้า/พนักงาน แทบไม่เปลี่ยนบ่อย - ถ้ามี cache จากเซสชันก่อนหน้าให้ใช้ก่อนเลย
+  // แล้วค่อยรีเฟรชข้อมูลใหม่เงียบๆ อยู่เบื้องหลัง แทนที่จะรอ Apps Script ทุกครั้งที่เปิดแอป
+  const cached = readBootstrapCache();
+  if(cached){
+    SUPPLIERS = cached.suppliers; PRODUCTS = cached.products; STAFF = cached.staff;
+    history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
+    render();
+    getStockStatus().catch(()=>{});
+    apiGet('bootstrap').then(data=>{
+      SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+      writeBootstrapCache(data);
+    }).catch(()=>{});
+    return;
+  }
+
   // Show the logo immediately instead of a blank spinner - the network
   // round trip to Apps Script is the slow part, not this render.
   app.innerHTML = '';
@@ -501,6 +536,7 @@ async function bootstrap(){
   try{
     const data = await apiGet('bootstrap');
     SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    writeBootstrapCache(data);
     getStockStatus().catch(()=>{});
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
