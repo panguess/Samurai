@@ -1031,7 +1031,12 @@ async function saveEdit(){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    await postAction({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp});
+    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
+    if(!result||result.success===false){
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+      return;
+    }
     closeEditModal();
     showToast('บันทึกเรียบร้อยแล้ว ✓');
     await new Promise(r=>setTimeout(r,1200));
@@ -1978,7 +1983,11 @@ async function saveAdminEdit(orderId){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp});
+    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp},'saveAdminEdit');
+    if(!result||result.success===false){
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      return;
+    }
     order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
@@ -2000,11 +2009,19 @@ async function markDone(orderId){
         const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
-        await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp});
+        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp},'markDone:updateOrder');
+        if(!updateResult||updateResult.success===false){
+          alert('บันทึกจำนวนที่แก้ไขไม่สำเร็จ: '+(updateResult&&updateResult.error?updateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ ยังไม่ได้บันทึกสถานะจัดเสร็จ');
+          return;
+        }
         order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
       }
     }
-    await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'});
+    const doneResult=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'},'markDone:updateDelivery');
+    if(!doneResult||doneResult.success===false){
+      alert('บันทึกสถานะจัดเสร็จไม่สำเร็จ: '+(doneResult&&doneResult.error?doneResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+      return;
+    }
     if(order){order.delivery_status='done';order.status='done';}
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
@@ -2014,7 +2031,11 @@ async function markDone(orderId){
 async function markPacking(orderId){
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
-    await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'});
+    const result=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'},'markPacking');
+    if(!result||result.success===false){
+      alert('บันทึกสถานะไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+      return;
+    }
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
   }catch(e){alert('เกิดข้อผิดพลาด');}
@@ -2166,10 +2187,17 @@ function cancelOrder(orderId){
   overlay.querySelector('#cancelNo').onclick=()=>overlay.remove();
   overlay.querySelector('#cancelYes').onclick=async()=>{
     overlay.remove();
-    showToast('ยกเลิกออร์เดอร์แล้ว');
     try{
-      await postAction({action:'cancelOrder',order_id:orderId});
-    }catch(e){}
+      const result=await postAction({action:'cancelOrder',order_id:orderId},'cancelOrder');
+      if(!result||result.success===false){
+        alert('ยกเลิกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+        return;
+      }
+      showToast('ยกเลิกออร์เดอร์แล้ว');
+    }catch(e){
+      alert('ยกเลิกไม่สำเร็จ กรุณาลองใหม่');
+      return;
+    }
     await new Promise(r=>setTimeout(r,1000));
     await loadTrackSection();
   };
