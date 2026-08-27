@@ -1075,16 +1075,31 @@ async function loadBusinessNotes(){
 
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
-  show('adminApp'); 
+  show('adminApp');
+  document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+
+  // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
+  // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
+  // แก้ด้วยการยิงทั้งสอง request พร้อมกัน (ไม่ต้องรอกัน) แล้วค่อยประมวลผลรวมทีเดียว
   const adminProdCached=cacheGet('products_ALL');
-  if(adminProdCached){
-    products=adminProdCached;
-  } else {
-    products=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
-    if(!Array.isArray(products))products=[];
-    if(products.length) cacheSet('products_ALL',products,30000);
+  const productsPromise=adminProdCached
+    ? Promise.resolve(adminProdCached)
+    : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
+  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders`,null,'initAdmin:getAdminOrders',15000,1);
+
+  const[productsResult,ordersData]=await Promise.all([productsPromise,ordersPromise]);
+
+  products=Array.isArray(productsResult)?productsResult:[];
+  if(!adminProdCached&&products.length) cacheSet('products_ALL',products,30000);
+
+  if(ordersData===null){
+    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
+  }else{
+    allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
+    lastAdminOrdersHash=JSON.stringify(ordersData);
+    renderAdminOrders();
   }
-  await loadAdminOrders();
+
   loadBusinessNotes().then(()=>{ if(adminCurrentTab==='overview') renderAdminOverview(); });
   if(adminRefreshInterval) clearInterval(adminRefreshInterval);
   adminRefreshFailCount=0;
