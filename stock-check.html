@@ -474,7 +474,6 @@ function patchStockStatusChecked(products, items){
   });
   _stockStatusTs = Date.now();
 }
-let FORECASTS = {};         // productId -> {forecast, safetyStock, currentStock, rateUsed, unitLabel}
 
 
 /* ============ STATE / ROUTER ============ */
@@ -968,7 +967,7 @@ function renderOwnerMenu(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <div class="nav-tile featured" id="goOrder"><i class="ti ti-shopping-cart" style="font-size:20px; color:var(--brand);"></i>
-      <div><p>สั่งของ</p><small>เลือกรายการ + ยอดเสนอสั่ง</small></div></div>
+      <div><p>สั่งของ</p><small>เลือกรายการที่จะสั่ง</small></div></div>
     <div class="nav-tile" id="goStockAnalytics"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);"></i>
       <div><p>สต๊อก & วิเคราะห์</p><small>Dashboard + แนวโน้มการสั่งซื้อ</small></div></div>
   `;
@@ -1074,20 +1073,20 @@ function renderAnalyticsTab(body, analytics){
 async function renderOrderPage(app){
   app.appendChild(topbar('สั่งของ', {back:()=>go('ownerMenu')}));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = '<p class="empty-state">กำลังโหลดยอดเสนอสั่ง...</p>';
+  c.innerHTML = '<p class="empty-state">กำลังโหลดข้อมูล...</p>';
   app.appendChild(c);
 
   let statusList;
   try{
-    const [forecastList, sl, orderedRes] = await Promise.all([apiGet('orderForecast'), getStockStatus(), apiGet('orderedToday')]);
+    const [sl, orderedRes] = await Promise.all([getStockStatus(), apiGet('orderedToday')]);
     statusList = sl;
-    FORECASTS = {}; forecastList.forEach(f=> FORECASTS[f.productId] = f);
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
     orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
   }
+  const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
@@ -1102,35 +1101,26 @@ async function renderOrderPage(app){
 
   const expandedSuppliers = new Set();
 
-  function forecast(p){
-    return FORECASTS[p.id] ? FORECASTS[p.id].forecast : 0;
-  }
-
   function supplierStats(s){
     const items = PRODUCTS.filter(p=>p.supplierId===s.id);
     const checkedCount = items.filter(p=>statusByProduct[p.id]).length;
-    const needOrderItems = items.filter(p=>forecast(p) > 0);
     const isOrdered = items.some(p=> orderedProductIds.has(p.id));
-    return { items, checkedCount, needOrderItems, isOrdered };
+    return { items, checkedCount, isOrdered };
   }
 
   function renderStats(){
     const withItems = SUPPLIERS.filter(s=> PRODUCTS.some(p=>p.supplierId===s.id));
-    let checkedSuppliers = 0, needOrderSuppliers = 0, orderedOfNeeded = 0;
+    let checkedSuppliers = 0, orderedSuppliers = 0;
     withItems.forEach(s=>{
-      const { items, checkedCount, needOrderItems, isOrdered } = supplierStats(s);
+      const { items, checkedCount, isOrdered } = supplierStats(s);
       const fullyChecked = items.length > 0 && checkedCount === items.length;
       if(fullyChecked) checkedSuppliers++;
-      if(fullyChecked && needOrderItems.length){
-        needOrderSuppliers++;
-        if(isOrdered) orderedOfNeeded++;
-      }
+      if(isOrdered) orderedSuppliers++;
     });
     statsEl.innerHTML = `
       <div class="stat-card"><div class="n">${withItems.length}</div><div class="lbl">เจ้าทั้งหมด</div></div>
       <div class="stat-card green"><div class="n">${checkedSuppliers}</div><div class="lbl">เช็คสต๊อกแล้ว</div></div>
-      <div class="stat-card danger"><div class="n">${needOrderSuppliers}</div><div class="lbl">ต้องสั่งของ</div></div>
-      <div class="stat-card amber"><div class="n">${orderedOfNeeded}/${needOrderSuppliers}</div><div class="lbl">สั่งแล้ว</div></div>
+      <div class="stat-card amber"><div class="n">${orderedSuppliers}</div><div class="lbl">สั่งแล้ว</div></div>
     `;
   }
 
@@ -1142,21 +1132,20 @@ async function renderOrderPage(app){
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
 
-      const { checkedCount, needOrderItems, isOrdered } = supplierStats(s);
+      const { checkedCount, isOrdered } = supplierStats(s);
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
-      // Gate on fullyChecked too: needOrderItems/forecast() aren't trustworthy until
-      // the supplier's stock is fully checked today, so don't show "ordered" (green) early.
-      const orderDone = fullyChecked && needOrderItems.length > 0 && isOrdered;
+      // Gate on fullyChecked too: don't show "ordered" (green) before the
+      // supplier's stock is fully checked today.
+      const orderDone = fullyChecked && isOrdered;
       // Single combined status per supplier — one line, one color, states an action
       // rather than two badges (stock-check count vs order status) that read as unrelated.
       let stateClass, statusText, subText;
       if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText='เช็คสต๊อกครบแล้ว'; }
       else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (0/${allItems.length} รายการ)`; }
       else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedCount}/${allItems.length} รายการ`; }
-      else if(needOrderItems.length){ stateClass='needorder'; statusText=`🛒 ต้องสั่งของ ${needOrderItems.length} รายการ`; subText='เช็คสต๊อกครบแล้ว'; }
-      else{ stateClass='wait'; statusText='✓ เช็คครบแล้ว ไม่ต้องสั่ง'; subText='เช็คสต๊อกครบแล้ว'; }
+      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText='พร้อมเลือกรายการที่จะสั่ง'; }
 
       const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
       const strip = document.createElement('div'); strip.className = 'ord-card-strip';
@@ -1186,7 +1175,7 @@ async function renderOrderPage(app){
       selectRow.innerHTML = `<button type="button" class="link-btn" data-selecttoggle>${allSelected ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด'}</button>`;
       selectRow.querySelector('[data-selecttoggle]').onclick = ()=>{
         if(allSelected) items.forEach(p=> state.orderQty[p.id] = 0);
-        else items.forEach(p=>{ state.orderQty[p.id] = state.orderQty[p.id] > 0 ? state.orderQty[p.id] : (forecast(p) || 1); });
+        else items.forEach(p=>{ state.orderQty[p.id] = state.orderQty[p.id] > 0 ? state.orderQty[p.id] : 1; });
         renderGroups(c.querySelector('#search').value);
       };
       body.appendChild(selectRow);
@@ -1194,30 +1183,26 @@ async function renderOrderPage(app){
       const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
 
       items.forEach(p=>{
-        const f = forecast(p);
         const itemChecked = !!statusByProduct[p.id];
-        // เติมยอดเสนอสั่งให้อัตโนมัติทันทีที่รายการนั้นเช็คสต๊อกแล้วและมียอดเสนอสั่ง —
-        // เจ้าของยังปรับตัวเลขเองได้ตามปกติ ค่านี้แค่ตั้งครั้งแรกที่เห็นรายการนี้เท่านั้น
-        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = (itemChecked && f > 0) ? f : 0;
+        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
         const qty = state.orderQty[p.id];
-        const fc = FORECASTS[p.id] || {};
-        const isLow = itemChecked && f > 0;
-        const remainUnit = fc.unitLabel || p.orderUnit;
-        const remainDisplay = itemChecked
-          ? `${fc.currentStock ?? 0}<span class="u">${remainUnit}</span>`
+        const baseUnit = p.units[0];
+        const remainEntry = statusByEntry[p.id];
+        const remainQty = baseUnit && remainEntry ? remainEntry.remain[baseUnit.id] : null;
+        const remainDisplay = itemChecked && remainQty !== null && remainQty !== undefined
+          ? `${remainQty}<span class="u">${baseUnit?.label || p.orderUnit}</span>`
           : '–';
 
         const row = document.createElement('div');
-        row.className = 'prow' + (isLow?' low':'');
+        row.className = 'prow';
         row.innerHTML = `
           <div class="prow-top">
             <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
             <div class="prow-name">${p.name}</div>
           </div>
           <div class="prow-bottom">
-            <div class="stat${isLow?' danger':''}"><span class="lbl">คงเหลือ</span><span class="v ${isLow?'':'muted'}">${remainDisplay}</span></div>
-            <div class="stat${isLow?' danger':''}"><span class="lbl">ขั้นต่ำ</span><span class="v ${isLow?'':'muted'}">${p.safetyStock}<span class="u">${p.orderUnit}</span></span></div>
-            <div class="stat${isLow?' danger':''}"><span class="lbl">เสนอสั่ง</span><span class="v">${f}<span class="u">${p.orderUnit}</span></span></div>
+            <div class="stat"><span class="lbl">คงเหลือ</span><span class="v muted">${remainDisplay}</span></div>
+            <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${p.orderUnit}</span></span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
               <input type="number" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
@@ -1235,7 +1220,7 @@ async function renderOrderPage(app){
           updateBar();
         }
         row.querySelector('[data-check]').onchange = (e)=>{
-          setQty(e.target.checked ? (f || 1) : 0);
+          setQty(e.target.checked ? 1 : 0);
         };
         qtyInput.oninput = (e)=> setQty(parseFloat(e.target.value||0));
         row.querySelectorAll('[data-step]').forEach(btn=>{
@@ -1244,16 +1229,15 @@ async function renderOrderPage(app){
       });
       body.appendChild(groupBox);
 
-      if(needOrderItems.length){
+      {
         const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
         const btn = document.createElement('button');
         btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
-        btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : `สั่งของเจ้านี้ (${needOrderItems.length} รายการ)`;
+        btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : 'สั่งของเจ้านี้';
         btn.onclick = async (e)=>{
           e.stopPropagation();
           const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
-            const fc = FORECASTS[p.id] || {};
-            return { productId:p.id, forecast: fc.forecast||0, orderQty: state.orderQty[p.id], rateUsed: fc.rateUsed||1, orderUnit: p.orderUnit };
+            return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: p.orderUnit };
           });
           if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
           btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
@@ -1285,9 +1269,8 @@ async function renderOrderPage(app){
     bar.querySelector('#genMsg').onclick = async (e)=>{
       const btn = e.target; btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
       const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
-        const f = FORECASTS[id] || {};
         const p = PRODUCTS.find(x=>x.id===id);
-        return { productId:id, forecast: f.forecast||0, orderQty:q, rateUsed: f.rateUsed||1, orderUnit: p.orderUnit };
+        return { productId:id, forecast: 0, orderQty:q, rateUsed: 1, orderUnit: p.orderUnit };
       });
       try{
         await apiPost('createOrderBatch', { items });
