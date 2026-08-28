@@ -222,7 +222,7 @@
 /* ============ LIVE API CONFIG ============ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
 
-const API_TIMEOUT_MS = 12000;
+const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อนๆ หรือ Apps Script cold start ตอบช้ากว่า 12 วิได้ง่ายๆ
 async function apiGet(action, params){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
