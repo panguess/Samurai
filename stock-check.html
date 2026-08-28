@@ -877,6 +877,19 @@ async function renderSupplierCheck(app){
         area.onclick = ()=>{ photoTargetPid = area.dataset.pid; photoInput.click(); };
       });
     }
+    // แตะช่องกรอก/กด +/- ของสินค้าไหน ถือว่าลูกจ้าง "เช็คแล้ว" สินค้าตัวนั้นทันที
+    // ไม่ต้องกดวงกลม ✓ แยกอีกขั้น กันลืมกรอกแล้วข้อมูลไม่ถูกบันทึกตอนกด "เสร็จเจ้านี้"
+    function markCardChecked(uid){
+      const card = grid.querySelector(`[data-unit="${uid}"]`)?.closest('.prod-card');
+      if(!card) return;
+      const pid = card.querySelector('.check-toggle')?.dataset.pid;
+      if(!pid || checkedProducts.has(pid)) return;
+      checkedProducts.add(pid);
+      card.classList.add('checked');
+      const icon = card.querySelector('.check-toggle i');
+      if(icon){ icon.classList.remove('ti-circle'); icon.classList.add('ti-circle-check-filled'); }
+      updateBar();
+    }
     grid.querySelectorAll('.minus, .plus').forEach(btn=>{
       btn.onclick = ()=>{
         const uid = btn.dataset.unit;
@@ -884,10 +897,14 @@ async function renderSupplierCheck(app){
         let v = parseInt(input.value||0,10);
         v = btn.classList.contains('plus') ? v+1 : Math.max(0,v-1);
         input.value = v; stockValues[uid] = v;
+        markCardChecked(uid);
       };
     });
     grid.querySelectorAll('.step-input').forEach(inp=>{
-      inp.oninput = ()=>{ stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10)); };
+      inp.oninput = ()=>{
+        stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10));
+        markCardChecked(inp.dataset.unit);
+      };
     });
   }
   renderGrid();
@@ -900,15 +917,23 @@ async function renderSupplierCheck(app){
       <button class="btn-primary btn" id="finishSup">เสร็จเจ้านี้</button>`;
     bar.querySelector('#finishSup').onclick = async ()=>{
       const btn = bar.querySelector('#finishSup');
+      // บันทึกเฉพาะสินค้าที่ลูกจ้างติ๊ก "เช็คแล้ว" จริงๆ เท่านั้น — ตัวที่ยังไม่ได้แตะเลย
+      // ต้องไม่ถูกบันทึกเป็นคงเหลือ 0 ไปด้วย ไม่งั้นเจ้าของจะเข้าใจผิดว่าของหมดจริง
+      // ทั้งที่จริงๆ ยังไม่ได้เช็ค
+      const checkedItems = products.filter(p=>checkedProducts.has(p.id));
+      if(!checkedItems.length){ alert('ยังไม่ได้ติ๊กว่าเช็คสินค้าตัวไหนเลย'); return; }
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-      const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
-      const photos = products.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
+      const items = checkedItems.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
+      const photos = checkedItems.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
       try{
         await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items, photos });
-        patchStockStatusChecked(products, items);
-        checkedSuppliers.add(sup.id);
-        sessionCheckedSuppliers.add(sup.id);
-        saveSessionChecked();
+        patchStockStatusChecked(checkedItems, items);
+        // ทำเครื่องหมาย "เช็คแล้ว" ในหน้าเลือกร้านเฉพาะตอนเช็คครบทุกตัวจริงๆ เท่านั้น
+        if(checkedItems.length === products.length){
+          checkedSuppliers.add(sup.id);
+          sessionCheckedSuppliers.add(sup.id);
+          saveSessionChecked();
+        }
         go('staffDone');
       }catch(err){
         btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
