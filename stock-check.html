@@ -315,7 +315,7 @@ function openPhotoMatchScreen(files, products, onDone){
       const photos = [];
       for(let i=0; i<files.length; i++){
         if(!matches[i]) continue;
-        const dataUrl = await compressImage(files[i], 800, 0.6);
+        const dataUrl = await compressImage(files[i], 600, 0.5);
         photos.push({ productId: matches[i], photo: dataUrl });
       }
       await apiPost('saveProductPhotos', { photos });
