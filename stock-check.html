@@ -70,7 +70,7 @@
   .cover-toggle:disabled{opacity:0.35; cursor:not-allowed;}
   .prod-card.is-cover{border-color:var(--danger);}
   .cover-tag{font-size:10px; color:var(--danger); font-weight:600; margin:2px 0 0;}
-  .add-prod-card{width:100%; min-width:0; max-height:100%; border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--text-tertiary); cursor:pointer; background:none;}
+  .add-prod-card{width:100%; min-width:0; min-height:140px; max-height:100%; border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--text-tertiary); cursor:pointer; background:none;}
   .add-prod-card span{text-align:center; padding:0 6px; font-size:12px;}
 
   /* add product form sheet (reuses match-overlay/match-sheet styles) */
@@ -214,6 +214,7 @@
   .sup-icon-wrap{position:relative; width:100%;}
   .sup-icon{width:100%; aspect-ratio:1/1; border-radius:18px; border:2px solid var(--text); display:flex; align-items:center; justify-content:center; overflow:hidden;}
   .sup-num-badge{position:absolute; top:-8px; left:-8px; min-width:28px; height:28px; padding:0 6px; border-radius:14px; background:var(--brand); color:var(--cream); border:2.5px solid #fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.3); z-index:1;}
+  .topbar-num-badge{min-width:28px; height:28px; padding:0 6px; border-radius:14px; background:var(--brand); color:var(--cream); border:2px solid #fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-left:auto;}
 </style>
 </head>
 <body>
@@ -576,6 +577,7 @@ function topbar(title, opts={}){
   if(opts.back){ const b=document.createElement('button'); b.className='back'; b.innerHTML='←'; b.onclick=opts.back; bar.appendChild(b); }
   const h = document.createElement('h1'); h.textContent = title; bar.appendChild(h);
   if(opts.meta){ const m=document.createElement('span'); m.className='meta'; m.textContent=opts.meta; bar.appendChild(m); }
+  if(opts.numBadge){ const b=document.createElement('span'); b.className='topbar-num-badge'; b.textContent=opts.numBadge; bar.appendChild(b); }
   return bar;
 }
 
@@ -761,7 +763,7 @@ async function renderSupplierCheck(app){
   }
   app.innerHTML = '';
 
-  app.appendChild(topbar(sup.name, {back:()=>go('supplierList'), meta:`#${SUPPLIERS.indexOf(sup)+1}`}));
+  app.appendChild(topbar(sup.name, {back:()=>go('supplierList'), numBadge:SUPPLIERS.indexOf(sup)+1}));
   const c = document.createElement('div'); c.className='content';
 
   if(!CAMERA_PER_PRODUCT_ENABLED){
