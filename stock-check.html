@@ -315,7 +315,7 @@ function openPhotoMatchScreen(files, products, onDone){
       const photos = [];
       for(let i=0; i<files.length; i++){
         if(!matches[i]) continue;
-        const dataUrl = await compressImage(files[i], 800, 0.6);
+        const dataUrl = await compressImage(files[i], 600, 0.5);
         photos.push({ productId: matches[i], photo: dataUrl });
       }
       await apiPost('saveProductPhotos', { photos });
@@ -648,7 +648,7 @@ function renderStaffName(app){
   app.appendChild(c);
 
   const avatarInput = document.createElement('input');
-  avatarInput.type = 'file'; avatarInput.accept = 'image/*'; avatarInput.capture = 'user';
+  avatarInput.type = 'file'; avatarInput.accept = 'image/*'; // ไม่ตั้ง capture — ให้เลือกได้ทั้งถ่ายรูปใหม่หรือเลือกจากคลังภาพ
   avatarInput.style.display = 'none';
   c.appendChild(avatarInput);
   let avatarTargetId = null;
