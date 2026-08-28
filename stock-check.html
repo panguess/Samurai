@@ -70,8 +70,8 @@
   .cover-toggle:disabled{opacity:0.35; cursor:not-allowed;}
   .prod-card.is-cover{border-color:var(--danger);}
   .cover-tag{font-size:10px; color:var(--danger); font-weight:600; margin:2px 0 0;}
-  .add-prod-card{border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; aspect-ratio:0.82; color:var(--text-tertiary); cursor:pointer; background:none;}
-  .add-prod-card span{font-size:12px;}
+  .add-prod-card{width:100%; min-width:0; max-height:100%; border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--text-tertiary); cursor:pointer; background:none;}
+  .add-prod-card span{text-align:center; padding:0 6px; font-size:12px;}
 
   /* add product form sheet (reuses match-overlay/match-sheet styles) */
   .addprod-body{overflow-y:auto; padding:12px 16px; flex:1;}
@@ -411,7 +411,7 @@ const ALLOW_PHOTO_RETAKE = true;
 const CAMERA_PER_PRODUCT_ENABLED = false;
 // ปุ่มหัวใจ "ตั้งเป็นรูปปกร้าน" บนการ์ดสินค้า (หน้าเช็คสต๊อก) — ใช้รูปสินค้าที่มีอยู่แล้วเป็นรูปปกซัพพลายเออร์
 // ปิดเป็น false เมื่อ Nattaya ตั้งรูปปกครบทุกเจ้าแล้ว ปุ่มจะหายไปจากทุกการ์ดทันที (โค้ดเบื้องหลังยังอยู่ เผื่อมีเจ้าใหม่)
-const ALLOW_SET_COVER_PHOTO = true;
+const ALLOW_SET_COVER_PHOTO = false; // ปิดไว้ เพราะเลือกรูปปกให้ครบทุกเจ้าแล้ว
 
 function compressImage(file, maxDim, quality){
   return new Promise((resolve, reject)=>{
