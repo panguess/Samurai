@@ -96,12 +96,12 @@
   .match-sheet-footer{padding:12px 16px; border-top:1px solid var(--border); flex-shrink:0;}
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
-  .unit-steppers-row{display:flex; gap:6px;}
-  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px; margin-bottom:6px; flex:1; min-width:0;}
+  .unit-steppers-row{display:flex; flex-direction:column; gap:3px;}
+  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px;}
   .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
-  .step-input{width:28px; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
-  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto;}
+  input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
+  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; flex-shrink:0;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
   .stickybar span{color:var(--cream); font-size:13px;}
   .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
@@ -144,7 +144,7 @@
   .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
   .stepper{display:flex; align-items:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:#fff; flex-shrink:0; margin-left:auto;}
   .stepper button{width:26px; height:28px; border:none; background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; flex-shrink:0;}
-  input.stepper-input{width:36px; flex-shrink:0; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); font-size:13px; font-weight:700; padding:5px 0;}
+  input.stepper-input{width:36px; min-width:0; flex-shrink:0; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); font-size:13px; font-weight:700; padding:5px 0;}
 
   /* order overview + collapsible supplier cards */
   .stat-strip{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-bottom:12px;}
@@ -819,7 +819,7 @@ async function renderSupplierCheck(app){
           ${p.units.map(u=>`
             <div class="unit-stepper">
               <button class="step-btn minus" data-unit="${u.id}">−</button>
-              <input type="number" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
               <button class="step-btn plus" data-unit="${u.id}">+</button>
               <span class="unit-tag">${u.label}</span>
             </div>
@@ -1219,7 +1219,7 @@ async function renderOrderPage(app){
             <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${uLabel}</span></span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
-              <input type="number" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
               <button type="button" data-step="1">+</button>
               <span class="unit-tag">${uLabel}</span>
             </div>
