@@ -101,7 +101,7 @@
   .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
-  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; flex-shrink:0;}
+  .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
   .stickybar span{color:var(--cream); font-size:13px;}
   .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
@@ -210,7 +210,9 @@
   .sup-card-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px;}
   .sup-card{display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:10px 6px; text-align:center; cursor:pointer;}
   .sup-card.done{opacity:0.55;}
+  .sup-icon-wrap{position:relative; width:100%;}
   .sup-icon{width:100%; aspect-ratio:1/1; border-radius:18px; border:2px solid var(--text); display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .sup-num-badge{position:absolute; top:-8px; left:-8px; min-width:28px; height:28px; padding:0 6px; border-radius:14px; background:var(--brand); color:var(--cream); border:2.5px solid #fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.3); z-index:1;}
 </style>
 </head>
 <body>
@@ -724,10 +726,13 @@ function supplierCard(s, isDone, idx){
   const card = document.createElement('div');
   card.className = 'sup-card' + (isDone?' done':'');
   card.innerHTML = `
-    <div class="sup-icon" style="background:${isDone?'var(--bg)':(hasPhoto?'transparent':col.bg)}; border-color:${isDone?'var(--border-strong)':(hasPhoto?col.fg:'var(--text)')};">
-      ${hasPhoto
-        ? `<img src="${s.imageUrl}" alt="" style="width:100%; height:100%; object-fit:cover; opacity:${isDone?'0.55':'1'};">`
-        : `<i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:min(11vw,48px); color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>`}
+    <div class="sup-icon-wrap">
+      <span class="sup-num-badge">${idx+1}</span>
+      <div class="sup-icon" style="background:${isDone?'var(--bg)':(hasPhoto?'transparent':col.bg)}; border-color:${isDone?'var(--border-strong)':(hasPhoto?col.fg:'var(--text)')};">
+        ${hasPhoto
+          ? `<img src="${s.imageUrl}" alt="" style="width:100%; height:100%; object-fit:cover; opacity:${isDone?'0.55':'1'};">`
+          : `<i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:min(11vw,48px); color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>`}
+      </div>
     </div>
     <p style="margin:0; font-size:13px; font-weight:600; color:${isDone?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
   `;
@@ -752,7 +757,7 @@ async function renderSupplierCheck(app){
   }
   app.innerHTML = '';
 
-  app.appendChild(topbar(sup.name, {back:()=>go('supplierList')}));
+  app.appendChild(topbar(sup.name, {back:()=>go('supplierList'), meta:`#${SUPPLIERS.indexOf(sup)+1}`}));
   const c = document.createElement('div'); c.className='content';
 
   if(!CAMERA_PER_PRODUCT_ENABLED){
@@ -872,6 +877,19 @@ async function renderSupplierCheck(app){
         area.onclick = ()=>{ photoTargetPid = area.dataset.pid; photoInput.click(); };
       });
     }
+    // แตะช่องกรอก/กด +/- ของสินค้าไหน ถือว่าลูกจ้าง "เช็คแล้ว" สินค้าตัวนั้นทันที
+    // ไม่ต้องกดวงกลม ✓ แยกอีกขั้น กันลืมกรอกแล้วข้อมูลไม่ถูกบันทึกตอนกด "เสร็จเจ้านี้"
+    function markCardChecked(uid){
+      const card = grid.querySelector(`[data-unit="${uid}"]`)?.closest('.prod-card');
+      if(!card) return;
+      const pid = card.querySelector('.check-toggle')?.dataset.pid;
+      if(!pid || checkedProducts.has(pid)) return;
+      checkedProducts.add(pid);
+      card.classList.add('checked');
+      const icon = card.querySelector('.check-toggle i');
+      if(icon){ icon.classList.remove('ti-circle'); icon.classList.add('ti-circle-check-filled'); }
+      updateBar();
+    }
     grid.querySelectorAll('.minus, .plus').forEach(btn=>{
       btn.onclick = ()=>{
         const uid = btn.dataset.unit;
@@ -879,10 +897,14 @@ async function renderSupplierCheck(app){
         let v = parseInt(input.value||0,10);
         v = btn.classList.contains('plus') ? v+1 : Math.max(0,v-1);
         input.value = v; stockValues[uid] = v;
+        markCardChecked(uid);
       };
     });
     grid.querySelectorAll('.step-input').forEach(inp=>{
-      inp.oninput = ()=>{ stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10)); };
+      inp.oninput = ()=>{
+        stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10));
+        markCardChecked(inp.dataset.unit);
+      };
     });
   }
   renderGrid();
@@ -895,15 +917,23 @@ async function renderSupplierCheck(app){
       <button class="btn-primary btn" id="finishSup">เสร็จเจ้านี้</button>`;
     bar.querySelector('#finishSup').onclick = async ()=>{
       const btn = bar.querySelector('#finishSup');
+      // บันทึกเฉพาะสินค้าที่ลูกจ้างติ๊ก "เช็คแล้ว" จริงๆ เท่านั้น — ตัวที่ยังไม่ได้แตะเลย
+      // ต้องไม่ถูกบันทึกเป็นคงเหลือ 0 ไปด้วย ไม่งั้นเจ้าของจะเข้าใจผิดว่าของหมดจริง
+      // ทั้งที่จริงๆ ยังไม่ได้เช็ค
+      const checkedItems = products.filter(p=>checkedProducts.has(p.id));
+      if(!checkedItems.length){ alert('ยังไม่ได้ติ๊กว่าเช็คสินค้าตัวไหนเลย'); return; }
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-      const items = products.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
-      const photos = products.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
+      const items = checkedItems.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
+      const photos = checkedItems.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
       try{
         await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items, photos });
-        patchStockStatusChecked(products, items);
-        checkedSuppliers.add(sup.id);
-        sessionCheckedSuppliers.add(sup.id);
-        saveSessionChecked();
+        patchStockStatusChecked(checkedItems, items);
+        // ทำเครื่องหมาย "เช็คแล้ว" ในหน้าเลือกร้านเฉพาะตอนเช็คครบทุกตัวจริงๆ เท่านั้น
+        if(checkedItems.length === products.length){
+          checkedSuppliers.add(sup.id);
+          sessionCheckedSuppliers.add(sup.id);
+          saveSessionChecked();
+        }
         go('staffDone');
       }catch(err){
         btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
@@ -1152,11 +1182,21 @@ async function renderOrderPage(app){
       const orderDone = fullyChecked && isOrdered;
       // Single combined status per supplier — one line, one color, states an action
       // rather than two badges (stock-check count vs order status) that read as unrelated.
+      // นับตามจำนวนสินค้าที่ลูกจ้างกดติ๊กว่าเช็คแล้วจริงๆ เท่านั้น — สินค้าที่ลูกจ้างเช็คแล้วแต่ไม่มีของ
+      // (กรอกคงเหลือเป็น 0) ก็นับว่า "เช็คแล้ว" เหมือนกัน เพราะติ๊กผ่านการเช็คสต๊อกไปแล้วจริง
+      const checkedRatio = `${checkedCount}/${allItems.length}`;
       let stateClass, statusText, subText;
-      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText='เช็คสต๊อกครบแล้ว'; }
-      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (0/${allItems.length} รายการ)`; }
-      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedCount}/${allItems.length} รายการ`; }
-      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText='พร้อมเลือกรายการที่จะสั่ง'; }
+      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกครบแล้ว (${checkedRatio})`; }
+      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (${checkedRatio} รายการ)`; }
+      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
+      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
+
+      // จำนวนรายการที่เจ้าของกดเลือกจะสั่งจริง (orderQty > 0) — นับจากที่กรอกเองล้วนๆ
+      // ไม่เกี่ยวกับคงเหลือ/เช็คสต๊อก เพื่อไม่ให้ปนกับความไม่แน่นอนว่า "คงเหลือ 0" หมายถึงหมดจริงหรือลูกจ้างข้าม
+      const baseSubText = subText;
+      function countSelected(){ return allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).length; }
+      function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · เลือกไว้ ${n} รายการ` : ''; }
+      subText = baseSubText + selectedSuffix();
 
       const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
       const strip = document.createElement('div'); strip.className = 'ord-card-strip';
@@ -1232,6 +1272,8 @@ async function renderOrderPage(app){
           state.orderQty[p.id] = Math.max(0, Math.round(v));
           qtyInput.value = state.orderQty[p.id];
           row.querySelector('[data-check]').checked = state.orderQty[p.id] > 0;
+          const subEl = head.querySelector('.status-sub');
+          if(subEl) subEl.textContent = baseSubText + selectedSuffix();
           updateBar();
         }
         row.querySelector('[data-check]').onchange = (e)=>{
