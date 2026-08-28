@@ -486,6 +486,9 @@ function orderUnitLabel(p){
 
 /* ============ STATE / ROUTER ============ */
 let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{} };
+// สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
+// เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
+let lastOrderMessageSnapshot = null;
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -1301,6 +1304,10 @@ async function renderOrderPage(app){
           try{
             await apiPost('createOrderBatch', { items: supItems });
             supItems.forEach(it=> orderedProductIds.add(it.productId));
+            // เคลียร์จำนวนที่สั่งไปแล้วออกจาก state — กันไม่ให้ปุ่ม "สร้างข้อความสั่งของทั้งหมด"
+            // นับซ้ำแล้วยิง createOrderBatch ให้รายการเดิมอีกรอบ และกันตัวเลขเก่าค้างให้เข้าใจผิด
+            // ว่าเป็นค่าที่เพิ่งกรอกใหม่เวลาเปิดเจ้านี้ซ้ำ
+            supItems.forEach(it=> state.orderQty[it.productId] = 0);
             renderStats();
             renderGroups(c.querySelector('#search').value);
           }catch(err){
@@ -1332,6 +1339,10 @@ async function renderOrderPage(app){
       try{
         await apiPost('createOrderBatch', { items });
         items.forEach(it=> orderedProductIds.add(it.productId));
+        // เก็บรายการที่เพิ่งสั่งไว้ให้หน้าข้อความใช้แสดงผล ก่อนเคลียร์ state.orderQty จริง —
+        // กันปุ่มนี้กดซ้ำแล้วสั่งรายการเดิมซ้ำอีกรอบ (เหมือนปุ่ม "สั่งของเจ้านี้" รายเจ้า)
+        lastOrderMessageSnapshot = {};
+        items.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
         go('orderMessage');
       }catch(err){
         btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของทั้งหมด';
@@ -1350,7 +1361,11 @@ function renderOrderMessage(app){
   app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
   const c = document.createElement('div'); c.className='content';
 
-  const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
+  // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
+  // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
+  const qtySource = lastOrderMessageSnapshot || state.orderQty;
+  lastOrderMessageSnapshot = null;
+  const items = Object.entries(qtySource).filter(([id,q])=>q>0).map(([id,q])=>{
     const p = PRODUCTS.find(x=>x.id===id);
     return {...p, orderUnit: orderUnitLabel(p), qty:q};
   });
