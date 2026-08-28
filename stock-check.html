@@ -1170,7 +1170,7 @@ async function renderOrderPage(app){
       // ไม่เกี่ยวกับคงเหลือ/เช็คสต๊อก เพื่อไม่ให้ปนกับความไม่แน่นอนว่า "คงเหลือ 0" หมายถึงหมดจริงหรือลูกจ้างข้าม
       const baseSubText = subText;
       function countSelected(){ return allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).length; }
-      function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · จะสั่ง ${n} รายการ` : ''; }
+      function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · เลือกไว้ ${n} รายการ` : ''; }
       subText = baseSubText + selectedSuffix();
 
       const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
