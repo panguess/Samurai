@@ -1166,6 +1166,13 @@ async function renderOrderPage(app){
       else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
       else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
 
+      // จำนวนรายการที่เจ้าของกดเลือกจะสั่งจริง (orderQty > 0) — นับจากที่กรอกเองล้วนๆ
+      // ไม่เกี่ยวกับคงเหลือ/เช็คสต๊อก เพื่อไม่ให้ปนกับความไม่แน่นอนว่า "คงเหลือ 0" หมายถึงหมดจริงหรือลูกจ้างข้าม
+      const baseSubText = subText;
+      function countSelected(){ return allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).length; }
+      function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · จะสั่ง ${n} รายการ` : ''; }
+      subText = baseSubText + selectedSuffix();
+
       const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
       const strip = document.createElement('div'); strip.className = 'ord-card-strip';
       card.appendChild(strip);
@@ -1240,6 +1247,8 @@ async function renderOrderPage(app){
           state.orderQty[p.id] = Math.max(0, Math.round(v));
           qtyInput.value = state.orderQty[p.id];
           row.querySelector('[data-check]').checked = state.orderQty[p.id] > 0;
+          const subEl = head.querySelector('.status-sub');
+          if(subEl) subEl.textContent = baseSubText + selectedSuffix();
           updateBar();
         }
         row.querySelector('[data-check]').onchange = (e)=>{
