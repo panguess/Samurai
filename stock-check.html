@@ -455,7 +455,7 @@ let orderedProductIds = new Set();
 let checkedProducts = new Set();
 let stockStatusCache = null;
 let _stockStatusTs = 0;
-const STOCK_STATUS_TTL = 8000; // ms - avoid refetching the whole sheet on every screen hop
+const STOCK_STATUS_TTL = 45000; // ms - avoid refetching the whole sheet on every screen hop
 async function getStockStatus(force){
   if(!force && stockStatusCache && (Date.now() - _stockStatusTs) < STOCK_STATUS_TTL) return stockStatusCache;
   const data = await apiGet('stockStatus');
