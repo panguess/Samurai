@@ -1157,11 +1157,14 @@ async function renderOrderPage(app){
       const orderDone = fullyChecked && isOrdered;
       // Single combined status per supplier — one line, one color, states an action
       // rather than two badges (stock-check count vs order status) that read as unrelated.
+      // นับตามจำนวนสินค้าที่ลูกจ้างกดติ๊กว่าเช็คแล้วจริงๆ เท่านั้น — สินค้าที่ลูกจ้างเช็คแล้วแต่ไม่มีของ
+      // (กรอกคงเหลือเป็น 0) ก็นับว่า "เช็คแล้ว" เหมือนกัน เพราะติ๊กผ่านการเช็คสต๊อกไปแล้วจริง
+      const checkedRatio = `${checkedCount}/${allItems.length}`;
       let stateClass, statusText, subText;
-      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText='เช็คสต๊อกครบแล้ว'; }
-      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (0/${allItems.length} รายการ)`; }
-      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedCount}/${allItems.length} รายการ`; }
-      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText='พร้อมเลือกรายการที่จะสั่ง'; }
+      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกครบแล้ว (${checkedRatio})`; }
+      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (${checkedRatio} รายการ)`; }
+      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
+      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
 
       const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
       const strip = document.createElement('div'); strip.className = 'ord-card-strip';
