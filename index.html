@@ -1749,7 +1749,7 @@ function renderAdminOverview(){
   const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
 
   const[rangeStart,rangeEnd]=getOverviewRange();
-  // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards, มุมมองลูกค้า, มุมมองสินค้า
+  // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards และ ranking
  const rangeOrders=activeOrders.filter(o=>{
   if(!ds_done(o))return false;
   const tStamp=o.done_at||o.timestamp;
@@ -1757,7 +1757,6 @@ function renderAdminOverview(){
   const t=new Date(tStamp);
   return t>=rangeStart&&t<=rangeEnd;
 });
-  const customerNames=new Set(rangeOrders.map(o=>o.customer_name));
   const totalToday=rangeOrders.reduce((s,o)=>s+Number(o.total),0);
 
   const byCustomer={};
@@ -1770,55 +1769,48 @@ function renderAdminOverview(){
     const ts=t?new Date(t).getTime():0;
     if(ts>byCustomer[name].lastDoneAt) byCustomer[name].lastDoneAt=ts;
   });
+  // นับจำนวนลูกค้าจาก byCustomer โดยตรง (แหล่งเดียวกับ ranking ด้านล่าง) แทนการสร้าง Set แยกจาก customer_name ดิบ
+  // ป้องกันตัวเลขไม่ตรงกันเวลามีออเดอร์ที่ customer_name ว่าง/undefined
+  const customerCount=Object.keys(byCustomer).length;
 
-  let names=Object.keys(byCustomer);
-  if(overviewSearchTerm.trim()){
-    const term=overviewSearchTerm.trim().toLowerCase();
-    names=names.filter(n=>n.toLowerCase().includes(term));
-  }
-  if(overviewSortMode==='total') names.sort((a,b)=>byCustomer[b].total-byCustomer[a].total);
-  else if(overviewSortMode==='count') names.sort((a,b)=>byCustomer[b].orders.length-byCustomer[a].orders.length);
-  else if(overviewSortMode==='name') names.sort((a,b)=>a.localeCompare(b,'th'));
-  else names.sort((a,b)=>byCustomer[b].lastDoneAt-byCustomer[a].lastDoneAt);
+  const topCustomers=Object.keys(byCustomer)
+    .sort((a,b)=>byCustomer[b].total-byCustomer[a].total)
+    .slice(0,5);
+
+  const byProduct={};
+  rangeOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{
+      if(!byProduct[it.name]) byProduct[it.name]=0;
+      byProduct[it.name]+=it.qty;
+    });
+  });
+  const topProducts=Object.keys(byProduct)
+    .sort((a,b)=>byProduct[b]-byProduct[a])
+    .slice(0,5);
 
   const chip=(mode,label)=>{
     const active=overviewDateMode===mode;
     return`<button onclick="setOverviewDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#D64109':'#ddd'};background:${active?'#D64109':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
   };
-  const viewBtn=(view,label,icon)=>{
-    const active=overviewView===view;
-    return`<button onclick="setOverviewView('${view}')" style="flex:1;text-align:center;padding:8px 0;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;background:${active?'#D64109':'transparent'};color:${active?'#fff':'#888'}">${icon} ${label}</button>`;
-  };
-  const sortSelect=`<div style="position:relative;flex:1 1 140px;min-width:0">
-    <select onchange="setOverviewSortMode(this.value)" style="width:100%;box-sizing:border-box;appearance:none;-webkit-appearance:none;padding:9px 26px 9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;color:#555;background:#fff;cursor:pointer;font-family:inherit">
-      <option value="recent" ${overviewSortMode==='recent'?'selected':''}>ล่าสุดที่จัดเสร็จ</option>
-      <option value="total" ${overviewSortMode==='total'?'selected':''}>ยอดรวม (มาก→น้อย)</option>
-      <option value="count" ${overviewSortMode==='count'?'selected':''}>จำนวนออเดอร์ (มาก→น้อย)</option>
-      <option value="name" ${overviewSortMode==='name'?'selected':''}>ชื่อ A-Z</option>
-    </select>
-  </div>`;
   const availableMonths=getAvailableOverviewMonths();
-  const activeMonthKey=overviewSelectedMonth||currentMonthKey();
   // dropdown เลือกเดือน: label คงที่ "เลือกเดือน" เสมอ ไม่โชว์ชื่อเดือนที่เลือกอยู่บนตัวปุ่ม
-  // (เดือนที่กำลังดูอยู่จริงไปโชว์ที่ hint เหนือกราฟแทน กันสับสนว่าปุ่มนี้คือ picker ไม่ใช่สถานะค้าง)
   const monthSelect=`<div style="position:relative;flex-shrink:0">
     <select onchange="onOverviewMonthChange(this.value)" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#D64109':'#fff'};border:1px solid ${overviewDateMode==='month'?'#D64109':'#ddd'};cursor:pointer;font-family:inherit">
       <option value="" disabled selected hidden>เลือกเดือน</option>
       ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}">${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
     </select>
   </div>`;
-  let filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;align-items:center">
+  const filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">
     ${chip('today','วันนี้')}
     ${monthSelect}
     ${chip('all','ทั้งหมด')}
-  </div>
-  <div style="display:flex;background:#fff;border:1px solid #e8e2dc;border-radius:10px;padding:3px;margin-bottom:10px">
-    ${viewBtn('customer','ดูตามลูกค้า','👤')}
-    ${viewBtn('product','ดูตามสินค้า','📦')}
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+  </div>`;
+  const filterBarEl=document.getElementById('overviewFilterBar');
+  if(filterBarEl) filterBarEl.innerHTML=filterHtml;
+
+  const statCards=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
     <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
-      <div style="font-size:19px;font-weight:600;color:#D64109">${customerNames.size}</div>
+      <div style="font-size:19px;font-weight:600;color:#D64109">${customerCount}</div>
       <div style="font-size:11px;color:#888;margin-top:2px">ลูกค้าที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
     <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
@@ -1826,91 +1818,38 @@ function renderAdminOverview(){
       <div style="font-size:11px;color:#888;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
   </div>`;
-  if(overviewDateMode==='month'){
-    filterHtml+=renderAccordionCard('chart','📈 เทรนด์ยอดขายรายวัน',`${monthLabelTh(activeMonthKey.split('-').map(Number)[0],activeMonthKey.split('-').map(Number)[1])} · แตะเพื่อดูกราฟ`,overviewAccordionOpen.chart,renderOverviewMonthChart(rangeOrders,activeMonthKey));
-    filterHtml+=renderAccordionCard('comparison','🔀 เปรียบเทียบยอดขาย','ยอดขาย 6 เดือนล่าสุด · แตะเพื่อดู',overviewAccordionOpen.comparison,renderOverviewMonthlyTrend(activeMonthKey));
-  }
-  if(overviewView==='product'){
-    filterHtml+=`<input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อสินค้า..." value="${overviewSearchTerm}" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;font-family:inherit;box-sizing:border-box" oninput="onOverviewSearch(this.value)">`;
-  } else {
-    filterHtml+=`<div style="display:flex;flex-wrap:wrap;gap:8px">
-      <input type="text" id="overviewSearchInput" placeholder="ค้นหาชื่อลูกค้า..." value="${overviewSearchTerm}" style="flex:1 1 160px;min-width:0;box-sizing:border-box;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14.5px;font-family:inherit" oninput="onOverviewSearch(this.value)">
-      ${sortSelect}
+
+  const rankingSection=(title,rows)=>{
+    if(!rows.length) return `<div style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">${title}</div>
+      <div class="empty-state" style="padding:16px">ยังไม่มีออเดอร์ในช่วงนี้</div>
     </div>`;
-  }
-  const filterBarEl=document.getElementById('overviewFilterBar');
-  if(filterBarEl) filterBarEl.innerHTML=filterHtml;
-  let html='<div style="padding-top:10px"></div>';
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">${title}</div>
+      <div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;overflow:hidden">
+        ${rows}
+      </div>
+    </div>`;
+  };
 
-  if(overviewView==='product'){
-    const byProduct={};
-    rangeOrders.forEach(o=>{
-      parseItems(o.items).forEach(it=>{
-        if(!byProduct[it.name]) byProduct[it.name]=0;
-        byProduct[it.name]+=it.qty;
-      });
-    });
-    let pNames=Object.keys(byProduct);
-    if(overviewSearchTerm.trim()){
-      const term=overviewSearchTerm.trim().toLowerCase();
-      pNames=pNames.filter(n=>n.toLowerCase().includes(term));
-    }
-    pNames.sort((a,b)=>byProduct[b]-byProduct[a]);
+  const customerRows=topCustomers.map((name,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;${idx<topCustomers.length-1?'border-bottom:0.5px solid #f0f0f0':''}">
+      <span style="font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${idx+1}. ${name}</span>
+      <span style="font-size:13.5px;font-weight:600;color:#D64109;flex-shrink:0">฿${fmtMoney(byCustomer[name].total)}</span>
+    </div>`).join('');
 
-    if(!pNames.length){
-      html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบสินค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
-    } else {
-      html+=pNames.map((name,idx)=>{
-        return`<div style="background:#fff;border-radius:10px;margin-bottom:8px;border:0.5px solid #e8e2dc;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
-          <div style="display:flex;align-items:center;gap:8px;min-width:0">
-            <span style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:#f5f3f0;color:#aaa;font-size:12.5px;font-weight:600">${idx+1}</span>
-            <span style="font-size:14.5px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
-          </div>
-          <div style="font-size:16px;font-weight:600;color:#D64109;flex-shrink:0;padding-left:8px">${byProduct[name]} ชิ้น</div>
-        </div>`;
-      }).join('');
-      html+=`<div style="font-size:12.5px;color:#aaa;text-align:center;margin-top:10px;line-height:1.6">เรียงตามจำนวนชิ้นที่ขาย (มาก→น้อย) — ไม่แสดงยอดเงิน เพราะราคาต่างกันตามกลุ่มลูกค้า</div>`;
-    }
-    wrap.innerHTML=html;
-    return;
-  }
+  const productRows=topProducts.map((name,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;${idx<topProducts.length-1?'border-bottom:0.5px solid #f0f0f0':''}">
+      <span style="font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${idx+1}. ${name}</span>
+      <span style="font-size:13.5px;color:#888;flex-shrink:0">${byProduct[name]} ชิ้น</span>
+    </div>`).join('');
 
-  if(!names.length){
-    html+=`<div class="empty-state">${overviewSearchTerm.trim()?'ไม่พบลูกค้าที่ค้นหา':'ยังไม่มีออเดอร์ในช่วงนี้'}</div>`;
-  } else {
-    html+=names.map(name=>{
-      const c=byCustomer[name];
-      const isOpen=openOverviewCustomers.has(name);
-      const safeName=name.replace(/'/g,"\\'");
-      const ordersSorted=[...c.orders].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-      const detailHtml=ordersSorted.map(o=>{
-        const label='เสร็จแล้ว',bg='#eaf3de',fg='#3b6d11';
-        const dateTimeStr=fmtOrderDateTime(o.timestamp);
-        const itemCount=parseItems(o.items).length;
-        return`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12.5px;padding:8px 0;border-bottom:1px solid #f5f5f5">
-          <span style="color:#888;font-family:monospace;line-height:1.6">${o.order_id}<br>${dateTimeStr}<br>${itemCount} รายการ</span>
-          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-            <span style="font-weight:500;color:#333;font-variant-numeric:tabular-nums;white-space:nowrap">฿${fmtMoney(o.total)}</span>
-            <span style="background:${bg};color:${fg};padding:2px 8px;border-radius:20px;white-space:nowrap;text-align:center">${label}</span>
-          </span>
-        </div>`;
-      }).join('');
-      return`<div style="background:#fff;border-radius:10px;margin-bottom:8px;border:0.5px solid #e8e2dc;overflow:hidden">
-        <div onclick="toggleOverviewCustomer('${safeName}')" style="padding:11px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
-          <div>
-            <div style="font-size:14.5px;font-weight:600;color:#1a1a1a">${name}</div>
-            <div style="font-size:11px;color:#aaa;margin-top:2px">${c.orders.length} ออเดอร์</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-size:16px;font-weight:600;color:#D64109">฿${fmtMoney(c.total)}</div>
-            <i style="font-size:13.5px;color:#aaa;transition:transform 0.15s;transform:rotate(${isOpen?180:0}deg);display:inline-block">▾</i>
-          </div>
-        </div>
-        ${isOpen?`<div style="padding:0 12px 10px;border-top:0.5px solid #f0f0f0">${detailHtml}</div>`:''}
-      </div>`;
-    }).join('');
-  }
-  wrap.innerHTML=html;
+  const dashboardBtn=`<button disabled style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #ddd;background:#f7f5f2;color:#aaa;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด (เร็วๆ นี้)</button>`;
+
+  wrap.innerHTML=statCards
+    + rankingSection('ลูกค้าอันดับต้น',customerRows)
+    + rankingSection('สินค้าขายดี',productRows)
+    + dashboardBtn;
 }
 
 function onOverviewSearch(val){
@@ -2372,7 +2311,8 @@ function parseItems(itemsText){
   return itemsText.split(', ').map(item=>{
     const lastX=item.lastIndexOf(' x');
     if(lastX===-1)return{name:item,qty:1};
-    return{name:item.substring(0,lastX),qty:parseInt(item.substring(lastX+2))||1};
+    const parsed=parseInt(item.substring(lastX+2));
+    return{name:item.substring(0,lastX),qty:isNaN(parsed)?1:parsed};
   }).filter(i=>i.qty>0);
 }
 
