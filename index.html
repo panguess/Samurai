@@ -436,6 +436,7 @@
   </div>
   <div class="admin-list" id="adminList"></div>
   <div id="adminOverview" style="display:none;padding:12px"></div>
+  <div id="ownerDashboard" style="display:none;padding:14px"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1844,12 +1845,396 @@ function renderAdminOverview(){
       <span style="font-size:13.5px;color:#888;flex-shrink:0">${byProduct[name]} ชิ้น</span>
     </div>`).join('');
 
-  const dashboardBtn=`<button disabled style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #ddd;background:#f7f5f2;color:#aaa;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด (เร็วๆ นี้)</button>`;
+  const dashboardBtn=`<button onclick="openOwnerDashboard()" style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #D64109;background:#fff;color:#D64109;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด</button>`;
 
   wrap.innerHTML=statCards
     + rankingSection('ลูกค้าอันดับต้น',customerRows)
     + rankingSection('สินค้าขายดี',productRows)
     + dashboardBtn;
+}
+
+/* ============================================================
+   OWNER DASHBOARD (ฉบับแรก — จะพัฒนาเพิ่มทีหลัง)
+   หมายเหตุสำคัญเรื่องความแม่นยำของข้อมูล (assumption ที่ยังไม่ได้ confirm 100%):
+   - "วันขายจริง" ในเดือนนั้นๆ คำนวณจาก "จำนวนวันที่มีออเดอร์จัดเสร็จเกิดขึ้นจริงอย่างน้อย 1 ออเดอร์"
+     ไม่ได้ใช้ระบบมาร์กวันหยุดร้านแบบ manual (ยังไม่ได้สร้างฟีเจอร์นั้น) — เป็นค่าประมาณที่สมเหตุสมผล
+     แต่ถ้าร้านปิดทั้งเดือนไม่มีจัดเสร็จเลย จะนับเป็น 0 วันขาย (หารด้วย 0 ต้องเช็คป้องกันไว้)
+   - churn risk: ต้องมีออเดอร์ >=3 ครั้งขึ้นไปถึงจะคำนวณ "รอบซื้อปกติ" แบบ adaptive ได้
+     ถ้าน้อยกว่านั้น fallback ใช้เกณฑ์คงที่ 30 วัน
+   ============================================================ */
+let dbCurrentTab='sales';
+let dbSalesMonth='';      // 'YYYY-M' ใช้ร่วมกันทั้งแท็บยอดขาย/สินค้า
+let dbCompareMode='mom';  // 'mom' | 'yoy'
+let dbSelectedProduct='';
+
+function openOwnerDashboard(){
+  if(window.innerWidth<768){
+    document.getElementById('adminList').style.display='none';
+    document.getElementById('adminOverview').style.display='none';
+    document.getElementById('overviewFilterBar').style.display='none';
+    const wrap=document.getElementById('ownerDashboard');
+    wrap.style.display='block';
+    wrap.innerHTML=`<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:32px;margin-bottom:12px">💻</div>
+      <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:6px">แดชบอร์ดนี้ออกแบบมาสำหรับหน้าจอกว้าง</div>
+      <div style="font-size:13px;color:#888;line-height:1.6;margin-bottom:20px">แนะนำเปิดบน iPad หรือคอมพิวเตอร์ เพื่อดูข้อมูลได้ครบและอ่านง่ายกว่า</div>
+      <button onclick="closeOwnerDashboard()" style="padding:10px 20px;border-radius:10px;border:0.5px solid #ddd;background:#fff;font-size:13px;color:#555">← กลับไปหน้าภาพรวม</button>
+    </div>`;
+    return;
+  }
+  if(!dbSalesMonth){
+    const months=getAvailableOverviewMonths();
+    dbSalesMonth=months.length?months[0].key:currentMonthKey();
+  }
+  document.getElementById('adminList').style.display='none';
+  document.getElementById('adminOverview').style.display='none';
+  document.getElementById('overviewFilterBar').style.display='none';
+  document.getElementById('ownerDashboard').style.display='block';
+  dbCurrentTab='sales';
+  renderOwnerDashboard();
+}
+
+function closeOwnerDashboard(){
+  document.getElementById('ownerDashboard').style.display='none';
+  switchAdminTab('overview');
+}
+
+function dbSwitchTab(tab){
+  dbCurrentTab=tab;
+  renderOwnerDashboard();
+}
+
+function dbSetCompareMode(mode){
+  dbCompareMode=mode;
+  renderOwnerDashboard();
+}
+
+function dbOnMonthChange(val){
+  dbSalesMonth=val;
+  renderOwnerDashboard();
+}
+
+// ---- helper ข้อมูลร่วม ----
+function db_doneOrders(){
+  return allAdminOrders.filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
+}
+
+// จำนวน "วันขายจริง" ในช่วง = จำนวนวันปฏิทินที่มีออเดอร์จัดเสร็จเกิดขึ้นอย่างน้อย 1 ออเดอร์ (ดูหมายเหตุด้านบน)
+function db_sellingDaysCount(orders){
+  const days=new Set();
+  orders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(isNaN(d))return;
+    days.add(d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate());
+  });
+  return days.size;
+}
+
+function db_prevMonthKey(y,m){
+  let mm=m-1,yy=y;
+  if(mm<0){mm=11;yy--;}
+  return{y:yy,m:mm};
+}
+
+// แยก contribution ของยอดขายที่เปลี่ยนไประหว่าง 2 ช่วงเวลา: ลูกค้าเดิมซื้อเพิ่ม/ลด, ลูกค้าใหม่, ลูกค้าหาย
+function db_decomposeSalesChange(currOrders,prevOrders){
+  const currByCust={},prevByCust={};
+  currOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';currByCust[n]=(currByCust[n]||0)+Number(o.total);});
+  prevOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';prevByCust[n]=(prevByCust[n]||0)+Number(o.total);});
+  let continuingDelta=0,newTotal=0,newCount=0,churnedTotal=0,churnedCount=0;
+  Object.keys(currByCust).forEach(n=>{
+    if(prevByCust.hasOwnProperty(n)) continuingDelta+=(currByCust[n]-prevByCust[n]);
+    else{newTotal+=currByCust[n];newCount++;}
+  });
+  Object.keys(prevByCust).forEach(n=>{
+    if(!currByCust.hasOwnProperty(n)){churnedTotal+=prevByCust[n];churnedCount++;}
+  });
+  return{continuingDelta,newTotal,newCount,churnedTotal,churnedCount};
+}
+
+function renderOwnerDashboard(){
+  const wrap=document.getElementById('ownerDashboard');
+  const availableMonths=getAvailableOverviewMonths();
+  const tabBtn=(tab,label)=>`<button onclick="dbSwitchTab('${tab}')" style="padding:10px 18px;font-size:13.5px;font-weight:500;border:none;background:none;cursor:pointer;color:${dbCurrentTab===tab?'#1a1a1a':'#999'};border-bottom:2px solid ${dbCurrentTab===tab?'#D64109':'transparent'}">${label}</button>`;
+  const monthSelect=`<select onchange="dbOnMonthChange(this.value)" style="padding:6px 10px;border-radius:8px;font-size:12.5px;border:1px solid #ddd;font-family:inherit">
+    ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}" ${mo.key===dbSalesMonth?'selected':''}>${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
+  </select>`;
+
+  let bodyHtml='';
+  if(dbCurrentTab==='sales') bodyHtml=renderDashboardSales();
+  else if(dbCurrentTab==='product') bodyHtml=renderDashboardProduct();
+  else bodyHtml=renderDashboardCustomer();
+
+  wrap.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <button onclick="closeOwnerDashboard()" style="border:none;background:none;color:#888;font-size:13px;cursor:pointer">← กลับ</button>
+      ${dbCurrentTab!=='customer'?monthSelect:''}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:0.5px solid #eee">
+      ${tabBtn('sales','ยอดขาย')}
+      ${tabBtn('product','สินค้า')}
+      ${tabBtn('customer','ลูกค้า')}
+    </div>
+    <div>${bodyHtml}</div>
+  `;
+}
+
+// ---------------- แท็บยอดขาย ----------------
+function renderDashboardSales(){
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const[curS,curE]=monthRange(y,m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+
+  let prevY=y,prevM,prevS,prevE;
+  if(dbCompareMode==='yoy'){prevY=y-1;prevM=m;}
+  else{const pv=db_prevMonthKey(y,m);prevY=pv.y;prevM=pv.m;}
+  [prevS,prevE]=monthRange(prevY,prevM);
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+
+  const currTotal=currOrders.reduce((s,o)=>s+Number(o.total),0);
+  const prevTotal=prevOrders.reduce((s,o)=>s+Number(o.total),0);
+  const changePct=prevTotal>0?((currTotal-prevTotal)/prevTotal*100):(currTotal>0?100:0);
+  const sellingDays=db_sellingDaysCount(currOrders);
+  const avgPerDay=sellingDays>0?currTotal/sellingDays:0;
+  const aov=currOrders.length>0?currTotal/currOrders.length:0;
+
+  const decomp=db_decomposeSalesChange(currOrders,prevOrders);
+  const compareLabel=dbCompareMode==='yoy'?'ปีก่อนช่วงเดียวกัน':'เดือนก่อน';
+  const insightHtml=`<div style="padding:10px 12px;background:#fdf1ea;border-radius:10px;font-size:12.5px;color:#333;line-height:1.7;margin-bottom:12px">
+    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})<br>
+    · ลูกค้าเดิมซื้อ${decomp.continuingDelta>=0?'เพิ่ม':'ลด'} ฿${fmtMoney(Math.abs(decomp.continuingDelta))}
+    · ลูกค้าใหม่เข้าแอป ${decomp.newCount} เจ้า (฿${fmtMoney(decomp.newTotal)})
+    · ลูกค้าหาย ${decomp.churnedCount} เจ้า (-฿${fmtMoney(decomp.churnedTotal)})
+  </div>`;
+
+  const statCards=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(currTotal)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ยอดขายรวม</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(avgPerDay)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">เฉลี่ย/วันขาย</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${sellingDays}</div><div style="font-size:10.5px;color:#999;margin-top:2px">วันขายจริง</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(aov)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">AOV</div></div>
+  </div>`;
+
+  const compareToggle=`<div style="display:flex;gap:4px;margin-bottom:8px">
+    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#D64109':'#ddd'};background:${dbCompareMode==='mom'?'#D64109':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
+    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#D64109':'#ddd'};background:${dbCompareMode==='yoy'?'#D64109':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
+  </div>`;
+
+  const chartCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">เทรนด์ยอดขายรายวัน</div>
+    ${compareToggle}
+    ${renderOverviewMonthChart(currOrders,dbSalesMonth)}
+  </div>`;
+
+  const aovTrendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">AOV เทรนด์ 6 เดือนล่าสุด</div>
+    ${renderDashboardAOVTrend(dbSalesMonth)}
+  </div>`;
+
+  return insightHtml+statCards+chartCard+aovTrendCard;
+}
+
+function renderDashboardAOVTrend(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const ord=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=s&&d<=e;});
+    const total=ord.reduce((sum,o)=>sum+Number(o.total),0);
+    const aov=ord.length>0?total/ord.length:0;
+    months.push({y:yy,m:mm,aov,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.aov));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.aov/maxVal)*100,mo.aov>0?2:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">฿${Math.round(mo.aov)}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:110px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
+}
+
+// ---------------- แท็บสินค้า ----------------
+function renderDashboardProduct(){
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const[curS,curE]=monthRange(y,m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+  const pv=db_prevMonthKey(y,m);
+  const[prevS,prevE]=monthRange(pv.y,pv.m);
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+
+  const prodMap={};
+  products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+
+  const byQty={},byBaht={},prevByQty={};
+  currOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{
+      byQty[it.name]=(byQty[it.name]||0)+it.qty;
+      byBaht[it.name]=(byBaht[it.name]||0)+it.qty*(prodMap[it.name]||0);
+    });
+  });
+  prevOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{prevByQty[it.name]=(prevByQty[it.name]||0)+it.qty;});
+  });
+
+  const topByQty=Object.keys(byQty).sort((a,b)=>byQty[b]-byQty[a]).slice(0,10);
+  const topByBaht=Object.keys(byBaht).sort((a,b)=>byBaht[b]-byBaht[a]).slice(0,10);
+
+  // สินค้าขายช้าลง: ต้องมียอดเดือนก่อน >=5 ชิ้น กันไม่ให้ตัวอย่างน้อยเกินไปมาสรุปเกินจริง
+  const declining=Object.keys(prevByQty)
+    .filter(n=>prevByQty[n]>=5)
+    .map(n=>{
+      const cur=byQty[n]||0;
+      const pct=((cur-prevByQty[n])/prevByQty[n])*100;
+      return{name:n,pct,cur,prev:prevByQty[n]};
+    })
+    .filter(x=>x.pct<0)
+    .sort((a,b)=>a.pct-b.pct)
+    .slice(0,5);
+
+  const listCard=(title,rows,rightFn)=>{
+    if(!rows.length) return `<div style="background:#faf8f5;border-radius:10px;padding:12px"><div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">${title}</div><div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูลในเดือนนี้</div></div>`;
+    return `<div style="background:#faf8f5;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">${title}</div>
+      ${rows.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<rows.length-1?'border-bottom:0.5px solid #eee':''}"><span>${n}</span><span style="font-weight:500;color:#D64109">${rightFn(n)}</span></div>`).join('')}
+    </div>`;
+  };
+
+  const topGrid=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    ${listCard('ขายดี Top 10 (ตามยอด฿)',topByBaht,n=>'฿'+fmtMoney(byBaht[n]))}
+    ${listCard('ขายดี Top 10 (ตามชิ้น)',topByQty,n=>byQty[n]+' ชิ้น')}
+  </div>`;
+
+  const decliningCard=declining.length?`<div style="background:#fdf6e8;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#854F0B;margin-bottom:8px">⚠️ สินค้าที่ขายช้าลง (เทียบเดือนก่อน)</div>
+    ${declining.map(x=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;color:#333"><span>${x.name} (${x.prev}→${x.cur} ชิ้น)</span><span style="color:#A32D2D">▼ ${Math.abs(x.pct).toFixed(0)}%</span></div>`).join('')}
+  </div>`:'';
+
+  const allProductNames=Array.from(new Set(currOrders.flatMap(o=>parseItems(o.items).map(it=>it.name)))).sort((a,b)=>a.localeCompare(b,'th'));
+  if(!dbSelectedProduct&&allProductNames.length) dbSelectedProduct=allProductNames[0];
+  const drilldownCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">เทรนด์รายสินค้า (6 เดือนล่าสุด)</div>
+    <select onchange="dbSelectProduct(this.value)" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #ddd;font-size:12.5px;margin-bottom:10px;font-family:inherit">
+      ${allProductNames.map(n=>`<option value="${n}" ${n===dbSelectedProduct?'selected':''}>${n}</option>`).join('')}
+    </select>
+    ${dbSelectedProduct?renderDashboardProductTrend(dbSelectedProduct,dbSalesMonth):'<div style="font-size:12px;color:#aaa">เลือกสินค้าเพื่อดูเทรนด์</div>'}
+  </div>`;
+
+  return topGrid+decliningCard+drilldownCard;
+}
+
+function dbSelectProduct(name){
+  dbSelectedProduct=name;
+  renderOwnerDashboard();
+}
+
+function renderDashboardProductTrend(productName,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const ord=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=s&&d<=e;});
+    let qty=0;
+    ord.forEach(o=>{parseItems(o.items).forEach(it=>{if(it.name===productName)qty+=it.qty;});});
+    months.push({y:yy,m:mm,qty,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.qty));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.qty/maxVal)*100,mo.qty>0?2:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.qty}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:100px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
+}
+
+// ---------------- แท็บลูกค้า (ใช้ประวัติทั้งหมด ไม่ผูกกับเดือนที่เลือก) ----------------
+function renderDashboardCustomer(){
+  const allDone=db_doneOrders();
+  const byCust={};
+  allDone.forEach(o=>{
+    const n=o.customer_name||'ไม่ระบุชื่อ';
+    if(!byCust[n]) byCust[n]={orders:[],total:0};
+    byCust[n].orders.push(o);
+    byCust[n].total+=Number(o.total);
+  });
+
+  const names=Object.keys(byCust);
+  const now=new Date();
+  const currMonthKey=currentMonthKey();
+  const[cs,ce]=monthRange(...currMonthKey.split('-').map(Number));
+
+  const churnList=[];
+  let newThisMonthCount=0;
+  const freqByName={};
+
+  names.forEach(n=>{
+    const ordersSorted=byCust[n].orders
+      .map(o=>new Date(o.done_at||o.timestamp))
+      .filter(d=>!isNaN(d))
+      .sort((a,b)=>a-b);
+    if(!ordersSorted.length)return;
+
+    const firstOrderDate=ordersSorted[0];
+    if(firstOrderDate>=cs&&firstOrderDate<=ce) newThisMonthCount++;
+
+    const lastOrderDate=ordersSorted[ordersSorted.length-1];
+    const daysSinceLast=(now-lastOrderDate)/(1000*60*60*24);
+
+    let avgGapDays=null;
+    if(ordersSorted.length>=3){
+      const gaps=[];
+      for(let i=1;i<ordersSorted.length;i++) gaps.push((ordersSorted[i]-ordersSorted[i-1])/(1000*60*60*24));
+      gaps.sort((a,b)=>a-b);
+      const mid=Math.floor(gaps.length/2);
+      avgGapDays=gaps.length%2?gaps[mid]:(gaps[mid-1]+gaps[mid])/2; // median รอบซื้อ ทนทานต่อค่าผิดปกติกว่าค่าเฉลี่ย
+      freqByName[n]=avgGapDays;
+    }
+
+    const threshold=avgGapDays!==null?avgGapDays*2:30; // fallback 30 วันถ้าออเดอร์ไม่ถึง 3 ครั้ง
+    if(daysSinceLast>threshold){
+      churnList.push({name:n,daysSinceLast:Math.round(daysSinceLast),normalGap:avgGapDays?Math.round(avgGapDays):null,ratio:avgGapDays?(daysSinceLast/avgGapDays):null});
+    }
+  });
+  churnList.sort((a,b)=>b.daysSinceLast-a.daysSinceLast);
+
+  const topLTV=names.slice().sort((a,b)=>byCust[b].total-byCust[a].total).slice(0,10);
+
+  const statCards=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${newThisMonthCount}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ใหม่เดือนนี้</div></div>
+    <div style="background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
+  </div>`;
+
+  const churnCard=churnList.length?`<div style="background:#fceaea;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#A32D2D;margin-bottom:8px">⚠️ ลูกค้าเงียบผิดปกติ</div>
+    ${churnList.map(c=>`<div style="font-size:12px;color:#333;padding:5px 0;border-bottom:0.5px solid #f3d9d9">
+      ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:''}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)}x)`:''}
+    </div>`).join('')}
+  </div>`:`<div style="background:#eaf3de;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#3B6D11">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
+
+  const ltvCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">ลูกค้าอันดับต้น (ยอดสะสมทั้งหมด)</div>
+    ${topLTV.length?topLTV.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topLTV.length-1?'border-bottom:0.5px solid #eee':''}">
+      <span>${idx+1}. ${n}${freqByName[n]?` <span style="color:#aaa">· ทุก ~${Math.round(freqByName[n])} วัน</span>`:''}</span>
+      <span style="font-weight:500;color:#D64109">฿${fmtMoney(byCust[n].total)}</span>
+    </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
+  </div>`;
+
+  return statCards+churnCard+ltvCard;
 }
 
 function onOverviewSearch(val){
