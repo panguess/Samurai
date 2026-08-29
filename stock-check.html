@@ -166,7 +166,9 @@
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
   .ord-card.state-ordered .ord-card-head{background:var(--green-bg);}
-  .order-done-check{width:17px; height:17px; border-radius:50%; background:var(--green); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .order-done-check{width:18px; height:18px; border-radius:50%; background:none; border:2px solid var(--green); color:transparent; font-size:11px; font-weight:700; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;}
+  .order-done-check.confirmed{background:var(--green); color:#fff;}
+  .order-done-check:disabled{opacity:0.5; cursor:default;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
   .ord-card-status{display:flex; flex-direction:column; gap:2px; align-items:flex-end; flex-shrink:0;}
   .status-line{font-size:13px; font-weight:600; white-space:nowrap;}
@@ -175,7 +177,6 @@
   .status-line.needorder{color:var(--danger);}
   .status-line.ordered{color:var(--green);}
   .status-sub{font-size:11px; color:var(--text-tertiary); white-space:nowrap;}
-  .confirm-sent-check{width:17px; height:17px; flex-shrink:0; margin:0; accent-color:var(--green); cursor:pointer;}
   .ord-card-body{display:none; border-top:1px solid var(--border);}
   .ord-card.open .ord-card-body{display:block;}
   .sup-order-btn-row{padding:8px 10px; display:flex; justify-content:flex-end;}
@@ -1221,8 +1222,7 @@ async function renderOrderPage(app){
       const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
-        ${orderDone ? '<span class="order-done-check">✓</span>' : ''}
-        <input type="checkbox" class="confirm-sent-check" ${isConfirmed?'checked':''} title="ติ๊กเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">
+        ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
         <span class="ord-card-name">${s.name}</span>
         <div class="ord-card-status">
           <span class="status-line ${stateClass}">${statusText}</span>
@@ -1235,25 +1235,27 @@ async function renderOrderPage(app){
       };
       main.appendChild(head);
 
-      // ติ๊กยืนยันด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว" (เช่น กดส่งในไลน์แล้ว) — แยกจากสถานะ
-      // "สร้างข้อความแล้ว" ที่โชว์อยู่แล้ว ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น ไม่ได้รู้ว่า
-      // ข้อความถูกส่งออกไปหา supplier จริงหรือยัง — วางเป็นช่องติ๊กหน้าชื่อเจ้าเลยแทนแถวแยก ให้ดูคลีนกว่า
-      const confirmCheckbox = head.querySelector('.confirm-sent-check');
-      confirmCheckbox.onclick = (e)=> e.stopPropagation();
-      confirmCheckbox.onchange = async (e)=>{
-        const checked = e.target.checked;
-        confirmCheckbox.disabled = true;
-        try{
-          await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName });
-          if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
-          renderStats();
-        }catch(err){
-          e.target.checked = !checked; // revert ถ้าบันทึกไม่สำเร็จ
-          alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
-        }finally{
-          confirmCheckbox.disabled = false;
-        }
-      };
+      // วงกลม "✓" หน้าชื่อเจ้า (โผล่มาก็ต่อเมื่อสร้างข้อความสั่งของแล้ว — orderDone) ใช้เป็นปุ่มกดยืนยัน
+      // ด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว" ไปในตัว: วงว่าง = ยังไม่ได้ส่ง, วงเขียวมี ✓ = ส่งแล้ว
+      // แยกจากสถานะ "สร้างข้อความแล้ว" (statusText ด้านขวา) ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น
+      // ไม่ได้รู้ว่าข้อความถูกส่งออกไปหา supplier จริงหรือยัง
+      const confirmBtn = head.querySelector('.order-done-check');
+      if(confirmBtn){
+        confirmBtn.onclick = async (e)=>{
+          e.stopPropagation();
+          const checked = !isConfirmed;
+          confirmBtn.disabled = true;
+          try{
+            await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName });
+            if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
+            renderStats();
+            renderGroups(c.querySelector('#search').value);
+          }catch(err){
+            confirmBtn.disabled = false;
+            alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
+          }
+        };
+      }
 
       const body = document.createElement('div'); body.className = 'ord-card-body';
 
