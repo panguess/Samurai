@@ -1239,16 +1239,17 @@ async function renderOrderPage(app){
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
       const open = expandedSuppliers.has(s.id);
 
-      // Gate on fullyChecked too: don't show "ordered" (green) before the
-      // supplier's stock is fully checked today.
-      const orderDone = fullyChecked && isOrdered;
+      // เดิมบังคับให้เช็คสต๊อกครบทุกรายการก่อนถึงจะขึ้นสถานะ "สั่งแล้ว" — แต่ในทางปฏิบัติ
+      // บางเจ้ามีของหลายสิบรายการ แต่วันนี้อยากสั่งแค่ 1-2 อย่างโดยไม่ต้องไล่เช็คสต๊อกทั้งหมด
+      // จึงตัดเงื่อนไข fullyChecked ออก ขอแค่มีการสร้างข้อความสั่งของไปแล้วก็พอ (isOrdered)
+      const orderDone = isOrdered;
       // Single combined status per supplier — one line, one color, states an action
       // rather than two badges (stock-check count vs order status) that read as unrelated.
       // นับตามจำนวนสินค้าที่ลูกจ้างกดติ๊กว่าเช็คแล้วจริงๆ เท่านั้น — สินค้าที่ลูกจ้างเช็คแล้วแต่ไม่มีของ
       // (กรอกคงเหลือเป็น 0) ก็นับว่า "เช็คแล้ว" เหมือนกัน เพราะติ๊กผ่านการเช็คสต๊อกไปแล้วจริง
       const checkedRatio = `${checkedCount}/${allItems.length}`;
       let stateClass, statusText, subText;
-      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกครบแล้ว (${checkedRatio})`; }
+      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกแล้ว ${checkedRatio} รายการ`; }
       else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (${checkedRatio} รายการ)`; }
       else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
       else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
