@@ -172,7 +172,10 @@
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
   /* แท็ก "สั่งเผื่อ" — ข้อมูลเสริมแปะไว้ในคอลัมน์สถานะฝั่งขวา (ไม่ใช่ข้างชื่อเจ้า) เพราะชื่อเจ้าเป็น
      flex ที่ยืด/หดตามความยาวข้อความสถานะ ถ้าแปะข้างชื่อ พอสถานะเปลี่ยนความยาว (เช่น "เลือกไว้ N รายการ"
-     โผล่/หาย) แท็กจะขยับตำแหน่งตามไปด้วย — วางในคอลัมน์ฝั่งขวาที่ตำแหน่งคงที่แทน ไม่ขยับอีก */
+     โผล่/หาย) แท็กจะขยับตำแหน่งตามไปด้วย — วางในคอลัมน์ฝั่งขวาที่ตำแหน่งคงที่แทน ไม่ขยับอีก
+     และอยู่ "บรรทัดเดียวกับสถานะ" (.status-top-row) ไม่ใช่ซ้อนเป็นบรรทัดใหม่ กันการ์ดที่มีแท็ก
+     สูงกว่าการ์ดใบอื่นในลิสต์ */
+  .status-top-row{display:flex; align-items:center; gap:6px;}
   .stockup-tag{font-size:11px; font-weight:700; color:var(--amber); background:var(--amber-bg); border-radius:6px; padding:2px 7px; white-space:nowrap;}
   /* หัวข้อเซกชัน "ต้องสั่งวันนี้" / "เจ้าอื่นทั้งหมด" — แพทเทิร์นเดียวกับ .role-label ที่มีอยู่แล้ว */
   .section-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
@@ -1301,8 +1304,10 @@ async function renderOrderPage(app){
         ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
         <span class="ord-card-name">${s.name}</span>
         <div class="ord-card-status">
-          ${stockupMultiplier ? `<span class="stockup-tag">×${stockupMultiplier} สั่งเผื่อ</span>` : ''}
-          <span class="status-line ${stateClass}">${statusText}</span>
+          <div class="status-top-row">
+            ${stockupMultiplier ? `<span class="stockup-tag">×${stockupMultiplier} สั่งเผื่อ</span>` : ''}
+            <span class="status-line ${stateClass}">${statusText}</span>
+          </div>
           <span class="status-sub">${subText}</span>
         </div>
       `;
