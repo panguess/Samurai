@@ -2373,7 +2373,7 @@ function renderDashboardCustomer(){
       if(r.movement===null) badge=`<span style="color:#5a67c9;font-size:11px">🆕 ไม่ติดอันดับเดือนก่อน</span>`;
       else if(r.movement>0) badge=`<span style="color:#3B6D11;font-size:11px">▲ ขึ้น ${r.movement} อันดับ (จาก #${r.prevRank})</span>`;
       else if(r.movement<0) badge=`<span style="color:#A32D2D;font-size:11px">▼ ลง ${Math.abs(r.movement)} อันดับ (จาก #${r.prevRank})</span>`;
-      else badge=`<span style="color:#999;font-size:11px">— เท่าเดิม</span>`;
+      else badge=`<span style="color:#999;font-size:11px">↔ เท่าเดิม</span>`;
       return`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:0.5px solid #eee">
         <span>#${r.currRank} ${r.name}</span>${badge}
       </div>`;
@@ -2398,7 +2398,7 @@ function renderDashboardCustomer(){
     </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
   </div>`;
 
-  return statCards+trendCard+monthListCard+rankMovementCard+churnCard+ltvCard+basketCard;
+  return statCards+trendCard+monthListCard+churnCard+rankMovementCard+ltvCard+basketCard;
 }
 
 function renderDashboardNewCustomerTrend(monthKey,firstOrderByCust){
