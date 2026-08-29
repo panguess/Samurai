@@ -170,6 +170,8 @@
   .order-done-check.confirmed{background:var(--green); color:#fff;}
   .order-done-check:disabled{opacity:0.5; cursor:default;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
+  /* แท็ก "สั่งเผื่อ" — ข้อมูลเสริมแปะข้างสถานะเช็คสต๊อก ไม่ได้แทนที่สถานะเช็คสต๊อกเลย */
+  .stockup-tag{font-size:11px; font-weight:700; color:var(--amber); background:var(--amber-bg); border-radius:6px; padding:2px 7px; white-space:nowrap; flex-shrink:0;}
   /* หัวข้อเซกชัน "ต้องสั่งวันนี้" / "เจ้าอื่นทั้งหมด" — แพทเทิร์นเดียวกับ .role-label ที่มีอยู่แล้ว */
   .section-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
   .section-label::after{content:''; flex:1; height:1px; background:var(--border-strong);}
@@ -416,6 +418,30 @@ function todayDayName(){ return DAY_NAMES[new Date().getDay()]; }
 function supplierDueToday(s){
   const today = todayDayName();
   return (s.orderDays||[]).some(d => String(d).trim().slice(0,3).toLowerCase() === today.toLowerCase());
+}
+function dayNameToIndex(d){
+  const norm = String(d).trim().slice(0,3).toLowerCase();
+  return DAY_NAMES.findIndex(x => x.toLowerCase() === norm);
+}
+// หารอบสั่งถัดไปของเจ้านี้ห่างจากวันนี้กี่วัน — ใช้เตือน "สั่งเผื่อ" สำหรับเจ้าที่สั่งไม่ทุกวัน
+// เช่น สั่งแค่ Tue,Fri พอถึงวัน Tue รอบหน้าคือ Fri (ห่าง 3 วัน) ก็ควรสั่งเผื่อ 3 วัน
+// คืนค่า null ถ้าไม่ได้กำหนด OrderDays เลย, คืน 7 ถ้าสั่งแค่วันเดียวต่อสัปดาห์
+function daysUntilNextOrder(s){
+  const idxs = (s.orderDays||[]).map(dayNameToIndex).filter(i => i >= 0);
+  if(!idxs.length) return null;
+  if(idxs.length < 2) return 7;
+  const todayIdx = new Date().getDay();
+  for(let gap = 1; gap <= 7; gap++){
+    if(idxs.includes((todayIdx + gap) % 7)) return gap;
+  }
+  return null;
+}
+// ตัวเลข "สั่งเผื่อ" ที่จะโชว์ — โผล่เฉพาะเจ้าที่ถึงรอบวันนี้ และรอบถัดไปห่างมากกว่า 1 วัน
+// (เจ้าที่สั่งได้ทุกวันติดกัน รอบถัดไปคือพรุ่งนี้อยู่แล้ว ไม่ต้องเผื่อ เลยไม่ต้องมีตัวเลขนี้)
+function supplierStockupMultiplier(s){
+  if(!supplierDueToday(s)) return null;
+  const gap = daysUntilNextOrder(s);
+  return gap && gap > 1 ? gap : null;
 }
 
 /* ============ LIVE DATA (filled by bootstrap()) ============ */
@@ -1231,6 +1257,7 @@ async function renderOrderPage(app){
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
       const dueToday = supplierDueToday(s);
+      const stockupMultiplier = supplierStockupMultiplier(s);
       // เจ้ากลุ่มแรกที่ไม่ถึงรอบวันนี้ (ตามลำดับที่ sort ไว้แล้ว) คือจุดเริ่มเซกชัน "เจ้าอื่นทั้งหมด"
       if(!dueToday && !restLabelInserted){ groups.appendChild(restLabel); groups.appendChild(otherSection); restLabelInserted = true; }
       const renderTarget = dueToday ? groups : otherSection;
@@ -1271,6 +1298,7 @@ async function renderOrderPage(app){
         <i class="ti ti-chevron-down chev"></i>
         ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
         <span class="ord-card-name">${s.name}</span>
+        ${stockupMultiplier ? `<span class="stockup-tag">×${stockupMultiplier} สั่งเผื่อ</span>` : ''}
         <div class="ord-card-status">
           <span class="status-line ${stateClass}">${statusText}</span>
           <span class="status-sub">${subText}</span>
