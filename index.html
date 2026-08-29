@@ -1943,15 +1943,18 @@ function db_decomposeSalesChange(currOrders,prevOrders){
   const currByCust={},prevByCust={};
   currOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';currByCust[n]=(currByCust[n]||0)+Number(o.total);});
   prevOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';prevByCust[n]=(prevByCust[n]||0)+Number(o.total);});
-  let continuingDelta=0,newTotal=0,newCount=0,churnedTotal=0,churnedCount=0;
+  let continuingDelta=0,newTotal=0,churnedTotal=0;
+  const newNames=[],churnedNames=[];
   Object.keys(currByCust).forEach(n=>{
     if(prevByCust.hasOwnProperty(n)) continuingDelta+=(currByCust[n]-prevByCust[n]);
-    else{newTotal+=currByCust[n];newCount++;}
+    else{newTotal+=currByCust[n];newNames.push({name:n,total:currByCust[n]});}
   });
   Object.keys(prevByCust).forEach(n=>{
-    if(!currByCust.hasOwnProperty(n)){churnedTotal+=prevByCust[n];churnedCount++;}
+    if(!currByCust.hasOwnProperty(n)){churnedTotal+=prevByCust[n];churnedNames.push({name:n,total:prevByCust[n]});}
   });
-  return{continuingDelta,newTotal,newCount,churnedTotal,churnedCount};
+  newNames.sort((a,b)=>b.total-a.total);
+  churnedNames.sort((a,b)=>b.total-a.total);
+  return{continuingDelta,newTotal,newNames,churnedTotal,churnedNames};
 }
 
 function renderOwnerDashboard(){
@@ -1970,7 +1973,7 @@ function renderOwnerDashboard(){
   wrap.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <button onclick="closeOwnerDashboard()" style="border:none;background:none;color:#888;font-size:13px;cursor:pointer">← กลับ</button>
-      ${dbCurrentTab!=='customer'?monthSelect:''}
+      ${monthSelect}
     </div>
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:0.5px solid #eee">
       ${tabBtn('sales','ยอดขาย')}
@@ -2003,11 +2006,22 @@ function renderDashboardSales(){
 
   const decomp=db_decomposeSalesChange(currOrders,prevOrders);
   const compareLabel=dbCompareMode==='yoy'?'ปีก่อนช่วงเดียวกัน':'เดือนก่อน';
+
+  const compareToggle=`<div style="display:flex;gap:4px;margin-bottom:8px">
+    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#D64109':'#ddd'};background:${dbCompareMode==='mom'?'#D64109':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
+    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#D64109':'#ddd'};background:${dbCompareMode==='yoy'?'#D64109':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
+  </div>`;
+
+  const nameChips=(list,color)=>list.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
+    ${list.map(x=>`<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff;color:${color};border:0.5px solid ${color}">${x.name} (฿${fmtMoney(x.total)})</span>`).join('')}
+  </div>`:'';
+
   const insightHtml=`<div style="padding:10px 12px;background:#fdf1ea;border-radius:10px;font-size:12.5px;color:#333;line-height:1.7;margin-bottom:12px">
     ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})<br>
     · ลูกค้าเดิมซื้อ${decomp.continuingDelta>=0?'เพิ่ม':'ลด'} ฿${fmtMoney(Math.abs(decomp.continuingDelta))}
-    · ลูกค้าใหม่เข้าแอป ${decomp.newCount} เจ้า (฿${fmtMoney(decomp.newTotal)})
-    · ลูกค้าหาย ${decomp.churnedCount} เจ้า (-฿${fmtMoney(decomp.churnedTotal)})
+    <div style="margin-top:8px">🆕 ลูกค้าใหม่ ${decomp.newNames.length} เจ้า (รวม฿${fmtMoney(decomp.newTotal)}) ${nameChips(decomp.newNames,'#3B6D11')}</div>
+    <div style="margin-top:8px">📉 ลูกค้าที่หายไปเดือนนี้ ${decomp.churnedNames.length} เจ้า (รวม-฿${fmtMoney(decomp.churnedTotal)}) ${nameChips(decomp.churnedNames,'#A32D2D')}</div>
+    <div style="font-size:11px;color:#aaa;margin-top:8px">* "ใหม่/หาย" ในบทวิเคราะห์นี้ หมายถึงเทียบกับ${compareLabel}เท่านั้น (ซื้อช่วงนี้แต่ไม่ซื้อช่วงก่อน หรือกลับกัน) ไม่เหมือนกับ "ลูกค้าเงียบผิดปกติ" ในแท็บลูกค้าที่ดูยาวนานกว่านั้น</div>
   </div>`;
 
   const statCards=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
@@ -2017,23 +2031,99 @@ function renderDashboardSales(){
     <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(aov)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">AOV</div></div>
   </div>`;
 
-  const compareToggle=`<div style="display:flex;gap:4px;margin-bottom:8px">
-    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#D64109':'#ddd'};background:${dbCompareMode==='mom'?'#D64109':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
-    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#D64109':'#ddd'};background:${dbCompareMode==='yoy'?'#D64109':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
-  </div>`;
-
   const chartCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
     <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">เทรนด์ยอดขายรายวัน</div>
-    ${compareToggle}
-    ${renderOverviewMonthChart(currOrders,dbSalesMonth)}
+    ${renderDashboardMonthChart(currOrders,dbSalesMonth)}
   </div>`;
 
   const aovTrendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
-    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">AOV เทรนด์ 6 เดือนล่าสุด</div>
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">AOV เทรนด์ 6 เดือนล่าสุด</div>
+    <div style="font-size:11px;color:#999;margin-bottom:8px">AOV (Average Order Value) = ยอดขายรวม ÷ จำนวนออเดอร์ในเดือนนั้น พูดง่ายๆ คือ "ลูกค้าจ่ายเฉลี่ยครั้งละเท่าไหร่" — ถ้าตัวเลขนี้สูงขึ้นเรื่อยๆ แปลว่าลูกค้าซื้อต่อครั้งเยอะขึ้น ไม่ใช่แค่มาซื้อบ่อยขึ้น</div>
     ${renderDashboardAOVTrend(dbSalesMonth)}
   </div>`;
 
-  return insightHtml+statCards+chartCard+aovTrendCard;
+  return compareToggle+insightHtml+statCards+chartCard+aovTrendCard;
+}
+
+function renderDashboardMonthChart(rangeOrders,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  ensureThaiHolidaysLoaded(y);
+  const holidays=thaiHolidaysCache[y]||{};
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const byDay=new Array(daysInMonth+1).fill(0);
+  rangeOrders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(d.getFullYear()===y&&d.getMonth()===m) byDay[d.getDate()]+=Number(o.total)||0;
+  });
+  const maxRaw=Math.max(1,...byDay.slice(1));
+  const gridStep=niceStepTh(maxRaw);
+  const gridMax=Math.ceil(maxRaw/gridStep)*gridStep;
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+
+  let gridlines='';
+  for(let v=0; v<=gridMax; v+=gridStep){
+    const pct=(v/gridMax)*100;
+    gridlines+=`<div style="position:absolute;left:0;right:0;bottom:${pct}%;border-top:1px dashed #ececec">
+      <div style="position:absolute;left:0;top:-8px;font-size:10px;color:#bbb;background:#faf8f5;padding-right:4px">${v>=1000?Math.round(v/1000)+'k':v}</div>
+    </div>`;
+  }
+
+  let bars='';
+  const monthHolidayEntries=[];
+  for(let day=1;day<=daysInMonth;day++){
+    const val=byDay[day];
+    const hPct=Math.max((val/gridMax)*100,val>0?2:0);
+    const showLabel=(day===1||day===daysInMonth||day%showLabelEvery===0);
+    const dateKey=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow=new Date(y,m,day).getDay();
+    const isWeekend=dow===0||dow===6;
+    const holidayName=holidays[dateKey];
+    if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    bars+=`<div onclick="showDashboardChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
+      <div id="dbBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
+    </div>`;
+  }
+
+  const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#888;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
+  </div>`;
+
+  // แสดงชื่อวันหยุดนักขัตฤกษ์ตรงๆ เสมอ ไม่ต้องกดขยาย (ต่างจากหน้าภาพรวมที่เป็น dropdown)
+  const holidayList=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="font-size:12px;color:#777;margin-bottom:6px">🎌 วันหยุดนักขัตฤกษ์เดือนนี้ (${monthHolidayEntries.length})</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${monthHolidayEntries.length?monthHolidayEntries.map(h=>`<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#555"><span style="flex-shrink:0;width:60px;color:#5a67c9;font-weight:600">${h.day} ${monthLabelTh(y,m).split(' ')[0].slice(0,3)}. (${dayNamesTh[h.dow]})</span><span>${h.name}</span></div>`).join(''):(thaiHolidaysCache[y]?`<div style="font-size:11.5px;color:#bbb;font-style:italic">ไม่มีวันหยุดนักขัตฤกษ์ในเดือนนี้</div>`:`<div style="font-size:11.5px;color:#bbb">กำลังโหลดข้อมูลวันหยุด...</div>`)}
+    </div>
+  </div>`;
+
+  return`
+    <div style="position:relative;height:180px;margin-bottom:6px">
+      ${gridlines}
+      <div style="position:absolute;left:34px;right:0;top:0;bottom:0;display:flex;align-items:flex-end;gap:3px">${bars}</div>
+    </div>
+    <div id="dbTooltipBox" style="display:none;margin-top:10px;background:#fff;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#555"></div>
+    ${legend}
+    ${holidayList}
+  `;
+}
+
+function showDashboardChartTooltip(day,dow,val,isWeekend,holidayName){
+  document.querySelectorAll('[id^="dbBar-"]').forEach(el=>el.style.outline='none');
+  const barEl=document.getElementById('dbBar-'+day);
+  if(barEl) barEl.style.outline='2px solid #1a0a06';
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const box=document.getElementById('dbTooltipBox');
+  if(!box)return;
+  box.style.display='block';
+  const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
 }
 
 function renderDashboardAOVTrend(monthKey){
@@ -2174,67 +2264,163 @@ function renderDashboardCustomer(){
 
   const names=Object.keys(byCust);
   const now=new Date();
-  const currMonthKey=currentMonthKey();
-  const[cs,ce]=monthRange(...currMonthKey.split('-').map(Number));
+  const firstOrderByCust={}; // name -> Date แรกสุด (ใช้ทั้งจุด "ใหม่เดือนนี้" และกราฟเทรนด์ลูกค้าใหม่ 6 เดือน)
 
+  // ----- ใหม่/หายไป: ผูกกับเดือนที่เลือก (dbSalesMonth) -----
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const[curS,curE]=monthRange(y,m);
+  const pv=db_prevMonthKey(y,m);
+  const[prevS,prevE]=monthRange(pv.y,pv.m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+  const monthDecomp=db_decomposeSalesChange(currOrders,prevOrders);
+  names.forEach(n=>{
+    const first=byCust[n].orders.map(o=>new Date(o.done_at||o.timestamp)).filter(d=>!isNaN(d)).sort((a,b)=>a-b)[0];
+    if(first) firstOrderByCust[n]=first;
+  });
+  // "ใหม่จริง" = เพิ่งมีออเดอร์แรกสุดในเดือนที่เลือก (ต่างจาก newNames ของ decompose ซึ่งหมายถึงแค่ "ไม่ซื้อเดือนก่อน")
+  const trueNewNames=names.filter(n=>firstOrderByCust[n]&&firstOrderByCust[n]>=curS&&firstOrderByCust[n]<=curE);
+
+  // ----- อันดับลูกค้าเปลี่ยนยังไงเทียบเดือนก่อน (ใช้ยอดของเดือนนั้นๆ ไม่ใช่ยอดสะสม) -----
+  const currMonthTotals={},prevMonthTotals={};
+  currOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';currMonthTotals[n]=(currMonthTotals[n]||0)+Number(o.total);});
+  prevOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';prevMonthTotals[n]=(prevMonthTotals[n]||0)+Number(o.total);});
+  const currRanked=Object.keys(currMonthTotals).sort((a,b)=>currMonthTotals[b]-currMonthTotals[a]);
+  const prevRanked=Object.keys(prevMonthTotals).sort((a,b)=>prevMonthTotals[b]-prevMonthTotals[a]);
+  const prevRankOf={};
+  prevRanked.forEach((n,idx)=>{prevRankOf[n]=idx+1;});
+  const rankMovement=currRanked.slice(0,10).map((n,idx)=>{
+    const currRank=idx+1;
+    const prevRank=prevRankOf[n];
+    return{name:n,currRank,prevRank:prevRank||null,movement:prevRank?prevRank-currRank:null};
+  });
+
+  // ----- ลูกค้าเงียบผิดปกติ: ใช้ประวัติทั้งหมด ไม่ผูกเดือน (นับถึงวันนี้เสมอ) -----
   const churnList=[];
-  let newThisMonthCount=0;
   const freqByName={};
-
+  const avgBasket={},avgItemsPerOrder={};
   names.forEach(n=>{
     const ordersSorted=byCust[n].orders
       .map(o=>new Date(o.done_at||o.timestamp))
       .filter(d=>!isNaN(d))
       .sort((a,b)=>a-b);
     if(!ordersSorted.length)return;
-
-    const firstOrderDate=ordersSorted[0];
-    if(firstOrderDate>=cs&&firstOrderDate<=ce) newThisMonthCount++;
+    avgBasket[n]=byCust[n].total/byCust[n].orders.length;
+    const totalItems=byCust[n].orders.reduce((s,o)=>s+parseItems(o.items).length,0);
+    avgItemsPerOrder[n]=totalItems/byCust[n].orders.length;
 
     const lastOrderDate=ordersSorted[ordersSorted.length-1];
     const daysSinceLast=(now-lastOrderDate)/(1000*60*60*24);
 
-    let avgGapDays=null;
+    let normalGap=null;
     if(ordersSorted.length>=3){
       const gaps=[];
       for(let i=1;i<ordersSorted.length;i++) gaps.push((ordersSorted[i]-ordersSorted[i-1])/(1000*60*60*24));
       gaps.sort((a,b)=>a-b);
       const mid=Math.floor(gaps.length/2);
-      avgGapDays=gaps.length%2?gaps[mid]:(gaps[mid-1]+gaps[mid])/2; // median รอบซื้อ ทนทานต่อค่าผิดปกติกว่าค่าเฉลี่ย
-      freqByName[n]=avgGapDays;
+      normalGap=gaps.length%2?gaps[mid]:(gaps[mid-1]+gaps[mid])/2; // median รอบซื้อ ทนทานต่อค่าผิดปกติกว่าค่าเฉลี่ย
+      freqByName[n]=normalGap;
     }
 
-    const threshold=avgGapDays!==null?avgGapDays*2:30; // fallback 30 วันถ้าออเดอร์ไม่ถึง 3 ครั้ง
+    const threshold=normalGap!==null?normalGap*2:30; // fallback 30 วันถ้าออเดอร์ไม่ถึง 3 ครั้ง (ยังคำนวณรอบซื้อปกติแบบเชื่อถือได้ไม่ได้)
     if(daysSinceLast>threshold){
-      churnList.push({name:n,daysSinceLast:Math.round(daysSinceLast),normalGap:avgGapDays?Math.round(avgGapDays):null,ratio:avgGapDays?(daysSinceLast/avgGapDays):null});
+      churnList.push({name:n,daysSinceLast:Math.round(daysSinceLast),normalGap:normalGap?Math.round(normalGap):null,ratio:normalGap?(daysSinceLast/normalGap):null});
     }
   });
-  churnList.sort((a,b)=>b.daysSinceLast-a.daysSinceLast);
+  churnList.sort((a,b)=>b.daysSinceLast-a.daysSinceLast); // เรียงจากห่างนานสุดไปน้อยสุด
 
   const topLTV=names.slice().sort((a,b)=>byCust[b].total-byCust[a].total).slice(0,10);
+  const topBasket=names.slice().filter(n=>avgBasket[n]!==undefined).sort((a,b)=>avgBasket[b]-avgBasket[a]).slice(0,10);
 
   const statCards=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
     <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${newThisMonthCount}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ใหม่เดือนนี้</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${trueNewNames.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ใหม่เดือนนี้</div></div>
     <div style="background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
   </div>`;
 
+  // รายชื่อใหม่/หายไปของเดือนที่เลือก
+  const monthListCard=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div style="background:#eaf3de;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#3B6D11;margin-bottom:8px">🆕 ลูกค้าใหม่เดือนนี้ (${trueNewNames.length})</div>
+      ${trueNewNames.length?trueNewNames.map(n=>`<div style="font-size:12px;color:#333;padding:4px 0">${n}</div>`).join(''):'<div style="font-size:12px;color:#aaa">ไม่มีลูกค้าใหม่ในเดือนนี้</div>'}
+    </div>
+    <div style="background:#fdf6e8;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#854F0B;margin-bottom:8px">📉 หายไปเดือนนี้ (${monthDecomp.churnedNames.length})</div>
+      <div style="font-size:10.5px;color:#a68556;margin-bottom:6px">ซื้อเดือนก่อนแต่เดือนนี้ยังไม่มีออเดอร์เลย</div>
+      ${monthDecomp.churnedNames.length?monthDecomp.churnedNames.map(x=>`<div style="font-size:12px;color:#333;padding:4px 0">${x.name} <span style="color:#aaa">(เดือนก่อน ฿${fmtMoney(x.total)})</span></div>`).join(''):'<div style="font-size:12px;color:#aaa">ไม่มี</div>'}
+    </div>
+  </div>`;
+
   const churnCard=churnList.length?`<div style="background:#fceaea;border-radius:10px;padding:12px;margin-bottom:12px">
-    <div style="font-size:12.5px;font-weight:600;color:#A32D2D;margin-bottom:8px">⚠️ ลูกค้าเงียบผิดปกติ</div>
+    <div style="font-size:12.5px;font-weight:600;color:#A32D2D;margin-bottom:4px">⚠️ ลูกค้าเงียบนานผิดปกติ (นับถึงวันนี้ ไม่ผูกกับเดือนที่เลือก)</div>
+    <div style="font-size:10.5px;color:#c07272;margin-bottom:8px">เรียงจากห่างนานสุดก่อน · ตัวเลขในวงเล็บ = ห่างเกินกว่ารอบซื้อปกติกี่เท่า (ยิ่งมาก ยิ่งผิดปกติ)</div>
     ${churnList.map(c=>`<div style="font-size:12px;color:#333;padding:5px 0;border-bottom:0.5px solid #f3d9d9">
-      ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:''}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)}x)`:''}
+      ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:'(ออเดอร์ยังน้อย ใช้เกณฑ์คงที่ 30 วัน)'}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)} เท่าของปกติ)`:''}
     </div>`).join('')}
   </div>`:`<div style="background:#eaf3de;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#3B6D11">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
 
+  const trendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าใหม่ต่อเดือน (6 เดือนล่าสุด)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">นับจากลูกค้าที่มีออเดอร์แรกสุดเกิดขึ้นในเดือนนั้นๆ (เพิ่งถูกพาเข้าแอป)</div>
+    ${renderDashboardNewCustomerTrend(dbSalesMonth,firstOrderByCust)}
+  </div>`;
+
+  const rankMovementCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">อันดับลูกค้าเปลี่ยนแปลง (เทียบเดือนก่อน)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">จัดอันดับตามยอดซื้อ "ของเดือนนั้นๆ" เท่านั้น (ไม่ใช่ยอดสะสม) — Top 10 ของเดือนนี้</div>
+    ${rankMovement.length?rankMovement.map(r=>{
+      let badge;
+      if(r.movement===null) badge=`<span style="color:#5a67c9;font-size:11px">🆕 ไม่ติดอันดับเดือนก่อน</span>`;
+      else if(r.movement>0) badge=`<span style="color:#3B6D11;font-size:11px">▲ ขึ้น ${r.movement} อันดับ (จาก #${r.prevRank})</span>`;
+      else if(r.movement<0) badge=`<span style="color:#A32D2D;font-size:11px">▼ ลง ${Math.abs(r.movement)} อันดับ (จาก #${r.prevRank})</span>`;
+      else badge=`<span style="color:#999;font-size:11px">— เท่าเดิม</span>`;
+      return`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:0.5px solid #eee">
+        <span>#${r.currRank} ${r.name}</span>${badge}
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูลในเดือนนี้</div>'}
+  </div>`;
+
   const ltvCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
-    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">ลูกค้าอันดับต้น (ยอดสะสมทั้งหมด)</div>
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าอันดับต้น</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">เรียงตามยอดสะสมทั้งหมดตั้งแต่เริ่มเป็นลูกค้าในแอป (มาก→น้อย)</div>
     ${topLTV.length?topLTV.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topLTV.length-1?'border-bottom:0.5px solid #eee':''}">
       <span>${idx+1}. ${n}${freqByName[n]?` <span style="color:#aaa">· ทุก ~${Math.round(freqByName[n])} วัน</span>`:''}</span>
       <span style="font-weight:500;color:#D64109">฿${fmtMoney(byCust[n].total)}</span>
     </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
   </div>`;
 
-  return statCards+churnCard+ltvCard;
+  const basketCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-top:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ขนาดตะกร้าเฉลี่ยต่อครั้ง (Basket Size)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">ยอดเฉลี่ยและจำนวนสินค้าเฉลี่ยต่อออเดอร์ของลูกค้าแต่ละเจ้า — ต่างจาก "อันดับยอดสะสม" เพราะบางเจ้าซื้อไม่บ่อยแต่ซื้อทีละเยอะ</div>
+    ${topBasket.length?topBasket.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topBasket.length-1?'border-bottom:0.5px solid #eee':''}">
+      <span>${idx+1}. ${n} <span style="color:#aaa">· ${byCust[n].orders.length} ออเดอร์ · เฉลี่ย ${avgItemsPerOrder[n].toFixed(1)} รายการ/ครั้ง</span></span>
+      <span style="font-weight:500;color:#D64109">฿${fmtMoney(avgBasket[n])}/ครั้ง</span>
+    </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
+  </div>`;
+
+  return statCards+trendCard+monthListCard+rankMovementCard+churnCard+ltvCard+basketCard;
+}
+
+function renderDashboardNewCustomerTrend(monthKey,firstOrderByCust){
+  const[y,m]=monthKey.split('-').map(Number);
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const count=Object.values(firstOrderByCust).filter(d=>d>=s&&d<=e).length;
+    months.push({y:yy,m:mm,count,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.count));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.count/maxVal)*100,mo.count>0?4:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.count}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:90px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
 }
 
 function onOverviewSearch(val){
