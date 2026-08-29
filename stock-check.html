@@ -1177,7 +1177,7 @@ async function renderOrderPage(app){
       <div class="stat-card"><div class="n">${withItems.length}</div><div class="lbl">เจ้าทั้งหมด</div></div>
       <div class="stat-card green"><div class="n">${checkedSuppliers}</div><div class="lbl">เช็คสต๊อกแล้ว</div></div>
       <div class="stat-card amber"><div class="n">${orderedSuppliers}</div><div class="lbl">สร้างข้อความแล้ว</div></div>
-      <div class="stat-card amber"><div class="n">${confirmedSuppliers}</div><div class="lbl">ส่งให้ supplier แล้ว</div></div>
+      <div class="stat-card amber"><div class="n">${confirmedSuppliers}</div><div class="lbl">ส่งออเดอร์แล้ว</div></div>
     `;
   }
 
@@ -1239,7 +1239,7 @@ async function renderOrderPage(app){
       // แยกจากสถานะ "สร้างข้อความแล้ว" ด้านบน ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น
       // ไม่ได้รู้ว่าข้อความถูกส่งออกไปหา supplier จริงหรือยัง
       const confirmRow = document.createElement('label'); confirmRow.className = 'confirm-sent-row';
-      confirmRow.innerHTML = `<input type="checkbox" ${isConfirmed?'checked':''}> ส่งข้อความให้ supplier แล้ว`;
+      confirmRow.innerHTML = `<input type="checkbox" ${isConfirmed?'checked':''}> ส่งออเดอร์ให้ร้านแล้ว`;
       const confirmCheckbox = confirmRow.querySelector('input');
       confirmRow.onclick = (e)=> e.stopPropagation();
       confirmCheckbox.onchange = async (e)=>{
