@@ -1384,11 +1384,21 @@ function renderOrderMessage(app){
   Object.entries(bySupplier).forEach(([supId, list])=>{
     const sup = SUPPLIERS.find(s=>s.id===supId);
     const col = NEUTRAL_COL;
-    const maxLen = Math.max(...list.map(i=>i.name.length));
-    const lines = list.map((it,i)=>{
-      const dots = '.'.repeat(Math.max(3, (maxLen - it.name.length) + 8));
-      return `${i+1}. ${it.name}${dots}${it.qty} ${it.orderUnit}`;
-    }).join('\n');
+    // ฟอนต์โมโนสเปซ (เช่น Courier New) ไม่รองรับตัวอักษรไทย เบราว์เซอร์เลย fallback ไปใช้ฟอนต์ไทย
+    // แบบสัดส่วน (proportional) แทน — ผลคือ pad ด้วยจำนวนตัวอักษร/ช่องว่างแล้วไม่ตรงกันจริงบนจอ
+    // แก้โดยไม่พึ่งการนับตัวอักษรเลย ใช้ CSS grid 3 คอลัมน์ (ชื่อ | จำนวน | หน่วยนับ)
+    // — ต้องเป็น grid container เดียวที่ครอบทุกแถว (ไม่ใช่ grid แยกทีละแถว) ความกว้างคอลัมน์
+    // ถึงจะคำนวณรวมจากทุกแถวแล้วตรงกันจริง ไม่ว่าชื่อแถวไหนจะสั้นหรือยาวแค่ไหน
+    const rowsHtml = list.map((it,i)=>`
+      <span style="min-width:0;">${i+1}. ${it.name}</span>
+      <span style="text-align:right; white-space:nowrap;">${it.qty}</span>
+      <span style="text-align:left; white-space:nowrap;">${it.orderUnit}</span>`).join('');
+    // ข้อความล้วนสำหรับคัดลอกไปวางแอปอื่น (LINE ฯลฯ) — คุมฟอนต์ปลายทางไม่ได้ จึงคั่นด้วยช่องว่างคงที่
+    // แทนการพยายามจัดคอลัมน์ด้วยจำนวนช่องว่างผันแปร (ซึ่งตรงเฉพาะตอนพรีวิวในแอปเท่านั้น)
+    // ใช้ non-breaking space ( ) คั่นระหว่าง "จำนวน" กับ "หน่วยนับ" แทนช่องว่างปกติ
+    // กันไม่ให้กล่องแชทไลน์ (ที่ความกว้างจำกัด) ตัดขึ้นบรรทัดใหม่คั่นกลางระหว่างเลขกับหน่วย
+    // เช่น "22 หิ้ว" ต้องขึ้นบรรทัดใหม่ด้วยกันทั้งคู่ ไม่ใช่ "22" ค้างบรรทัดบนแล้ว "หิ้ว" กระเด็นไปบรรทัดล่าง
+    const lines = list.map((it,i)=>`${i+1}. ${it.name}  ${it.qty} ${it.orderUnit}`).join('\n');
     const todayLabel = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'});
     const text = `สั่งสินค้า\nร้านซามูไร ไส้กรอก ตลาดเวิลด์มาเก็ต ทวีวัฒนา\nวันที่สั่ง: ${todayLabel}\n\nรายการสั่งของ\n${lines}`;
 
@@ -1400,7 +1410,7 @@ function renderOrderMessage(app){
         <p style="margin:0; font-weight:600; font-size:14px;">${sup.name}</p>
         <button class="btn copy-btn" style="font-size:12px; padding:6px 10px;"><i class="ti ti-copy" style="font-size:13px;"></i> คัดลอก</button>
       </div>
-      <pre style="font-family:inherit; font-size:12px; line-height:1.7; margin:0; background:var(--bg); padding:10px; border-radius:8px; white-space:pre-wrap;">${text}</pre>
+      <div style="display:grid; grid-template-columns:1fr auto auto; column-gap:8px; row-gap:4px; align-items:baseline; font-size:12px; line-height:1.5; background:var(--bg); padding:10px; border-radius:8px;">${rowsHtml}</div>
     `;
     card.querySelector('.copy-btn').onclick = ()=>{
       navigator.clipboard?.writeText(text).catch(()=>{});
