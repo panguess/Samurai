@@ -170,7 +170,13 @@
   .order-done-check.confirmed{background:var(--green); color:#fff;}
   .order-done-check:disabled{opacity:0.5; cursor:default;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
-  .due-today-badge{display:inline-block; font-size:10px; font-weight:600; color:var(--amber); background:var(--amber-bg); border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle; white-space:nowrap;}
+  /* หัวข้อเซกชัน "ต้องสั่งวันนี้" / "เจ้าอื่นทั้งหมด" — แพทเทิร์นเดียวกับ .role-label ที่มีอยู่แล้ว */
+  .section-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
+  .section-label::after{content:''; flex:1; height:1px; background:var(--border-strong);}
+  .section-label.due{color:var(--amber);}
+  .section-label.due::after{background:rgba(133,79,11,0.25);}
+  .section-label:first-child{margin-top:0;}
+  .other-section .ord-card{opacity:0.72;}
   .ord-card-status{display:flex; flex-direction:column; gap:2px; align-items:flex-end; flex-shrink:0;}
   .status-line{font-size:13px; font-weight:600; white-space:nowrap;}
   .status-line.wait{color:var(--text-tertiary);}
@@ -1194,14 +1200,40 @@ async function renderOrderPage(app){
 
   function renderGroups(filter){
     groups.innerHTML='';
-    // เจ้าที่ถึงรอบสั่งวันนี้ (ตาม OrderDays) ขึ้นก่อนเสมอ — แค่เรียงลำดับให้เห็นง่าย
+    // เจ้าที่ถึงรอบสั่งวันนี้ (ตาม OrderDays) ขึ้นก่อนเสมอ แยกเป็นเซกชัน "ต้องสั่งวันนี้" ด้านบน
+    // กับ "เจ้าอื่นทั้งหมด" ด้านล่าง (การ์ดหรี่ลงนิดหน่อย) แทนป้ายลอยติดชื่อทีละใบ — อ่านง่ายกว่าตอนมีหลายเจ้า
     // ไม่ได้ซ่อนเจ้าอื่นออกจากรายการ เพราะเจ้าที่ไม่ได้กำหนดรอบ (orderDays ว่าง) ก็ยังต้องสั่งได้ตามปกติ
     const sortedSuppliers = [...SUPPLIERS].sort((a,b)=> (supplierDueToday(b)?1:0) - (supplierDueToday(a)?1:0));
+
+    // เดินลูปแบบ dry-run ก่อนรอบเดียว แค่เพื่อนับว่าเจ้าที่ผ่านตัวกรอง (filter) มีกี่เจ้าอยู่ในแต่ละเซกชัน
+    // ใช้โชว์ตัวเลข "· N เจ้า" ต่อท้ายหัวข้อเซกชัน โดยไม่ต้องคำนวณ allItems/items ซ้ำสองรอบเต็มๆ ในลูปหลัก
+    let dueCount = 0, restCount = 0;
+    sortedSuppliers.forEach(s=>{
+      const allItems = PRODUCTS.filter(p=>p.supplierId===s.id);
+      if(!allItems.length) return;
+      const hasMatch = allItems.some(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
+      if(!hasMatch) return;
+      if(supplierDueToday(s)) dueCount++; else restCount++;
+    });
+    if(dueCount){
+      const dueLabel = document.createElement('div'); dueLabel.className = 'section-label due';
+      dueLabel.textContent = `ต้องสั่งวันนี้ · ${dueCount} เจ้า`;
+      groups.appendChild(dueLabel);
+    }
+    const restLabel = document.createElement('div'); restLabel.className = 'section-label';
+    restLabel.textContent = dueCount ? `เจ้าอื่นทั้งหมด · ${restCount} เจ้า` : 'เจ้าทั้งหมด';
+    let restLabelInserted = false;
+    const otherSection = document.createElement('div'); otherSection.className = 'other-section';
+
     sortedSuppliers.forEach(s=>{
       const allItems = PRODUCTS.filter(p=>p.supplierId===s.id);
       if(!allItems.length) return;
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
+      const dueToday = supplierDueToday(s);
+      // เจ้ากลุ่มแรกที่ไม่ถึงรอบวันนี้ (ตามลำดับที่ sort ไว้แล้ว) คือจุดเริ่มเซกชัน "เจ้าอื่นทั้งหมด"
+      if(!dueToday && !restLabelInserted){ groups.appendChild(restLabel); groups.appendChild(otherSection); restLabelInserted = true; }
+      const renderTarget = dueToday ? groups : otherSection;
 
       const { checkedCount, isOrdered, isConfirmed } = supplierStats(s);
       const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
@@ -1237,7 +1269,7 @@ async function renderOrderPage(app){
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
         ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
-        <span class="ord-card-name">${s.name}${supplierDueToday(s) ? '<span class="due-today-badge">ถึงรอบวันนี้</span>' : ''}</span>
+        <span class="ord-card-name">${s.name}</span>
         <div class="ord-card-status">
           <span class="status-line ${stateClass}">${statusText}</span>
           <span class="status-sub">${subText}</span>
@@ -1370,9 +1402,9 @@ async function renderOrderPage(app){
 
       main.appendChild(body);
       card.appendChild(main);
-      groups.appendChild(card);
+      renderTarget.appendChild(card);
     });
-    if(!groups.children.length) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
+    if(!dueCount && !restCount) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
     updateBar();
   }
 
