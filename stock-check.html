@@ -170,6 +170,7 @@
   .order-done-check.confirmed{background:var(--green); color:#fff;}
   .order-done-check:disabled{opacity:0.5; cursor:default;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
+  .due-today-badge{display:inline-block; font-size:10px; font-weight:600; color:var(--amber); background:var(--amber-bg); border-radius:6px; padding:1px 6px; margin-left:6px; vertical-align:middle; white-space:nowrap;}
   .ord-card-status{display:flex; flex-direction:column; gap:2px; align-items:flex-end; flex-shrink:0;}
   .status-line{font-size:13px; font-weight:600; white-space:nowrap;}
   .status-line.wait{color:var(--text-tertiary);}
@@ -399,6 +400,16 @@ function openAddProductScreen(sup, onAdded){
       showError('บันทึกไม่สำเร็จ: ' + err.message);
     }
   };
+}
+
+// ชื่อวันอังกฤษ (3 ตัวย่อ) ตามลำดับ Date.getDay() (0=Sun ... 6=Sat) — ใช้เทียบกับ supplier.orderDays
+// ที่มาจากคอลัมน์ OrderDays ในชีต Suppliers (คั่นด้วยคอมม่า เช่น "Mon,Thu")
+// เทียบแบบไม่สนตัวพิมพ์เล็ก/ใหญ่ และตัดเหลือ 3 ตัวแรก รองรับทั้ง "Mon" และ "Monday"
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function todayDayName(){ return DAY_NAMES[new Date().getDay()]; }
+function supplierDueToday(s){
+  const today = todayDayName();
+  return (s.orderDays||[]).some(d => String(d).trim().slice(0,3).toLowerCase() === today.toLowerCase());
 }
 
 /* ============ LIVE DATA (filled by bootstrap()) ============ */
@@ -1183,7 +1194,10 @@ async function renderOrderPage(app){
 
   function renderGroups(filter){
     groups.innerHTML='';
-    SUPPLIERS.forEach(s=>{
+    // เจ้าที่ถึงรอบสั่งวันนี้ (ตาม OrderDays) ขึ้นก่อนเสมอ — แค่เรียงลำดับให้เห็นง่าย
+    // ไม่ได้ซ่อนเจ้าอื่นออกจากรายการ เพราะเจ้าที่ไม่ได้กำหนดรอบ (orderDays ว่าง) ก็ยังต้องสั่งได้ตามปกติ
+    const sortedSuppliers = [...SUPPLIERS].sort((a,b)=> (supplierDueToday(b)?1:0) - (supplierDueToday(a)?1:0));
+    sortedSuppliers.forEach(s=>{
       const allItems = PRODUCTS.filter(p=>p.supplierId===s.id);
       if(!allItems.length) return;
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
@@ -1223,7 +1237,7 @@ async function renderOrderPage(app){
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
         ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
-        <span class="ord-card-name">${s.name}</span>
+        <span class="ord-card-name">${s.name}${supplierDueToday(s) ? '<span class="due-today-badge">ถึงรอบวันนี้</span>' : ''}</span>
         <div class="ord-card-status">
           <span class="status-line ${stateClass}">${statusText}</span>
           <span class="status-sub">${subText}</span>
