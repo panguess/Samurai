@@ -402,11 +402,15 @@ function openAddProductScreen(sup, onAdded){
   };
 }
 
-// ชื่อวันไทยตามลำดับ Date.getDay() (0=อาทิตย์ ... 6=เสาร์) — ใช้เทียบกับ supplier.orderDays
-// ที่มาจากคอลัมน์ OrderDays ในชีต Suppliers (คั่นด้วยคอมม่า เช่น "จันทร์,พฤหัสบดี")
-const THAI_DAY_NAMES = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
-function todayThaiDayName(){ return THAI_DAY_NAMES[new Date().getDay()]; }
-function supplierDueToday(s){ return (s.orderDays||[]).includes(todayThaiDayName()); }
+// ชื่อวันอังกฤษ (3 ตัวย่อ) ตามลำดับ Date.getDay() (0=Sun ... 6=Sat) — ใช้เทียบกับ supplier.orderDays
+// ที่มาจากคอลัมน์ OrderDays ในชีต Suppliers (คั่นด้วยคอมม่า เช่น "Mon,Thu")
+// เทียบแบบไม่สนตัวพิมพ์เล็ก/ใหญ่ และตัดเหลือ 3 ตัวแรก รองรับทั้ง "Mon" และ "Monday"
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function todayDayName(){ return DAY_NAMES[new Date().getDay()]; }
+function supplierDueToday(s){
+  const today = todayDayName();
+  return (s.orderDays||[]).some(d => String(d).trim().slice(0,3).toLowerCase() === today.toLowerCase());
+}
 
 /* ============ LIVE DATA (filled by bootstrap()) ============ */
 let SUPPLIERS = [];
