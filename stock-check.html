@@ -1497,6 +1497,17 @@ function renderOrderMessage(app){
     };
     c.appendChild(card);
   });
+
+  // ปุ่ม "เสร็จสิ้น" แยกจากลูกศร back — กดลูกศร back รู้สึกเหมือนยกเลิก/ย้อนแอ็คชั่น
+  // ทั้งที่จริงๆ ข้อความถูกสร้าง+บันทึกลง OrderLogs ไปแล้วตั้งแต่ก่อนเข้าหน้านี้
+  // ปุ่มนี้แค่พากลับไปหน้าสั่งของเหมือนกัน แต่สื่อความหมายตรงว่า "คัดลอกเสร็จแล้ว จบงานนี้"
+  const doneBtn = document.createElement('button');
+  doneBtn.className = 'btn btn-primary btn-block';
+  doneBtn.style.marginTop = '4px';
+  doneBtn.textContent = 'เสร็จสิ้น';
+  doneBtn.onclick = ()=> go('orderPage');
+  c.appendChild(doneBtn);
+
   app.appendChild(c);
 }
 
