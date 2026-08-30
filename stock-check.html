@@ -647,6 +647,20 @@ function renderLoading(app, msg){
 }
 
 const BOOTSTRAP_CACHE_KEY = 'samurai_bootstrap_cache_v1';
+// กันรีเฟรช bootstrap ถี่เกินไปตอนสลับดูหลายเจ้าติดๆ กัน (เช่น เข้าหน้าเช็คสต๊อกของเจ้านี้แล้วกลับไปเจ้าอื่น
+// แล้ววนมาเจ้าเดิมอีกภายในไม่กี่วิ) — รีเฟรชจริงเมื่อห่างจากครั้งก่อนเกิน BOOTSTRAP_REFRESH_TTL เท่านั้น
+// เหมือนแพทเทิร์นเดียวกับ STOCK_STATUS_TTL
+const BOOTSTRAP_REFRESH_TTL = 45000; // ms
+let _bootstrapRefreshTs = 0;
+function refreshBootstrapIfStale(onUpdated){
+  if(Date.now() - _bootstrapRefreshTs < BOOTSTRAP_REFRESH_TTL) return;
+  _bootstrapRefreshTs = Date.now();
+  apiGet('bootstrap').then(data=>{
+    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    writeBootstrapCache(data);
+    if(onUpdated) onUpdated(data);
+  }).catch(()=>{ _bootstrapRefreshTs = 0; }); // ล้มเหลว — อนุญาตให้ลองใหม่ได้เลยครั้งหน้า ไม่ต้องรอครบ TTL
+}
 function readBootstrapCache(){
   try{ return JSON.parse(sessionStorage.getItem(BOOTSTRAP_CACHE_KEY)); }catch(e){ return null; }
 }
@@ -666,6 +680,7 @@ async function bootstrap(){
     apiGet('bootstrap').then(data=>{
       SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
       writeBootstrapCache(data);
+      _bootstrapRefreshTs = Date.now();
       // ข้อมูลจริงมาแล้ว (เช่น หน่วยสินค้าที่เพิ่งเพิ่มในชีต) — render จากข้อมูลเก่าไปแล้วตอนต้นฟังก์ชัน
       // ต้อง render ซ้ำอีกครั้งไม่งั้นหน้าจอจะค้างข้อมูลเก่าไปตลอด session จนกว่าจะปิดแท็บ
       render();
@@ -685,6 +700,7 @@ async function bootstrap(){
     const data = await apiGet('bootstrap');
     SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
     writeBootstrapCache(data);
+    _bootstrapRefreshTs = Date.now();
     getStockStatus().catch(()=>{});
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
@@ -1086,15 +1102,14 @@ async function renderSupplierCheck(app){
 
   // skipDates เป็นค่าที่เจ้าของอาจตั้งขึ้นกะทันหันระหว่างวัน (เช่น เพิ่งกดงดสั่งเมื่อครู่นี้) ต่างจาก
   // ข้อมูลอื่นใน PRODUCTS/SUPPLIERS ที่แทบไม่เปลี่ยนบ่อย — ถ้าลูกจ้างเปิดหน้านี้ค้างมาตั้งแต่ก่อนเจ้าของ
-  // จะกด PRODUCTS ที่โหลดมาตอน bootstrap() ครั้งแรกจะไม่รู้เรื่อง จึงรีเฟรช bootstrap เงียบๆ ทุกครั้งที่
-  // เข้าหน้าเช็คสต๊อกของเจ้านี้ แล้วอัปเดต products/แสดงผลใหม่ถ้าพบว่าเปลี่ยนไป
-  apiGet('bootstrap').then(data=>{
-    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
-    writeBootstrapCache(data);
+  // จะกด PRODUCTS ที่โหลดมาตอน bootstrap() ครั้งแรกจะไม่รู้เรื่อง จึงรีเฟรช bootstrap เงียบๆ (แต่จำกัดความถี่
+  // ด้วย refreshBootstrapIfStale กันยิง request ซ้ำถี่เกินไปตอนสลับดูหลายเจ้าติดๆ กัน ไปเพิ่มภาระ
+  // Apps Script ที่ตอบช้าอยู่แล้วโดยไม่จำเป็น) แล้วอัปเดต products/แสดงผลใหม่ถ้าพบว่าเปลี่ยนไป
+  refreshBootstrapIfStale(()=>{
     products.length = 0;
     products.push(...PRODUCTS.filter(p=>p.supplierId===sup.id));
     renderGrid();
-  }).catch(()=>{});
+  });
 
   const bar = document.createElement('div'); bar.className='stickybar';
   c.appendChild(bar);
@@ -1529,7 +1544,7 @@ async function renderOrderPage(app){
             <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
             <div class="prow-name-wrap">
               <div class="prow-name">${p.name}</div>
-              ${isSkipSet ? `<span class="prow-skip-sub">🚫 งดสั่งถึง ${formatShortThaiDate(skipDates[skipDates.length-1])}</span>` : ''}
+              ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
             </div>
             <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
           </div>
@@ -1549,11 +1564,18 @@ async function renderOrderPage(app){
         row.querySelector('[data-skiptoggle]').onclick = (e)=>{
           e.stopPropagation();
           if(isSkipSet){
-            if(!confirm(`ยกเลิกงดสั่ง "${p.name}"?`)) return;
+            // ยกเลิกทุกวันที่ตั้งงดไว้ล่วงหน้าของสินค้าตัวนี้ในครั้งเดียว ไม่ใช่แค่วันล่าสุดวันเดียว —
+            // เผื่อเคสที่เจ้าของตั้งงดไว้หลายวันไม่ติดกัน (เช่น งดทั้งวันนี้และอีก 3 วันข้างหน้าแยกกัน)
+            const msg = skipDates.length > 1
+              ? `ยกเลิกงดสั่ง "${p.name}" ทั้งหมด ${skipDates.length} วันที่ตั้งไว้?`
+              : `ยกเลิกงดสั่ง "${p.name}"?`;
+            if(!confirm(msg)) return;
             (async ()=>{
               try{
-                await apiPost('setProductSkipDate', { productId: p.id, date: skipDates[skipDates.length-1], skip: false });
-                p.skipDates = (p.skipDates||[]).filter(d=> d !== skipDates[skipDates.length-1]);
+                await Promise.all(skipDates.map(date=>
+                  apiPost('setProductSkipDate', { productId: p.id, date, skip: false })
+                ));
+                p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
                 renderGroups(c.querySelector('#search').value);
               }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
             })();
