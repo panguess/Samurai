@@ -79,6 +79,9 @@
   .addprod-body label{display:block; font-size:12px; color:var(--text-secondary); margin:12px 0 4px;}
   .addprod-body label:first-child{margin-top:0;}
   .addprod-error{font-size:12px; color:var(--danger); margin-top:8px; display:none;}
+  .date-opt-row{display:block; padding:10px 12px; border:1px solid var(--border-strong); border-radius:10px; margin-bottom:8px; font-size:13px; cursor:pointer;}
+  .date-opt-row input{margin-right:8px; accent-color:var(--brand);}
+  #skipCustomDate{width:100%; padding:8px; border:1px solid var(--border-strong); border-radius:8px; font-family:inherit; font-size:13px;}
 
   /* photo match screen */
   .match-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:80; display:flex; align-items:flex-end; justify-content:center;}
@@ -104,6 +107,11 @@
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
+  /* สินค้าที่เจ้าของตั้งงดสั่ง/งดเช็คไว้เฉพาะวันนี้ (setProductSkipDate) — การ์ดยังโชว์อยู่เหมือนเดิม
+     ไม่หายไปจากลิสต์ แต่จางลง+ขาวดำ กด +/− พิมพ์ช่อง หรือกดปุ่มของหมดไม่ได้เลย กันลูกจ้างงงว่าแอปพัง */
+  .prod-card.skip-today{opacity:0.55; filter:grayscale(0.55);}
+  .prod-card.skip-today .unit-stepper, .prod-card.skip-today .oos-btn{pointer-events:none;}
+  .skip-today-badge{display:inline-block; font-size:10px; font-weight:700; color:#fff; background:var(--danger); border-radius:5px; padding:2px 7px; margin:0 0 6px;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
   .stickybar span{color:var(--cream); font-size:13px;}
   .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
@@ -138,6 +146,11 @@
   .prow input[type=checkbox]{flex-shrink:0; width:17px; height:17px;}
   .prow-name{flex:1; min-width:0; font-size:13px; color:var(--text); line-height:1.3;}
   .prow.low .prow-name{font-weight:600;}
+  .prow.skip-set{background:var(--danger-bg);}
+  .prow-name-wrap{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .prow-skip-sub{font-size:10.5px; color:var(--danger); font-weight:600;}
+  .skip-toggle-btn{border:1px solid var(--danger); background:#fff; color:var(--danger); border-radius:7px; padding:5px 9px; font-size:11px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; flex-shrink:0;}
+  .skip-toggle-btn.active{background:var(--danger); color:#fff;}
   .stat{display:flex; flex-direction:column; align-items:flex-end; min-width:38px;}
   .stat .lbl{font-size:8.5px; color:var(--text-tertiary); font-weight:600; line-height:1.3;}
   .stat .v{font-size:13px; font-weight:700; color:var(--text); line-height:1.2;}
@@ -427,11 +440,78 @@ function openAddProductScreen(sup, onAdded){
   };
 }
 
+// เลือกวันที่จะงดสั่ง/งดเช็คสินค้าตัวหนึ่งเป็นครั้งคราว (วันนี้/พรุ่งนี้/เลือกวันที่เอง) — ไม่ผูกกับ
+// วันในสัปดาห์ กดจากหน้าสั่งของฝั่งเจ้าของเท่านั้น (renderOrderPage) เรียก onPicked(dateISO) เมื่อกดบันทึก
+function openSkipDatePicker(p, onPicked){
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+  const todayISO = isoDate(today), tomorrowISO = isoDate(tomorrow);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'match-overlay';
+  overlay.innerHTML = `
+    <div class="match-sheet">
+      <div class="match-sheet-header">
+        <h2>งดสั่งชั่วคราว</h2>
+        <p>${p.name} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
+      </div>
+      <div class="addprod-body">
+        <label class="date-opt-row" data-opt="${todayISO}"><input type="radio" name="skipdateopt" checked> วันนี้ (${formatShortThaiDate(todayISO)})</label>
+        <label class="date-opt-row" data-opt="${tomorrowISO}"><input type="radio" name="skipdateopt"> พรุ่งนี้ (${formatShortThaiDate(tomorrowISO)})</label>
+        <label class="date-opt-row" data-opt="custom"><input type="radio" name="skipdateopt"> เลือกวันที่เอง</label>
+        <input type="date" id="skipCustomDate" style="margin-top:8px; display:none;" min="${todayISO}">
+      </div>
+      <div class="match-sheet-footer">
+        <button class="btn btn-primary btn-block" id="skipSave">บันทึก</button>
+        <button class="btn-text-cancel" id="skipCancel">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  function close(){ overlay.remove(); }
+  overlay.querySelector('#skipCancel').onclick = close;
+
+  const customInput = overlay.querySelector('#skipCustomDate');
+  overlay.querySelectorAll('.date-opt-row').forEach(row=>{
+    row.onclick = ()=>{
+      row.querySelector('input').checked = true;
+      customInput.style.display = row.dataset.opt === 'custom' ? 'block' : 'none';
+    };
+  });
+
+  overlay.querySelector('#skipSave').onclick = ()=>{
+    const checked = overlay.querySelector('input[name="skipdateopt"]:checked').closest('.date-opt-row');
+    const date = checked.dataset.opt === 'custom' ? customInput.value : checked.dataset.opt;
+    if(!date){ alert('เลือกวันที่ก่อน'); return; }
+    close();
+    onPicked(date);
+  };
+}
+
 // ชื่อวันอังกฤษ (3 ตัวย่อ) ตามลำดับ Date.getDay() (0=Sun ... 6=Sat) — ใช้เทียบกับ supplier.orderDays
 // ที่มาจากคอลัมน์ OrderDays ในชีต Suppliers (คั่นด้วยคอมม่า เช่น "Mon,Thu")
 // เทียบแบบไม่สนตัวพิมพ์เล็ก/ใหญ่ และตัดเหลือ 3 ตัวแรก รองรับทั้ง "Mon" และ "Monday"
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function todayDayName(){ return DAY_NAMES[new Date().getDay()]; }
+// วันที่ปัจจุบันรูปแบบ yyyy-MM-dd (ตาม timezone เครื่อง) — ใช้เทียบกับ product.skipDates
+// ที่เจ้าของตั้งงดสั่ง/งดเช็คไว้เป็นครั้งคราว (ไม่ใช่กฎประจำสัปดาห์แบบ OrderDays)
+function isoDate(d){
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function todayISODate(){ return isoDate(new Date()); }
+function isProductSkippedToday(p){ return (p.skipDates||[]).includes(todayISODate()); }
+const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function formatShortThaiDate(iso){
+  const [y,m,d] = String(iso).split('-').map(Number);
+  if(!y||!m||!d) return iso;
+  return `${d} ${THAI_MONTHS_SHORT[m-1]}`;
+}
+// วันที่ (ตัวเดียวหรือหลายตัว) ที่เจ้าของตั้งงดสั่งไว้ล่วงหน้าของสินค้าตัวนี้ (>= วันนี้) เรียงจากใกล้สุด
+function upcomingSkipDates(p){
+  const today = todayISODate();
+  return (p.skipDates||[]).filter(d=> d >= today).sort();
+}
 function supplierDueToday(s){
   const today = todayDayName();
   return (s.orderDays||[]).some(d => String(d).trim().slice(0,3).toLowerCase() === today.toLowerCase());
@@ -884,8 +964,9 @@ async function renderSupplierCheck(app){
       const col = iconColor(idx);
       const photoSrc = productPhotos[p.id] || p.photoUrl; // p.photoUrl: persisted one-time reference photo, once backend supports it
       const isCover = ALLOW_SET_COVER_PHOTO && !!p.photoUrl && sup.imageUrl === p.photoUrl;
+      const isSkipped = isProductSkippedToday(p);
       const card = document.createElement('div');
-      card.className = 'prod-card' + (isChecked?' checked':'') + (isCover?' is-cover':'');
+      card.className = 'prod-card' + (isChecked?' checked':'') + (isCover?' is-cover':'') + (isSkipped?' skip-today':'');
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
@@ -895,19 +976,20 @@ async function renderSupplierCheck(app){
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
+        ${isSkipped ? `<span class="skip-today-badge">🚫 งดสั่งวันนี้</span>` : ''}
         <p class="prod-card-name">${p.name}</p>
         ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}
         <div class="unit-steppers-row">
           ${p.units.map(u=>`
             <div class="unit-stepper">
-              <button class="step-btn minus" data-unit="${u.id}">−</button>
-              <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0">
-              <button class="step-btn plus" data-unit="${u.id}">+</button>
+              <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
+              <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
               <span class="unit-tag">${u.label}</span>
             </div>
           `).join('')}
         </div>
-        <button class="oos-btn" data-pid="${p.id}" data-units="${p.units.map(u=>u.id).join(',')}">🚫 ของหมด</button>
+        <button class="oos-btn" data-pid="${p.id}" data-units="${p.units.map(u=>u.id).join(',')}" ${isSkipped?'disabled':''}>🚫 ของหมด</button>
       `;
       grid.appendChild(card);
     });
@@ -1425,12 +1507,19 @@ async function renderOrderPage(app){
         const remainDisplay = isOutOfStock ? `<span class="oos-badge">หมด</span>`
           : (itemChecked && remainParts.length ? remainParts.join(' ') : '–');
 
+        const skipDates = upcomingSkipDates(p);
+        const isSkipSet = skipDates.length > 0;
+
         const row = document.createElement('div');
-        row.className = 'prow';
+        row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
         row.innerHTML = `
           <div class="prow-top">
             <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
-            <div class="prow-name">${p.name}</div>
+            <div class="prow-name-wrap">
+              <div class="prow-name">${p.name}</div>
+              ${isSkipSet ? `<span class="prow-skip-sub">🚫 งดสั่งถึง ${formatShortThaiDate(skipDates[skipDates.length-1])}</span>` : ''}
+            </div>
+            <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
           </div>
           <div class="prow-bottom">
             <div class="stat"><span class="lbl">คงเหลือ</span><span class="v muted">${remainDisplay}</span></div>
@@ -1444,6 +1533,28 @@ async function renderOrderPage(app){
           </div>
         `;
         groupBox.appendChild(row);
+
+        row.querySelector('[data-skiptoggle]').onclick = (e)=>{
+          e.stopPropagation();
+          if(isSkipSet){
+            if(!confirm(`ยกเลิกงดสั่ง "${p.name}"?`)) return;
+            (async ()=>{
+              try{
+                await apiPost('setProductSkipDate', { productId: p.id, date: skipDates[skipDates.length-1], skip: false });
+                p.skipDates = (p.skipDates||[]).filter(d=> d !== skipDates[skipDates.length-1]);
+                renderGroups(c.querySelector('#search').value);
+              }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
+            })();
+          }else{
+            openSkipDatePicker(p, async (date)=>{
+              try{
+                await apiPost('setProductSkipDate', { productId: p.id, date, skip: true });
+                p.skipDates = [...(p.skipDates||[]), date];
+                renderGroups(c.querySelector('#search').value);
+              }catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
+            });
+          }
+        };
 
         const qtyInput = row.querySelector(`[data-qty="${p.id}"]`);
         function setQty(v){
