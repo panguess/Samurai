@@ -1317,7 +1317,7 @@ async function renderOrderPage(app){
       const head = document.createElement('div'); head.className = 'ord-card-head';
       head.innerHTML = `
         <i class="ti ti-chevron-down chev"></i>
-        ${orderDone ? `<button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>` : ''}
+        <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>
         <span class="ord-card-name">${s.name}</span>
         <div class="ord-card-status">
           <div class="status-top-row">
@@ -1333,23 +1333,36 @@ async function renderOrderPage(app){
       };
       main.appendChild(head);
 
-      // วงกลม "✓" หน้าชื่อเจ้า (โผล่มาก็ต่อเมื่อสร้างข้อความสั่งของแล้ว — orderDone) ใช้เป็นปุ่มกดยืนยัน
-      // ด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว" ไปในตัว: วงว่าง = ยังไม่ได้ส่ง, วงเขียวมี ✓ = ส่งแล้ว
+      // วงกลม "✓" หน้าชื่อเจ้า — โผล่ทุกเจ้าเสมอ (ไม่ผูกกับ orderDone อีกต่อไป) เพราะบางทีเจ้าของ
+      // สั่งของเองนอกแอปโดยไม่ผ่านการสร้างข้อความในระบบเลย ก็ยังต้องกดยืนยันว่าสั่งไปแล้วได้
+      // ใช้เป็นปุ่มกดยืนยันด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว": วงว่าง = ยังไม่ได้ส่ง, วงเขียวมี ✓ = ส่งแล้ว
       // แยกจากสถานะ "สร้างข้อความแล้ว" (statusText ด้านขวา) ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น
       // ไม่ได้รู้ว่าข้อความถูกส่งออกไปหา supplier จริงหรือยัง
       const confirmBtn = head.querySelector('.order-done-check');
       if(confirmBtn){
+        // เก็บสถานะปัจจุบันไว้แยกในตัวแปรนี้ (ไม่ใช้ isConfirmed ตรงๆ) เพราะไม่ได้ renderGroups() ใหม่
+        // ทั้งหน้าหลังกดสำเร็จอีกต่อไป (เพื่อความไว) — ถ้ายังอิง isConfirmed เดิม กดสลับซ้ำสองครั้ง
+        // ในการ์ดเดียวกันโดยไม่รีเฟรชหน้า ครั้งที่สองจะยังอ่านค่าตั้งต้นเก่าอยู่ ผิดสถานะจริง
+        let confirmedNow = isConfirmed;
         confirmBtn.onclick = async (e)=>{
           e.stopPropagation();
-          const checked = !isConfirmed;
-          confirmBtn.disabled = true;
+          const checked = !confirmedNow;
+          // อัปเดตหน้าจอให้เห็นผลทันที ไม่รอ apiPost เสร็จก่อน (Apps Script มัก 1-3 วิ กว่าจะตอบ
+          // กดแล้วรอเห็นผลช้าจะรู้สึกเหมือนกดไม่ติด) ค่อยยิงไปบันทึกจริงเบื้องหลัง แล้วเด้งกลับ
+          // สถานะเดิมพร้อมแจ้งเตือนถ้าบันทึกไม่สำเร็จ
+          confirmedNow = checked;
+          confirmBtn.classList.toggle('confirmed', checked);
+          confirmBtn.textContent = checked ? '✓' : '';
+          if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
+          renderStats();
           try{
             await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName });
-            if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
-            renderStats();
-            renderGroups(c.querySelector('#search').value);
           }catch(err){
-            confirmBtn.disabled = false;
+            confirmedNow = !checked;
+            confirmBtn.classList.toggle('confirmed', !checked);
+            confirmBtn.textContent = !checked ? '✓' : '';
+            if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
+            renderStats();
             alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
           }
         };
