@@ -79,6 +79,7 @@ function doPost(e) {
       case 'setSupplierCoverPhoto': result = setSupplierCoverPhoto(body); break;
       case 'setSupplierOrderConfirm': result = setSupplierOrderConfirm(body); break;
       case 'setProductSkipDate': result = setProductSkipDate(body);   break;
+      case 'setUnitLabel':      result = setUnitLabel(body);      break;
       default:                 result = { error: 'unknown action: ' + body.action };
     }
   } catch (err) {
@@ -802,6 +803,32 @@ function setProductSkipDate(body) {
 
   cacheClear('bootstrap');
   return { ok: true, skipDates: dates };
+}
+
+/* ============ setUnitLabel ============ */
+// body = { unitId, label } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") จากหน้าเช็คสต๊อกบนมือถือ
+// (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html — ฟีเจอร์ชั่วคราว ไว้แก้ชื่อหน่วยให้ครบทุกสินค้า
+// จะถูกปิดทีหลังเมื่อไม่ต้องแก้บ่อยแล้ว) แก้แค่คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
+function setUnitLabel(body) {
+  if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
+  const sh = SHEET.getSheetByName('ProductUnits');
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf('UnitID');
+  const labelCol = headers.indexOf('UnitLabel');
+  if (idCol === -1 || labelCol === -1) throw new Error('ไม่พบคอลัมน์ UnitID หรือ UnitLabel ในชีต ProductUnits');
+
+  let rowIdx = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]).trim() === String(body.unitId).trim()) { rowIdx = i; break; }
+  }
+  if (rowIdx === -1) throw new Error('ไม่พบ UnitID นี้ในชีต ProductUnits: ' + body.unitId);
+
+  const label = String(body.label).trim();
+  sh.getRange(rowIdx + 1, labelCol + 1).setValue(label);
+
+  cacheClear('bootstrap');
+  return { ok: true, unitId: body.unitId, label };
 }
 
 /* ============ เพิ่มหน่วยเล็กให้สินค้าทุกตัวที่ยังมีหน่วยเดียว ============ */
