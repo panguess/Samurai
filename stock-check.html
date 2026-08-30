@@ -103,6 +103,7 @@
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
   .stickybar span{color:var(--cream); font-size:13px;}
   .stickybar .btn-primary{background:var(--cream); color:var(--brand);}
@@ -142,6 +143,7 @@
   .stat .v{font-size:13px; font-weight:700; color:var(--text); line-height:1.2;}
   .stat .v .u{font-size:9px; font-weight:500; margin-left:1px;}
   .stat .v.muted{color:var(--text-tertiary); font-weight:500;}
+  .oos-badge{display:inline-block; font-size:10.5px; font-weight:700; color:#fff; background:var(--danger); border-radius:5px; padding:1px 6px;}
   .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
   .stepper{display:flex; align-items:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:#fff; flex-shrink:0; margin-left:auto;}
   .stepper .unit-tag{font-size:13px; font-weight:600; color:var(--text); margin-left:0; padding:0 8px 0 6px; overflow:visible; text-overflow:clip; white-space:nowrap; flex-shrink:0;}
@@ -897,6 +899,7 @@ async function renderSupplierCheck(app){
             </div>
           `).join('')}
         </div>
+        <button class="oos-btn" data-pid="${p.id}" data-units="${p.units.map(u=>u.id).join(',')}">🚫 ของหมด</button>
       `;
       grid.appendChild(card);
     });
@@ -971,6 +974,21 @@ async function renderSupplierCheck(app){
       inp.oninput = ()=>{
         stockValues[inp.dataset.unit] = Math.max(0, parseInt(inp.value||0,10));
         markCardChecked(inp.dataset.unit);
+      };
+    });
+    // ปุ่มลัด "ของหมด" — ตั้งทุกหน่วยของสินค้านั้นเป็น 0 ให้ทันที (ไม่ต้องกด − ทีละหน่วย) แล้วนับว่า
+    // เช็คแล้ว ไม่มีปุ่มยกเลิกแยกต่างหาก เพราะ "หมด" ไม่ใช่ flag พิเศษ แค่หมายถึง "เช็คแล้ว + คงเหลือ 0"
+    // เหมือนกัน ถ้าลูกจ้างกด + เพิ่มจำนวนทีหลัง (เช่นไปเจอของในตู้เย็น) ตัวเลขก็จะโชว์แทน "หมด" เองอัตโนมัติ
+    // ฝั่งเจ้าของ เพราะเป็นการอ่านค่าจำนวนจริง ไม่ได้เก็บสถานะ "เคยกดของหมด" ไว้แยก
+    grid.querySelectorAll('.oos-btn').forEach(btn=>{
+      btn.onclick = ()=>{
+        const unitIds = btn.dataset.units.split(',');
+        unitIds.forEach(uid=>{
+          const input = grid.querySelector(`.step-input[data-unit="${uid}"]`);
+          if(input) input.value = 0;
+          stockValues[uid] = 0;
+        });
+        markCardChecked(unitIds[0]);
       };
     });
   }
@@ -1381,7 +1399,12 @@ async function renderOrderPage(app){
           const v = remainEntry ? remainEntry.remain[u.id] : null;
           return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
         }).filter(Boolean);
-        const remainDisplay = itemChecked && remainParts.length ? remainParts.join(' ') : '–';
+        const remainValues = p.units.map(u=> remainEntry ? remainEntry.remain[u.id] : null);
+        // เช็คแล้ว + ทุกหน่วยคงเหลือ 0 = "หมด" จริง (ไม่ใช่แค่ยังไม่ได้เช็ค) — ไม่ต้องมี flag พิเศษเก็บแยก
+        // เพราะข้อมูลนี้แยกออกจากกันอยู่แล้ว: ไม่เช็คเลย = remain เป็น null, เช็คแล้วคงเหลือ 0 = remain เป็น 0
+        const isOutOfStock = itemChecked && remainValues.length && remainValues.every(v=> v===0);
+        const remainDisplay = isOutOfStock ? `<span class="oos-badge">หมด</span>`
+          : (itemChecked && remainParts.length ? remainParts.join(' ') : '–');
 
         const row = document.createElement('div');
         row.className = 'prow';
