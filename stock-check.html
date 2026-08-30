@@ -1232,8 +1232,6 @@ async function renderOrderPage(app){
     <div id="groups"></div>`;
   const statsEl = c.querySelector('#stats');
   const groups = c.querySelector('#groups');
-  const bar = document.createElement('div'); bar.className='stickybar';
-  c.appendChild(bar);
 
   const expandedSuppliers = new Set();
 
@@ -1446,7 +1444,6 @@ async function renderOrderPage(app){
           row.querySelector('[data-check]').checked = state.orderQty[p.id] > 0;
           const subEl = head.querySelector('.status-sub');
           if(subEl) subEl.textContent = baseSubText + selectedSuffix();
-          updateBar();
         }
         row.querySelector('[data-check]').onchange = (e)=>{
           setQty(e.target.checked ? 1 : 0);
@@ -1469,18 +1466,19 @@ async function renderOrderPage(app){
             return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: orderUnitLabel(p) };
           });
           if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
+          const originalLabel = btn.textContent;
           btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
           try{
             await apiPost('createOrderBatch', { items: supItems });
             supItems.forEach(it=> orderedProductIds.add(it.productId));
-            // เคลียร์จำนวนที่สั่งไปแล้วออกจาก state — กันไม่ให้ปุ่ม "สร้างข้อความสั่งของทั้งหมด"
-            // นับซ้ำแล้วยิง createOrderBatch ให้รายการเดิมอีกรอบ และกันตัวเลขเก่าค้างให้เข้าใจผิด
-            // ว่าเป็นค่าที่เพิ่งกรอกใหม่เวลาเปิดเจ้านี้ซ้ำ
-            supItems.forEach(it=> state.orderQty[it.productId] = 0);
-            renderStats();
-            renderGroups(c.querySelector('#search').value);
+            // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
+            // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
+            // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
+            lastOrderMessageSnapshot = {};
+            supItems.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
+            go('orderMessage');
           }catch(err){
-            btn.disabled = false; btn.textContent = 'สั่งของเจ้านี้';
+            btn.disabled = false; btn.textContent = originalLabel;
             alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
           }
         };
@@ -1493,31 +1491,6 @@ async function renderOrderPage(app){
       renderTarget.appendChild(card);
     });
     if(!dueCount && !restCount) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
-    updateBar();
-  }
-
-  function updateBar(){
-    const n = Object.values(state.orderQty).filter(v=>v>0).length;
-    bar.innerHTML = `<span>เลือกแล้ว ${n} รายการ</span><button class="btn-primary btn" id="genMsg" ${n===0?'disabled':''}>สร้างข้อความสั่งของทั้งหมด</button>`;
-    bar.querySelector('#genMsg').onclick = async (e)=>{
-      const btn = e.target; btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-      const items = Object.entries(state.orderQty).filter(([id,q])=>q>0).map(([id,q])=>{
-        const p = PRODUCTS.find(x=>x.id===id);
-        return { productId:id, forecast: 0, orderQty:q, rateUsed: 1, orderUnit: orderUnitLabel(p) };
-      });
-      try{
-        await apiPost('createOrderBatch', { items });
-        items.forEach(it=> orderedProductIds.add(it.productId));
-        // เก็บรายการที่เพิ่งสั่งไว้ให้หน้าข้อความใช้แสดงผล ก่อนเคลียร์ state.orderQty จริง —
-        // กันปุ่มนี้กดซ้ำแล้วสั่งรายการเดิมซ้ำอีกรอบ (เหมือนปุ่ม "สั่งของเจ้านี้" รายเจ้า)
-        lastOrderMessageSnapshot = {};
-        items.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
-        go('orderMessage');
-      }catch(err){
-        btn.disabled = false; btn.textContent = 'สร้างข้อความสั่งของทั้งหมด';
-        alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
-      }
-    };
   }
 
   renderStats();
