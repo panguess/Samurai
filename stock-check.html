@@ -1538,7 +1538,7 @@ function renderOrderMessage(app){
     // เช่น "22 หิ้ว" ต้องขึ้นบรรทัดใหม่ด้วยกันทั้งคู่ ไม่ใช่ "22" ค้างบรรทัดบนแล้ว "หิ้ว" กระเด็นไปบรรทัดล่าง
     const lines = list.map((it,i)=>`${i+1}. ${it.name}  ${it.qty} ${it.orderUnit}`).join('\n');
     const todayLabel = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'});
-    const text = `สั่งสินค้า\nร้านซามูไร ไส้กรอก ตลาดเวิลด์มาเก็ต ทวีวัฒนา\nวันที่สั่ง: ${todayLabel}\n\nรายการสั่งของ\n${lines}`;
+    const text = `สั่งสินค้า\nวันที่สั่ง: ${todayLabel}\n\nรายการสั่งของ\n${lines}`;
 
     const card = document.createElement('div');
     card.style.background='#fff'; card.style.border='1px solid var(--border)';
