@@ -436,29 +436,16 @@ function supplierDueToday(s){
   const today = todayDayName();
   return (s.orderDays||[]).some(d => String(d).trim().slice(0,3).toLowerCase() === today.toLowerCase());
 }
-function dayNameToIndex(d){
-  const norm = String(d).trim().slice(0,3).toLowerCase();
-  return DAY_NAMES.findIndex(x => x.toLowerCase() === norm);
-}
-// หารอบสั่งถัดไปของเจ้านี้ห่างจากวันนี้กี่วัน — ใช้เตือน "สั่งเผื่อ" สำหรับเจ้าที่สั่งไม่ทุกวัน
-// เช่น สั่งแค่ Tue,Fri พอถึงวัน Tue รอบหน้าคือ Fri (ห่าง 3 วัน) ก็ควรสั่งเผื่อ 3 วัน
-// คืนค่า null ถ้าไม่ได้กำหนด OrderDays เลย, คืน 7 ถ้าสั่งแค่วันเดียวต่อสัปดาห์
-function daysUntilNextOrder(s){
-  const idxs = (s.orderDays||[]).map(dayNameToIndex).filter(i => i >= 0);
-  if(!idxs.length) return null;
-  if(idxs.length < 2) return 7;
-  const todayIdx = new Date().getDay();
-  for(let gap = 1; gap <= 7; gap++){
-    if(idxs.includes((todayIdx + gap) % 7)) return gap;
-  }
-  return null;
-}
-// ตัวเลข "สั่งเผื่อ" ที่จะโชว์ — โผล่เฉพาะเจ้าที่ถึงรอบวันนี้ และรอบถัดไปห่างมากกว่า 1 วัน
-// (เจ้าที่สั่งได้ทุกวันติดกัน รอบถัดไปคือพรุ่งนี้อยู่แล้ว ไม่ต้องเผื่อ เลยไม่ต้องมีตัวเลขนี้)
-function supplierStockupMultiplier(s){
-  if(!supplierDueToday(s)) return null;
-  const gap = daysUntilNextOrder(s);
-  return gap && gap > 1 ? gap : null;
+// โน้ต "สั่งเผื่อ" ของแต่ละเจ้า — เดิมคำนวณอัตโนมัติจากช่วงห่างของ OrderDays แต่ในทางปฏิบัติ
+// แต่ละเจ้าตกลงกับร้านไว้ไม่เหมือนกัน (บางเจ้า ×2 บางเจ้า ×3 ทั้งที่ช่วงห่างวันเท่ากัน หรือบางเจ้า
+// เป็นโน้ตข้อความล้วนไม่ใช่ตัวคูณเลยก็มี) จึงเปลี่ยนมาใช้ค่าที่กำหนดเองจากคอลัมน์ StockupNotes
+// ในชีต Suppliers แทน (ฟอร์แมต "วัน:ข้อความ" คั่นด้วย ; เช่น "Tue:×3 สั่งเผื่อ;Sat:ส่งจันทร์")
+// ไม่เกี่ยวกับการจัดกลุ่ม "ต้องสั่งวันนี้"/"เจ้าอื่นทั้งหมด" เลย (อันนั้นยึดตาม OrderDays เหมือนเดิม)
+function supplierStockupNote(s){
+  const notes = s.stockupNotes || {};
+  const today = todayDayName().toLowerCase();
+  const key = Object.keys(notes).find(d => String(d).trim().slice(0,3).toLowerCase() === today);
+  return key ? notes[key] : null;
 }
 
 /* ============ LIVE DATA (filled by bootstrap()) ============ */
@@ -1315,7 +1302,7 @@ async function renderOrderPage(app){
       const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
       if(!items.length) return;
       const dueToday = supplierDueToday(s);
-      const stockupMultiplier = supplierStockupMultiplier(s);
+      const stockupNote = supplierStockupNote(s);
       // เจ้ากลุ่มแรกที่ไม่ถึงรอบวันนี้ (ตามลำดับที่ sort ไว้แล้ว) คือจุดเริ่มเซกชัน "เจ้าอื่นทั้งหมด"
       if(!dueToday && !restLabelInserted){ groups.appendChild(restLabel); groups.appendChild(otherSection); restLabelInserted = true; }
       const renderTarget = dueToday ? groups : otherSection;
@@ -1358,7 +1345,7 @@ async function renderOrderPage(app){
         <span class="ord-card-name">${s.name}</span>
         <div class="ord-card-status">
           <div class="status-top-row">
-            ${stockupMultiplier ? `<span class="stockup-tag">×${stockupMultiplier} สั่งเผื่อ</span>` : ''}
+            ${stockupNote ? `<span class="stockup-tag">${stockupNote}</span>` : ''}
             <span class="status-line ${stateClass}">${statusText}</span>
           </div>
           <span class="status-sub">${subText}</span>
