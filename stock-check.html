@@ -1084,6 +1084,18 @@ async function renderSupplierCheck(app){
   }
   renderGrid();
 
+  // skipDates เป็นค่าที่เจ้าของอาจตั้งขึ้นกะทันหันระหว่างวัน (เช่น เพิ่งกดงดสั่งเมื่อครู่นี้) ต่างจาก
+  // ข้อมูลอื่นใน PRODUCTS/SUPPLIERS ที่แทบไม่เปลี่ยนบ่อย — ถ้าลูกจ้างเปิดหน้านี้ค้างมาตั้งแต่ก่อนเจ้าของ
+  // จะกด PRODUCTS ที่โหลดมาตอน bootstrap() ครั้งแรกจะไม่รู้เรื่อง จึงรีเฟรช bootstrap เงียบๆ ทุกครั้งที่
+  // เข้าหน้าเช็คสต๊อกของเจ้านี้ แล้วอัปเดต products/แสดงผลใหม่ถ้าพบว่าเปลี่ยนไป
+  apiGet('bootstrap').then(data=>{
+    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    writeBootstrapCache(data);
+    products.length = 0;
+    products.push(...PRODUCTS.filter(p=>p.supplierId===sup.id));
+    renderGrid();
+  }).catch(()=>{});
+
   const bar = document.createElement('div'); bar.className='stickybar';
   c.appendChild(bar);
   function updateBar(){
