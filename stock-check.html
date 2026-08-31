@@ -1038,7 +1038,22 @@ async function renderSupplierCheck(app){
         e.stopPropagation();
         const pid = btn.dataset.pid;
         if(checkedProducts.has(pid)) checkedProducts.delete(pid); else checkedProducts.add(pid);
-        renderGrid(); updateBar();
+        // แต่ก่อนรื้อสร้างการ์ดสินค้าทั้งหน้าใหม่ (renderGrid()) แค่เพราะติ๊ก/ถอนติ๊กสินค้าตัวเดียว — แก้แค่
+        // การ์ดนั้นในจุดที่สถานะ "เช็คแล้ว" มีผลจริง (ไอคอนวงกลม, พื้นหลังรูป, คลาส .checked ของการ์ด)
+        const isNowChecked = checkedProducts.has(pid);
+        const card = btn.closest('.prod-card');
+        if(card){
+          card.classList.toggle('checked', isNowChecked);
+          const icon = btn.querySelector('i');
+          if(icon){ icon.classList.toggle('ti-circle', !isNowChecked); icon.classList.toggle('ti-circle-check-filled', isNowChecked); }
+          const photoArea = card.querySelector('.prod-photo-area');
+          if(photoArea && !photoArea.querySelector('img')){
+            const idx = products.findIndex(x=>x.id===pid);
+            const col = iconColor(idx);
+            photoArea.style.background = isNowChecked ? 'rgba(255,255,255,0.6)' : col.bg;
+          }
+        }
+        updateBar();
       };
     });
     if(ALLOW_SET_COVER_PHOTO){
@@ -1102,6 +1117,10 @@ async function renderSupplierCheck(app){
       card.classList.add('checked');
       const icon = card.querySelector('.check-toggle i');
       if(icon){ icon.classList.remove('ti-circle'); icon.classList.add('ti-circle-check-filled'); }
+      // เหมือน patch ใน .check-toggle onclick ด้านล่าง — พื้นหลังช่องรูป (กรณียังไม่มีรูป) ต้องเปลี่ยนเป็น
+      // สีเช็คแล้วทันทีตรงนี้ด้วย ไม่งั้นจะไม่ตรงกับตอนกดวงกลม ✓ ตรงๆ (ค้างสีเดิมจนกว่าจะรีเฟรชทั้งหน้า)
+      const photoArea = card.querySelector('.prod-photo-area');
+      if(photoArea && !photoArea.querySelector('img')) photoArea.style.background = 'rgba(255,255,255,0.6)';
       updateBar();
     }
     grid.querySelectorAll('.minus, .plus').forEach(btn=>{
