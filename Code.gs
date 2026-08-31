@@ -21,14 +21,15 @@ const SUPPLIER_ORDER_CONFIRM_SHEET = 'OrderConfirmations';
 // ถ้าชีตนี้ยังไม่มี ระบบจะสร้างให้อัตโนมัติตอนเช็คสต๊อกครั้งแรก (ดู ensureSheetWithHeaders)
 // หัวคอลัมน์: UnitID | Date | RemainQty | CheckedBy | Timestamp
 const STOCK_LOGS_LATEST_SHEET = 'StockLogsLatest';
-
 /* ============ server-side cache (ลดการอ่านชีตซ้ำ) ============ */
 const CACHE = CacheService.getScriptCache();
 const CACHE_TTL = {
   bootstrap: 300,     // 5 นาที — ร้าน/สินค้า/พนักงานไม่ค่อยเปลี่ยน
-  stockStatus: 60     // 60 วิ (เดิม 20 วิ) — กันหลายคนกดพร้อมกันแล้วอ่านชีตซ้ำรัวๆ
+  stockStatus: 60,    // 60 วิ (เดิม 20 วิ) — กันหลายคนกดพร้อมกันแล้วอ่านชีตซ้ำรัวๆ
                        // ยืดได้มากขึ้นเพราะตอนนี้ getStockStatus() อ่านแค่ StockLogsLatest (ขนาดคงที่)
                        // ไม่ได้อ่านทั้ง StockLogs ที่โตขึ้นทุกวันอีกต่อไป — ผลคือรอบแรกหลังแคชหมดอายุก็เร็วอยู่แล้ว
+  analytics: 120       // 2 นาที — getAnalytics() ยังอ่านทั้งชีต OrderLogs (ไม่มีตัวสรุปแยกแบบ StockLogsLatest)
+                       // เดิมไม่มีแคชเลยเลยอ่านทั้งชีตซ้ำทุกครั้งที่เปิดหน้า analytics แม้เพิ่งเปิดไปเมื่อครู่
 };
 function cacheGet(key) {
   const raw = CACHE.get(key);
@@ -50,7 +51,6 @@ function doGet(e) {
     switch (action) {
       case 'bootstrap':     result = bootstrap();                               break;
       case 'stockStatus':   result = getStockStatus();                         break;
-      case 'orderForecast': result = getOrderForecast();                       break;
       case 'analytics':     result = getAnalytics(e.parameter.range || '7d'); break;
       case 'checkPin':      result = checkPin(e.parameter.pin);                break;
       case 'orderedToday':  result = getOrderedToday();                        break;
@@ -409,41 +409,6 @@ function getStockStatus() {
   return result;
 }
 
-/* ============ getOrderForecast ============ */
-function getOrderForecast() {
-  const products = readTable(PRODUCT_SHEET_NAME).filter(p => p.Active);
-  const units = readTable('ProductUnits');
-  const rates = readTable('ConversionRates');
-  const stockLogs = readTable('StockLogs');
-  const date = todayStr();
-
-  return products.map(p => {
-    const baseUnit = units.find(u => u.ProductID === p.ProductID);
-    const todayLog = stockLogs.find(l => l.UnitID === baseUnit?.UnitID && normDate(l.Date) === date);
-    const currentStock = todayLog ? todayLog.RemainQty : 0;
-
-    const unitLogs = stockLogs.filter(l => l.UnitID === baseUnit?.UnitID)
-      .sort((a, b) => new Date(b.Date) - new Date(a.Date));
-    let avgDailySales = 0;
-    if (unitLogs.length >= 2) {
-      const days = (new Date(unitLogs[0].Date) - new Date(unitLogs[1].Date)) / 86400000;
-      const drop = unitLogs[1].RemainQty - unitLogs[0].RemainQty;
-      avgDailySales = days > 0 ? Math.max(0, drop / days) : 0;
-    }
-
-    const rate = rates.find(r => r.ProductID === p.ProductID);
-    const rateUsed = rate ? rate.DefaultRate : 1;
-    const stockInOrderUnit = currentStock * rateUsed;
-    const forecast = Math.max(0, Math.round((avgDailySales * rateUsed * 1) + p.SafetyStock - stockInOrderUnit));
-
-    return {
-      productId: p.ProductID, forecast, rateUsed,
-      safetyStock: p.SafetyStock, currentStock,
-      unitLabel: baseUnit?.UnitLabel || ''
-    };
-  });
-}
-
 /* ============ createOrderBatch ============ */
 function createOrderBatch(body) {
   const batchId = 'B' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
@@ -484,32 +449,45 @@ function createOrderBatch(body) {
     stockSh.getRange(2, triggeredCol + 1, triggeredValues.length, 1).setValues(triggeredValues);
   }
 
+  cacheClear('analytics_7d');
+  cacheClear('analytics_30d');
   return { ok: true, batchId };
 }
 
 /* ============ getAnalytics ============ */
+// เดิมไม่มีแคชเลย อ่านทั้งชีต OrderLogs+Products ใหม่ทุกครั้งที่เปิดหน้า analytics แม้เพิ่งเปิดไปเมื่อครู่
+// และหา product ด้วย .find() ต่อ order (O(orders × products)) — เพิ่มแคช 2 นาที + สร้าง Map ของ
+// products ไว้ล่วงหน้าครั้งเดียวแทน
 function getAnalytics(range) {
+  const cacheKey = 'analytics_' + range;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
   const days = range === '30d' ? 30 : 7;
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
   const orders = readTable('OrderLogs').filter(o => new Date(o.Date) >= cutoff);
   const products = readTable(PRODUCT_SHEET_NAME);
+  const productById = {};
+  products.forEach(p => { productById[String(p.ProductID).trim()] = p; });
 
   const byProduct = {};
   orders.forEach(o => { byProduct[o.ProductID] = (byProduct[o.ProductID] || 0) + Number(o.OrderQty); });
 
   const ranked = Object.keys(byProduct).map(pid => {
-    const p = products.find(x => x.ProductID === pid);
+    const p = productById[String(pid).trim()];
     return { productId: pid, name: p ? p.Name : pid, total: byProduct[pid] };
   }).sort((a, b) => b.total - a.total);
 
   const bySupplier = {};
   orders.forEach(o => {
-    const p = products.find(x => x.ProductID === o.ProductID);
+    const p = productById[String(o.ProductID).trim()];
     if (!p) return;
     bySupplier[p.SupplierID] = (bySupplier[p.SupplierID] || 0) + Number(o.OrderQty);
   });
 
-  return { topProducts: ranked.slice(0, 10), bottomProducts: ranked.slice(-10).reverse(), bySupplier };
+  const result = { topProducts: ranked.slice(0, 10), bottomProducts: ranked.slice(-10).reverse(), bySupplier };
+  cacheSet(cacheKey, result, CACHE_TTL.analytics);
+  return result;
 }
 
 /* ============ checkPin ============ */
