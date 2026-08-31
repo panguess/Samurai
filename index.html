@@ -2333,15 +2333,16 @@ function renderDashboardCustomer(){
   const topLTV=names.slice().sort((a,b)=>byCust[b].total-byCust[a].total).slice(0,10);
   const topBasket=names.slice().filter(n=>avgBasket[n]!==undefined).sort((a,b)=>avgBasket[b]-avgBasket[a]).slice(0,10);
 
+  const dbScrollBtn=id=>`onclick="(function(){var t=document.getElementById('${id}');var h=document.querySelector('.admin-sticky-wrap');var off=h?h.offsetHeight:0;window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-off-12,behavior:'smooth'});})()"`;
   const statCards=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
-    <div style="background:#eaf3de;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#3B6D11">${trueNewNames.length}</div><div style="font-size:10.5px;color:#3B6D11;margin-top:2px">ใหม่เดือนนี้</div></div>
-    <div style="background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
+    <div ${dbScrollBtn('db-cust-all')} style="cursor:pointer;background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
+    <div ${dbScrollBtn('db-cust-new')} style="cursor:pointer;background:#eaf3de;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#3B6D11">${trueNewNames.length}</div><div style="font-size:10.5px;color:#3B6D11;margin-top:2px">ใหม่เดือนนี้</div></div>
+    <div ${dbScrollBtn('db-cust-churn')} style="cursor:pointer;background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
   </div>`;
 
   // รายชื่อใหม่/หายไปของเดือนที่เลือก
   const monthListCard=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-    <div style="background:#eaf3de;border-radius:10px;padding:12px">
+    <div id="db-cust-new" style="background:#eaf3de;border-radius:10px;padding:12px">
       <div style="font-size:12.5px;font-weight:600;color:#3B6D11;margin-bottom:8px">🆕 ลูกค้าใหม่เดือนนี้ (${trueNewNames.length})</div>
       ${trueNewNames.length?trueNewNames.map(n=>`<div style="font-size:12px;color:#333;padding:4px 0">${n}</div>`).join(''):'<div style="font-size:12px;color:#aaa">ไม่มีลูกค้าใหม่ในเดือนนี้</div>'}
     </div>
@@ -2352,13 +2353,13 @@ function renderDashboardCustomer(){
     </div>
   </div>`;
 
-  const churnCard=churnList.length?`<div style="background:#fceaea;border-radius:10px;padding:12px;margin-bottom:12px">
+  const churnCard=churnList.length?`<div id="db-cust-churn" style="background:#fceaea;border-radius:10px;padding:12px;margin-bottom:12px">
     <div style="font-size:12.5px;font-weight:600;color:#A32D2D;margin-bottom:4px">⚠️ ลูกค้าเงียบนานผิดปกติ (นับถึงวันนี้ ไม่ผูกกับเดือนที่เลือก)</div>
     <div style="font-size:10.5px;color:#c07272;margin-bottom:8px">เรียงจากห่างนานสุดก่อน · ตัวเลขในวงเล็บ = ห่างเกินกว่ารอบซื้อปกติกี่เท่า (ยิ่งมาก ยิ่งผิดปกติ)</div>
     ${churnList.map(c=>`<div style="font-size:12px;color:#333;padding:5px 0;border-bottom:0.5px solid #f3d9d9">
       ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:'(ออเดอร์ยังน้อย ใช้เกณฑ์คงที่ 30 วัน)'}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)} เท่าของปกติ)`:''}
     </div>`).join('')}
-  </div>`:`<div style="background:#eaf3de;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#3B6D11">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
+  </div>`:`<div id="db-cust-churn" style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#D64109">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
 
   const trendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
     <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าใหม่ต่อเดือน (6 เดือนล่าสุด)</div>
@@ -2381,7 +2382,7 @@ function renderDashboardCustomer(){
     }).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูลในเดือนนี้</div>'}
   </div>`;
 
-  const ltvCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+  const ltvCard=`<div id="db-cust-all" style="background:#faf8f5;border-radius:10px;padding:12px">
     <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าอันดับต้น</div>
     <div style="font-size:10.5px;color:#999;margin-bottom:8px">เรียงตามยอดสะสมทั้งหมดตั้งแต่เริ่มเป็นลูกค้าในแอป (มาก→น้อย)</div>
     ${topLTV.length?topLTV.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topLTV.length-1?'border-bottom:0.5px solid #eee':''}">
