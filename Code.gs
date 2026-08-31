@@ -54,6 +54,7 @@ function doGet(e) {
       case 'analytics':     result = getAnalytics(e.parameter.range || '7d'); break;
       case 'checkPin':      result = checkPin(e.parameter.pin);                break;
       case 'orderedToday':  result = getOrderedToday();                        break;
+      case 'orderedItemsToday': result = getOrderedItemsToday();               break;
       case 'confirmedToday':result = getConfirmedToday();                     break;
       default:              result = { error: 'unknown action: ' + action };
     }
@@ -723,6 +724,24 @@ function getOrderedToday() {
   const orders = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
   const productIds = [...new Set(orders.map(o => String(o.ProductID).trim()))];
   return { productIds };
+}
+
+/* ============ getOrderedItemsToday ============ */
+// เหมือน getOrderedToday แต่คืนจำนวน+หน่วยที่สั่งด้วย (ไม่ใช่แค่ ProductID) — ใช้กับปุ่ม
+// "ดูข้อความที่สั่งไปอีกครั้ง" ในหน้าสั่งของ ให้เจ้าของกลับไปดู/คัดลอกข้อความสั่งของที่เคยสร้างไปแล้ว
+// วันนี้ได้อีกครั้ง โดยไม่ต้องเลือกรายการ+กดสั่งใหม่ทั้งหมด ใช้ได้กับออเดอร์ที่สั่งไปแล้วก่อนเปิดแอป
+// รอบนี้ด้วย เพราะอ่านจาก OrderLogs ตรงๆ ไม่ได้พึ่งข้อมูลที่จำไว้ในเครื่อง — ถ้าสินค้าตัวเดียวกันถูก
+// สั่งมากกว่า 1 รอบในวันนี้ ใช้ค่าจากรอบล่าสุด (แถวหลังสุดของวันนั้นในชีต ชนะแถวก่อนหน้าเสมอ)
+function getOrderedItemsToday() {
+  const date = todayStr();
+  const rows = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
+  const latestByProduct = {};
+  rows.forEach(r => { latestByProduct[String(r.ProductID).trim()] = r; });
+  return {
+    items: Object.values(latestByProduct).map(r => ({
+      productId: r.ProductID, orderQty: r.OrderQty, orderUnit: r.OrderUnit
+    }))
+  };
 }
 
 /* ============ getConfirmedToday / setSupplierOrderConfirm ============ */

@@ -630,28 +630,13 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
-// ประวัติข้อความสั่งของที่เคยสร้างไปแล้ว (เก็บใน localStorage ข้าม session) — กันเคสลืมคัดลอกข้อความ
-// ตอนกด "สั่งของเจ้านี้" แล้วออกจากหน้าไปก่อน ปกติจะต้องเลือกรายการ+กดสั่งใหม่หมดเพราะ state.orderQty
-// ถูกเคลียร์เป็น 0 ไปแล้ว แต่ตอนนี้เก็บสแนปช็อตแยกไว้ต่างหาก กดดูซ้ำ/คัดลอกซ้ำได้โดยไม่ต้องสั่งซ้ำ
-// (ปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" แค่ render ข้อความเดิม ไม่ยิง createOrderBatch ซ้ำ)
-const ORDER_HISTORY_STORAGE_KEY = 'samurai_orderMsgHistory_v1';
+// ข้อมูล "สั่งไปแล้ววันนี้เท่าไหร่" ต่อสินค้า — มาจาก OrderLogs ฝั่ง Apps Script โดยตรง (action
+// orderedItemsToday) ไม่ใช่แค่จำที่เพิ่งสั่งไปในเครื่องแบบ localStorage เดิม เพราะงั้นถึงจะเป็นออเดอร์
+// ที่สั่งไปตั้งแต่ก่อนเปิดแอปรอบนี้ (คนละเครื่อง/ปิดแอปไปแล้ว) ก็ยังกดดูย้อนหลัง/คัดลอกซ้ำได้เหมือนกัน
+// โครงสร้าง: { [productId]: {qty, unit} } — set ครั้งเดียวตอนโหลดหน้าสั่งของ (renderOrderPage)
+// แล้วให้ renderOrderMessage อ่านต่อตอนกด "ดูข้อความที่สั่งไปอีกครั้ง" (ผ่าน viewHistorySupplierId)
+let orderedItemsTodayMap = {};
 let viewHistorySupplierId = null;
-function loadOrderHistory(){
-  try{ return JSON.parse(localStorage.getItem(ORDER_HISTORY_STORAGE_KEY) || '{}'); }
-  catch(e){ return {}; }
-}
-function saveOrderHistoryEntry(supplierId, items){
-  const all = loadOrderHistory();
-  const key = todayKey();
-  Object.keys(all).forEach(d=>{ if(d !== key) delete all[d]; }); // เก็บแค่วันนี้ กันสะสมไม่จำกัดใน localStorage
-  all[key] = all[key] || {};
-  all[key][supplierId] = { items: items.map(it=>({ productId: it.productId, qty: it.orderQty })), ts: Date.now() };
-  try{ localStorage.setItem(ORDER_HISTORY_STORAGE_KEY, JSON.stringify(all)); }catch(e){}
-}
-function getOrderHistoryEntry(supplierId){
-  const all = loadOrderHistory();
-  return all[todayKey()]?.[supplierId] || null;
-}
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -1374,11 +1359,13 @@ async function renderOrderPage(app){
 
   let statusList;
   try{
-    const [sl, orderedRes, confirmedRes] = await Promise.all([getStockStatus(), apiGet('orderedToday'), apiGet('confirmedToday')]);
+    const [sl, orderedRes, confirmedRes, orderedItemsRes] = await Promise.all([getStockStatus(), apiGet('orderedToday'), apiGet('confirmedToday'), apiGet('orderedItemsToday')]);
     statusList = sl;
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
     orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
     confirmedSupplierIds = new Set((confirmedRes && confirmedRes.supplierIds) || []);
+    orderedItemsTodayMap = {};
+    ((orderedItemsRes && orderedItemsRes.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
@@ -1663,8 +1650,8 @@ async function renderOrderPage(app){
 
       {
         const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
-        const histEntry = getOrderHistoryEntry(s.id);
-        if(histEntry && histEntry.items.some(it=>it.qty>0)){
+        const hasOrderedItemsToday = allItems.some(p=> orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty > 0);
+        if(hasOrderedItemsToday){
           const viewBtn = document.createElement('button');
           viewBtn.type = 'button';
           viewBtn.className = 'btn'; viewBtn.style.fontSize='12px'; viewBtn.style.padding='6px 10px';
@@ -1689,8 +1676,10 @@ async function renderOrderPage(app){
           btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
           try{
             await apiPost('createOrderBatch', { items: supItems });
-            supItems.forEach(it=> orderedProductIds.add(it.productId));
-            saveOrderHistoryEntry(s.id, supItems);
+            supItems.forEach(it=>{
+              orderedProductIds.add(it.productId);
+              orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit };
+            });
             // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
             // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
             // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
@@ -1725,15 +1714,13 @@ function renderOrderMessage(app){
 
   let items;
   if(viewHistorySupplierId){
-    // มาจากปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" — ดึงจากประวัติที่เก็บไว้ ไม่ใช่ state.orderQty สดๆ
-    // (ซึ่งถูกเคลียร์ไปแล้วหลังสั่งสำเร็จ) และไม่ยิง createOrderBatch ซ้ำด้วย
+    // มาจากปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" — ดึงจาก orderedItemsTodayMap (ข้อมูลจริงจาก OrderLogs
+    // ฝั่ง Apps Script) ไม่ใช่ state.orderQty สดๆ (ซึ่งถูกเคลียร์ไปแล้วหลังสั่งสำเร็จ) และไม่ยิง
+    // createOrderBatch ซ้ำด้วย — ใช้ได้กับออเดอร์ที่สั่งไปแล้ววันนี้ทุกอัน ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม
     const supId = viewHistorySupplierId;
     viewHistorySupplierId = null;
-    const hist = getOrderHistoryEntry(supId);
-    items = (hist?.items || []).filter(it=>it.qty>0).map(it=>{
-      const p = PRODUCTS.find(x=>x.id===it.productId);
-      return p ? {...p, orderUnit: orderUnitLabel(p), qty:it.qty} : null;
-    }).filter(Boolean);
+    items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
+      .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
   } else {
     // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
     // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
