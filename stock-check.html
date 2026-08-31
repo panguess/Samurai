@@ -630,6 +630,28 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
+// ประวัติข้อความสั่งของที่เคยสร้างไปแล้ว (เก็บใน localStorage ข้าม session) — กันเคสลืมคัดลอกข้อความ
+// ตอนกด "สั่งของเจ้านี้" แล้วออกจากหน้าไปก่อน ปกติจะต้องเลือกรายการ+กดสั่งใหม่หมดเพราะ state.orderQty
+// ถูกเคลียร์เป็น 0 ไปแล้ว แต่ตอนนี้เก็บสแนปช็อตแยกไว้ต่างหาก กดดูซ้ำ/คัดลอกซ้ำได้โดยไม่ต้องสั่งซ้ำ
+// (ปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" แค่ render ข้อความเดิม ไม่ยิง createOrderBatch ซ้ำ)
+const ORDER_HISTORY_STORAGE_KEY = 'samurai_orderMsgHistory_v1';
+let viewHistorySupplierId = null;
+function loadOrderHistory(){
+  try{ return JSON.parse(localStorage.getItem(ORDER_HISTORY_STORAGE_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function saveOrderHistoryEntry(supplierId, items){
+  const all = loadOrderHistory();
+  const key = todayKey();
+  Object.keys(all).forEach(d=>{ if(d !== key) delete all[d]; }); // เก็บแค่วันนี้ กันสะสมไม่จำกัดใน localStorage
+  all[key] = all[key] || {};
+  all[key][supplierId] = { items: items.map(it=>({ productId: it.productId, qty: it.orderQty })), ts: Date.now() };
+  try{ localStorage.setItem(ORDER_HISTORY_STORAGE_KEY, JSON.stringify(all)); }catch(e){}
+}
+function getOrderHistoryEntry(supplierId){
+  const all = loadOrderHistory();
+  return all[todayKey()]?.[supplierId] || null;
+}
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -1641,6 +1663,19 @@ async function renderOrderPage(app){
 
       {
         const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
+        const histEntry = getOrderHistoryEntry(s.id);
+        if(histEntry && histEntry.items.some(it=>it.qty>0)){
+          const viewBtn = document.createElement('button');
+          viewBtn.type = 'button';
+          viewBtn.className = 'btn'; viewBtn.style.fontSize='12px'; viewBtn.style.padding='6px 10px';
+          viewBtn.innerHTML = '<i class="ti ti-message-2" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ดูข้อความที่สั่งไปอีกครั้ง';
+          viewBtn.onclick = (e)=>{
+            e.stopPropagation();
+            viewHistorySupplierId = s.id;
+            go('orderMessage');
+          };
+          btnRow.appendChild(viewBtn);
+        }
         const btn = document.createElement('button');
         btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
         btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : 'สั่งของเจ้านี้';
@@ -1655,6 +1690,7 @@ async function renderOrderPage(app){
           try{
             await apiPost('createOrderBatch', { items: supItems });
             supItems.forEach(it=> orderedProductIds.add(it.productId));
+            saveOrderHistoryEntry(s.id, supItems);
             // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
             // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
             // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
@@ -1687,14 +1723,27 @@ function renderOrderMessage(app){
   app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
   const c = document.createElement('div'); c.className='content';
 
-  // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
-  // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
-  const qtySource = lastOrderMessageSnapshot || state.orderQty;
-  lastOrderMessageSnapshot = null;
-  const items = Object.entries(qtySource).filter(([id,q])=>q>0).map(([id,q])=>{
-    const p = PRODUCTS.find(x=>x.id===id);
-    return {...p, orderUnit: orderUnitLabel(p), qty:q};
-  });
+  let items;
+  if(viewHistorySupplierId){
+    // มาจากปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" — ดึงจากประวัติที่เก็บไว้ ไม่ใช่ state.orderQty สดๆ
+    // (ซึ่งถูกเคลียร์ไปแล้วหลังสั่งสำเร็จ) และไม่ยิง createOrderBatch ซ้ำด้วย
+    const supId = viewHistorySupplierId;
+    viewHistorySupplierId = null;
+    const hist = getOrderHistoryEntry(supId);
+    items = (hist?.items || []).filter(it=>it.qty>0).map(it=>{
+      const p = PRODUCTS.find(x=>x.id===it.productId);
+      return p ? {...p, orderUnit: orderUnitLabel(p), qty:it.qty} : null;
+    }).filter(Boolean);
+  } else {
+    // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
+    // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
+    const qtySource = lastOrderMessageSnapshot || state.orderQty;
+    lastOrderMessageSnapshot = null;
+    items = Object.entries(qtySource).filter(([id,q])=>q>0).map(([id,q])=>{
+      const p = PRODUCTS.find(x=>x.id===id);
+      return {...p, orderUnit: orderUnitLabel(p), qty:q};
+    });
+  }
   const bySupplier = {};
   items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
 
