@@ -73,6 +73,9 @@
   .cover-tag{font-size:10px; color:var(--danger); font-weight:600; margin:2px 0 0;}
   .add-prod-card{width:100%; min-width:0; min-height:140px; max-height:100%; border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--text-tertiary); cursor:pointer; background:none;}
   .add-prod-card span{text-align:center; padding:0 6px; font-size:12px;}
+  /* จำนวนสินค้าคู่ (N) → การ์ด "เพิ่มสินค้าใหม่" (ลำดับที่ N+1 คี่) จะเหลือตัวเดียวในแถวสุดท้าย ไม่มีการ์ดคู่ให้ stretch
+     เทียบความสูงด้วย เลยแบนเตี้ยกว่าการ์ดที่มีของ + เหลือช่องขวาว่างโบ๋ (ตกขอบ) แก้ด้วยการยืดเต็มแถวไปเลยในกรณีนี้ */
+  .add-prod-card:nth-child(odd):last-child{ grid-column:1 / -1; min-height:96px; flex-direction:row; }
 
   /* add product form sheet (reuses match-overlay/match-sheet styles) */
   .addprod-body{overflow-y:auto; padding:12px 16px; flex:1;}
@@ -431,7 +434,7 @@ function openAddProductScreen(sup, onAdded){
     btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
     try{
       const { product } = await apiPost('addProduct', {
-        supplierId: sup.id, name, orderUnit, safetyStock, costPrice
+        supplierId: sup.id, name, orderUnit, safetyStock, costPrice, staffName: state.staffName
       });
       close();
       onAdded(product);
@@ -550,6 +553,11 @@ const ALLOW_SET_COVER_PHOTO = false; // ปิดไว้ เพราะเล
 // โดยไม่ต้องเปิดคอมไปแก้ในชีต ProductUnits เอง — ใช้แก้หน่วยที่ตั้งชื่อผิด/ไม่ตรงกับที่ใช้จริง
 // (เช่น พิมพ์ "แพ็ค" แต่จริงๆ เป็น "แพ็กหิ้ว") ปิดเป็น false เมื่อแก้ครบทุกหน่วยที่ต้องการแล้ว
 const ALLOW_EDIT_UNIT_LABEL = true;
+// จำกัดฟีเจอร์ "แก้ชื่อหน่วย" และ "เพิ่มสินค้าใหม่" (ฝั่งลูกจ้าง) ให้ทำได้แค่พนักงานคนนี้คนเดียว
+// (ต้องตรงกับชื่อในชีต Staff เป๊ะๆ)
+const PRIVILEGED_STAFF_NAME = 'Mile';
+function canEditUnitLabel(){ return ALLOW_EDIT_UNIT_LABEL && state.staffName === PRIVILEGED_STAFF_NAME; }
+function canAddProduct(){ return state.staffName === PRIVILEGED_STAFF_NAME; }
 
 function compressImage(file, maxDim, quality){
   return new Promise((resolve, reject)=>{
@@ -1014,7 +1022,7 @@ async function renderSupplierCheck(app){
               <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
               <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
-              <span class="unit-tag${ALLOW_EDIT_UNIT_LABEL?' unit-tag-editable':''}" ${ALLOW_EDIT_UNIT_LABEL?`data-unit-edit="${u.id}"`:''}>${u.label}${ALLOW_EDIT_UNIT_LABEL?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
+              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
             </div>
           `).join('')}
         </div>
@@ -1023,15 +1031,17 @@ async function renderSupplierCheck(app){
       grid.appendChild(card);
     });
 
-    const addCard = document.createElement('div');
-    addCard.className = 'add-prod-card';
-    addCard.innerHTML = '<i class="ti ti-plus" style="font-size:26px;" aria-hidden="true"></i><span>เพิ่มสินค้าใหม่</span>';
-    addCard.onclick = ()=> openAddProductScreen(sup, (newProduct)=>{
-      products.push(newProduct);
-      PRODUCTS.push(newProduct);
-      renderGrid(); updateBar();
-    });
-    grid.appendChild(addCard);
+    if(canAddProduct()){
+      const addCard = document.createElement('div');
+      addCard.className = 'add-prod-card';
+      addCard.innerHTML = '<i class="ti ti-plus" style="font-size:26px;" aria-hidden="true"></i><span>เพิ่มสินค้าใหม่</span>';
+      addCard.onclick = ()=> openAddProductScreen(sup, (newProduct)=>{
+        products.push(newProduct);
+        PRODUCTS.push(newProduct);
+        renderGrid(); updateBar();
+      });
+      grid.appendChild(addCard);
+    }
 
     grid.querySelectorAll('.check-toggle').forEach(btn=>{
       btn.onclick = (e)=>{
@@ -1076,7 +1086,7 @@ async function renderSupplierCheck(app){
         };
       });
     }
-    if(ALLOW_EDIT_UNIT_LABEL){
+    if(canEditUnitLabel()){
       grid.querySelectorAll('.unit-tag-editable').forEach(tag=>{
         tag.onclick = async (e)=>{
           e.stopPropagation();
@@ -1092,7 +1102,7 @@ async function renderSupplierCheck(app){
           u.label = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
           renderGrid();
           try{
-            await apiPost('setUnitLabel', { unitId: uid, label: trimmed });
+            await apiPost('setUnitLabel', { unitId: uid, label: trimmed, staffName: state.staffName });
           }catch(err){
             u.label = oldLabel;
             renderGrid();

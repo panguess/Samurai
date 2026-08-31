@@ -626,6 +626,7 @@ function getAddProductFormHtml() {
 // (ฟอร์มฝั่ง Sheets เดิม) แต่รับ supplierId มาจากหน้าซัพพลายเออร์ที่กำลังเปิดอยู่ ไม่ต้องเลือกเอง
 // body = { supplierId, name, orderUnit, safetyStock, costPrice }
 function addProductFromApp(body) {
+  if (body.staffName !== PRIVILEGED_STAFF_NAME) throw new Error('ไม่มีสิทธิ์เพิ่มสินค้า');
   if (!body.supplierId || !body.name || !body.orderUnit || !body.costPrice) {
     throw new Error('ข้อมูลไม่ครบ (ต้องมีชื่อสินค้า หน่วยสั่งของ และราคาทุน)');
   }
@@ -803,11 +804,15 @@ function setProductSkipDate(body) {
 }
 
 /* ============ setUnitLabel ============ */
-// body = { unitId, label } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") จากหน้าเช็คสต๊อกบนมือถือ
+// body = { unitId, label, staffName } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") จากหน้าเช็คสต๊อกบนมือถือ
 // (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html — ฟีเจอร์ชั่วคราว ไว้แก้ชื่อหน่วยให้ครบทุกสินค้า
 // จะถูกปิดทีหลังเมื่อไม่ต้องแก้บ่อยแล้ว) แก้แค่คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
+// จำกัดให้แก้ได้แค่พนักงานคนเดียว (ต้องตรงกับ PRIVILEGED_STAFF_NAME ใน stock-check.html)
+// ใช้ค่าเดียวกับที่จำกัดฟีเจอร์ "เพิ่มสินค้าใหม่" ฝั่งลูกจ้างด้วย ดู addProductFromApp() ด้านล่าง
+const PRIVILEGED_STAFF_NAME = 'Mile';
 function setUnitLabel(body) {
   if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
+  if (body.staffName !== PRIVILEGED_STAFF_NAME) throw new Error('ไม่มีสิทธิ์แก้ชื่อหน่วย');
   const sh = SHEET.getSheetByName('ProductUnits');
   const data = sh.getDataRange().getValues();
   const headers = data[0];
