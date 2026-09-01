@@ -893,15 +893,18 @@ function cleanMalformedSkipDates() {
 }
 
 /* ============ setUnitLabel ============ */
-// body = { unitId, label, staffName } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") จากหน้าเช็คสต๊อกบนมือถือ
-// (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html — ฟีเจอร์ชั่วคราว ไว้แก้ชื่อหน่วยให้ครบทุกสินค้า
-// จะถูกปิดทีหลังเมื่อไม่ต้องแก้บ่อยแล้ว) แก้แค่คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
-// จำกัดให้แก้ได้แค่พนักงานคนเดียว (ต้องตรงกับ PRIVILEGED_STAFF_NAME ใน stock-check.html)
-// ใช้ค่าเดียวกับที่จำกัดฟีเจอร์ "เพิ่มสินค้าใหม่" ฝั่งลูกจ้างด้วย ดู addProductFromApp() ด้านล่าง
+// body = { unitId, label, staffName? } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") เรียกได้จาก 2 ที่:
+// 1) หน้าเช็คสต๊อกฝั่งลูกจ้าง (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html) — ส่ง staffName มาด้วยเสมอ
+//    จำกัดให้แก้ได้แค่พนักงานคนเดียว (ต้องตรงกับ PRIVILEGED_STAFF_NAME) ใช้ค่าเดียวกับที่จำกัดฟีเจอร์
+//    "เพิ่มสินค้าใหม่" ฝั่งลูกจ้างด้วย ดู addProductFromApp() ด้านล่าง
+// 2) หน้าสั่งของฝั่งเจ้าของ (ป้ายหน่วยข้างปุ่ม +/-) — ไม่ส่ง staffName มาเลย เหมือนฟังก์ชัน owner-only
+//    ตัวอื่นในระบบ (setProductSkipDate, setSupplierOrderConfirm ฯลฯ) ที่ไม่เช็คซ้ำฝั่งนี้ เพราะถือว่าผ่าน
+//    หน้ารหัส PIN มาแล้วเพียงพอ — เลยเช็ค staffName เฉพาะตอนที่มีค่าส่งมาจริงๆ (มาจากฝั่งลูกจ้าง) เท่านั้น
+// แก้แค่คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
 const PRIVILEGED_STAFF_NAME = 'Mile';
 function setUnitLabel(body) {
   if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
-  if (body.staffName !== PRIVILEGED_STAFF_NAME) throw new Error('ไม่มีสิทธิ์แก้ชื่อหน่วย');
+  if (body.staffName && body.staffName !== PRIVILEGED_STAFF_NAME) throw new Error('ไม่มีสิทธิ์แก้ชื่อหน่วย');
   const sh = SHEET.getSheetByName('ProductUnits');
   const data = sh.getDataRange().getValues();
   const headers = data[0];
