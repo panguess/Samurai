@@ -13,6 +13,33 @@
 (ทั้งสองแอปเคยถูกโยงกันผิดพลาดมาแล้ว — ผู้ใช้ต้องเตือนหลายรอบ) ถ้าไม่แน่ใจว่ากำลังคุยเรื่องแอปไหน ให้ถามก่อน
 ไม่ต้องเดา
 
+## แอปเช็คสต๊อก (stock-check.html + Code.gs) — บริบทที่ต้องรู้ก่อนแก้
+
+### Deploy `Code.gs` ต้องแปะเองเสมอ
+`git push` **ไม่มีทาง** deploy `Code.gs` ให้ — มันรันอยู่ใน Google Apps Script Editor คนละที่กับ repo
+ทุกครั้งที่แก้ `Code.gs` ต้องส่งไฟล์เต็มให้ผู้ใช้ผ่าน SendUserFile เพื่อให้เขาก็อปไปแปะใน Apps Script Editor แล้วกด Save/Deploy เอง —
+ห้ามบอกว่า "push แล้วเสร็จ" เฉยๆ ถ้าไฟล์ที่แก้คือ `Code.gs`
+
+### กติกาการทำงานที่ผู้ใช้กำหนดไว้ (ยึดตลอด ไม่ใช่แค่ session เดียว)
+1. แก้ `Code.gs` เมื่อไหร่ → ส่งไฟล์เต็มทาง SendUserFile ทุกครั้ง (ตามข้อบนสุด)
+2. ห้าม push ขึ้น GitHub โดยไม่ถูกขอ ต้องรอให้ผู้ใช้พิมพ์บอกให้ push ก่อนเสมอ แม้จะเพิ่งแก้เสร็จก็ตาม
+3. การเปลี่ยนแปลงที่กระทบ UI/หน้าตา หรือมีหลายตัวเลือกให้เลือก → ทำ demo เป็น Artifact ให้ดูก่อน แล้วค่อย implement ในโค้ดจริง (หรือรอผู้ใช้เลือกตัวเลือกก่อน)
+4. ก่อนบอกว่า "เช็คแล้วไม่มีบั๊ก" ต้องตรวจสอบอย่างจริงจัง (syntax check, เทส E2E จริงด้วย Playwright ที่ mock API, ไล่ดู edge case) ไม่ใช่อ่านโค้ดผ่านๆ แล้วสรุปว่าโอเค
+
+### Permission model: `PRIVILEGED_STAFF_NAME = 'Mile'`
+ฟีเจอร์ฝั่งลูกจ้างบางอย่าง (แก้ชื่อหน่วยนับ, เพิ่มสินค้าใหม่) ถูกจำกัดให้ทำได้เฉพาะพนักงานที่ชื่อ "Mile" เท่านั้น —
+ฝั่งลูกจ้างต้องส่ง `staffName` มาด้วยเสมอ และ backend เช็คว่าต้องตรงกับ `PRIVILEGED_STAFF_NAME` เป๊ะๆ
+
+ฝั่งเจ้าของ (owner) ไม่มี concept "staffName" เลย — auth ของฝั่งเจ้าของคือ PIN screen (`renderOwnerPin`/`checkPin`) ที่กันแค่การเข้าหน้า SPA เท่านั้น
+ฟังก์ชัน backend ที่เจ้าของเรียกได้ (เช่น `setSupplierCoverPhoto`, `createOrderBatch`, `setSupplierOrderConfirm`, `setProductSkipDate`, และตอนนี้รวม `setUnitLabel` เมื่อเรียกแบบไม่มี `staffName`) ไม่มีการเช็คสิทธิ์ฝั่ง server เพิ่มเติม — เป็น pattern เดิมของทั้งแอป ไม่ใช่ช่องโหว่ที่พึ่งเกิด
+ดังนั้นถ้าจะเปิดฟีเจอร์ไหนให้เจ้าของใช้ได้ด้วย ให้ยึด pattern นี้: เช็คเฉพาะเมื่อมี `staffName` ส่งมา (`if (body.staffName && body.staffName !== PRIVILEGED_STAFF_NAME) throw ...`) อย่าบังคับให้ฝั่งเจ้าของต้องส่ง staffName ปลอมๆ
+
+### Helper ป้องกันบั๊กที่ห้ามลบ/ห้าม bypass
+`Code.gs` มี helper 3 ตัวที่แก้บั๊กจริงที่เคยเกิดจาก Google Sheets แปลงชนิดข้อมูลเองแบบเงียบๆ (auto-type เป็น Date/Number เวลาเจ้าของพิมพ์มือ) — ถ้าจะแก้โค้ดส่วนที่เกี่ยวข้อง ต้องใช้ helper เหล่านี้ต่อ ไม่ใช่เขียนโค้ดอ่านค่าตรงๆ แบบเดิม:
+- `isActiveFlag(v)` — เช็คคอลัมน์ Active/boolean-like จาก Sheet อย่างถูกต้อง (กัน bug ที่ string `"FALSE"`/`"0"` เป็น truthy ใน JS)
+- `normalizeSkipDatesCell(raw)` — แปลงค่าคอลัมน์ SkipDates ให้เป็น array ของ string `yyyy-MM-dd` เสมอ ไม่ว่า cell จะถูก Sheets แปลงเป็น native Date object หรือพิมพ์เป็น string ก็ตาม ใช้ทั้งตอนอ่าน (`bootstrap`) และตอนเขียน (`setProductSkipDate`) เพื่อให้ข้อมูลเก่าที่พังซ่อมตัวเองได้ทุกครั้งที่ถูกแตะ (self-healing) — ห้ามย้อนกลับไปใช้ `String(dateObj)` ตรงๆ เด็ดขาด เพราะจะได้ format แบบ `"Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)"` ที่ผิด
+- ใน `checkPin(pin)` — การ pad PIN ด้วย `.padStart(4, '0')` เมื่อ Sheet เก็บ PIN เป็น number (กัน PIN ที่ขึ้นต้นด้วย 0 หายไป)
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
