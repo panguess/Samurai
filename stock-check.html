@@ -160,10 +160,10 @@
   .prow-skip-sub{font-size:10.5px; color:var(--danger); font-weight:600;}
   .skip-toggle-btn{border:1px solid var(--danger); background:#fff; color:var(--danger); border-radius:7px; padding:5px 9px; font-size:11px; font-weight:600; font-family:inherit; cursor:pointer; white-space:nowrap; flex-shrink:0;}
   .skip-toggle-btn.active{background:var(--danger); color:#fff;}
-  .stat{display:flex; flex-direction:column; align-items:flex-end; min-width:38px;}
-  .stat .lbl{font-size:8.5px; color:var(--text-tertiary); font-weight:600; line-height:1.3;}
-  .stat .v{font-size:13px; font-weight:700; color:var(--text); line-height:1.2;}
-  .stat .v .u{font-size:9px; font-weight:500; margin-left:1px;}
+  .stat{display:flex; flex-direction:column; align-items:flex-end; min-width:44px;}
+  .stat .lbl{font-size:10px; color:var(--text-tertiary); font-weight:600; line-height:1.3; letter-spacing:0.02em;}
+  .stat .v{font-size:19px; font-weight:800; color:var(--text); line-height:1.15; font-variant-numeric:tabular-nums;}
+  .stat .v .u{font-size:11px; font-weight:600; color:var(--text-secondary); margin-left:2px;}
   .stat .v.muted{color:var(--text-tertiary); font-weight:500;}
   .oos-badge{display:inline-block; font-size:10.5px; font-weight:700; color:#fff; background:var(--danger); border-radius:5px; padding:1px 6px;}
   .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
@@ -416,8 +416,6 @@ function openAddProductScreen(sup, onAdded){
         <input type="text" id="apName" placeholder="เช่น ไส้กรอกไก่จัมโบ้">
         <label>หน่วยสั่งของ</label>
         <input type="text" id="apUnit" value="โล">
-        <label>สต๊อกขั้นต่ำ (Safety Stock)</label>
-        <input type="number" id="apSafety" value="20" min="0">
         <label>ราคาทุน ต่อหน่วย (บาท)</label>
         <input type="number" id="apPrice" placeholder="0" min="0">
         <p class="addprod-error" id="apError"></p>
@@ -439,7 +437,6 @@ function openAddProductScreen(sup, onAdded){
   overlay.querySelector('#apSave').onclick = async ()=>{
     const name = overlay.querySelector('#apName').value.trim();
     const orderUnit = overlay.querySelector('#apUnit').value.trim();
-    const safetyStock = Number(overlay.querySelector('#apSafety').value) || 0;
     const priceRaw = overlay.querySelector('#apPrice').value;
     const costPrice = Number(priceRaw);
 
@@ -452,7 +449,7 @@ function openAddProductScreen(sup, onAdded){
     btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
     try{
       const { product } = await apiPost('addProduct', {
-        supplierId: sup.id, name, orderUnit, safetyStock, costPrice, staffName: state.staffName
+        supplierId: sup.id, name, orderUnit, costPrice, staffName: state.staffName
       });
       close();
       onAdded(product);
@@ -1743,8 +1740,7 @@ async function renderOrderPage(app){
             <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
           </div>
           <div class="prow-bottom">
-            <div class="stat"><span class="lbl">คงเหลือ</span><span class="v muted">${remainDisplay}</span></div>
-            <div class="stat"><span class="lbl">ขั้นต่ำ</span><span class="v muted">${p.safetyStock}<span class="u">${uLabel}</span></span></div>
+            <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
             <div class="stepper">
               <button type="button" data-step="-1">−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">

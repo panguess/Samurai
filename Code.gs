@@ -106,6 +106,17 @@ function readTable(name) {
     return o;
   });
 }
+// อ่านค่าคอลัมน์ boolean-like (เช่น Active) ให้ปลอดภัยเสมอ — เซลล์ checkbox จริงจะได้ boolean primitive
+// อยู่แล้ว ปลอดภัย แต่ถ้ามีใครพิมพ์ "FALSE" เป็นข้อความตรงๆ ลงเซลล์แทนติ๊ก checkbox (เช่น เพิ่มแถวใหม่มือ
+// ในชีตแล้ว copy รูปแบบมาแบบไม่ทันสังเกตว่าคอลัมน์นั้นควรเป็น checkbox) โค้ดเดิมที่เช็คแบบ `.filter(x =>
+// x.Active)` ตรงๆ จะพังเงียบๆ เพราะ string "FALSE" ที่ไม่ว่างเปล่าเป็น truthy ใน JS เสมอ (Boolean("FALSE")
+// === true) ทำให้แถวที่ตั้งใจปิดใช้งานไว้ (สินค้าเลิกขาย/ซัพพลายเออร์เลิกทำ/พนักงานลาออก) กลับโผล่มาใช้งาน
+// อยู่ดี ฟังก์ชันนี้ตีความ "FALSE"/false/0/"" (ไม่สนตัวพิมพ์เล็กใหญ่ ตัดช่องว่างก่อน) เป็น false เสมอ
+function isActiveFlag(v) {
+  if (typeof v === 'boolean') return v;
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return s !== '' && s !== 'false' && s !== '0';
+}
 // อ่านค่าคอลัมน์ SkipDates จาก cell ให้ปลอดภัยเสมอ ไม่ว่า Google Sheets จะเก็บเป็น text ปกติ
 // ("2026-09-01,2026-09-02") หรือดันไปตีความเป็น Date object เอง — ถ้ามีใครพิมพ์วันที่ลงเซลล์นี้ตรงๆ
 // ผ่านหน้า Sheets (ไม่ผ่านแอป) Sheets จะเห็นว่าหน้าตาเหมือนวันที่แล้วแปลง type ของเซลล์เป็น Date ให้เอง
@@ -165,14 +176,14 @@ function bootstrap() {
   const cached = cacheGet('bootstrap');
   if (cached) return cached;
 
-  const suppliers = readTable('Suppliers').filter(s => s.Active);
-  const productsRaw = readTable(PRODUCT_SHEET_NAME).filter(p => p.Active);
+  const suppliers = readTable('Suppliers').filter(s => isActiveFlag(s.Active));
+  const productsRaw = readTable(PRODUCT_SHEET_NAME).filter(p => isActiveFlag(p.Active));
   const units = readTable('ProductUnits');
-  const staff = readTable('Staff').filter(s => s.Active);
+  const staff = readTable('Staff').filter(s => isActiveFlag(s.Active));
 
   const products = productsRaw.map(p => ({
     id: p.ProductID, supplierId: p.SupplierID, name: p.Name,
-    orderUnit: p.OrderUnit, safetyStock: p.SafetyStock,
+    orderUnit: p.OrderUnit,
     photoUrl: p.PhotoURL || null,
     // SkipDates: คอลัมน์ใหม่ในชีต Product (Actual) เก็บวันที่ (yyyy-MM-dd) ที่เจ้าของกดงดสั่ง/งดเช็ค
     // สินค้าตัวนี้ไว้เป็นครั้งคราว (เช่น ซัพพลายเออร์แจ้งว่าโรงงานหยุดวันนั้น) คั่นด้วยคอมม่า
@@ -406,7 +417,7 @@ function getStockStatus() {
   const latestSh = SHEET.getSheetByName(STOCK_LOGS_LATEST_SHEET);
   const latestRows = latestSh ? readTable(STOCK_LOGS_LATEST_SHEET) : [];
   const units = readTable('ProductUnits');
-  const products = readTable(PRODUCT_SHEET_NAME).filter(p => p.Active);
+  const products = readTable(PRODUCT_SHEET_NAME).filter(p => isActiveFlag(p.Active));
 
   const latestByUnit = {};
   latestRows.forEach(l => {
@@ -515,7 +526,14 @@ function getAnalytics(range) {
 function checkPin(pin) {
   const settings = readTable('Settings');
   const row = settings.find(s => String(s.Key).trim().toLowerCase() === 'pin');
-  const storedPin = row ? String(row.Value).trim() : '';
+  // ถ้าเซลล์ Value ถูกพิมพ์เป็นตัวเลขล้วนๆ (ไม่ได้ตั้ง format เป็นข้อความ) Sheets จะเก็บเป็น Number จริง
+  // ไม่ใช่ข้อความ — เลข 0 นำหน้าจะหายไปเงียบๆ (เช่น "0472" กลายเป็น 472) ทำให้เทียบกับรหัส 4 หลักที่กรอก
+  // จากหน้าเว็บ (input maxlength="4") ไม่ตรงกันตลอดแม้พิมพ์รหัสถูกจริงๆ เติม 0 ข้างหน้าให้ครบ 4 หลักเสมอ
+  // เฉพาะตอนที่เซลล์เป็น Number เท่านั้น (ถ้าตั้ง format เป็นข้อความไว้แต่แรกจะได้ string ที่ถูกต้องอยู่แล้ว
+  // ไม่ต้องเติม)
+  const storedPin = row
+    ? (typeof row.Value === 'number' ? String(row.Value).padStart(4, '0') : String(row.Value).trim())
+    : '';
   return { valid: storedPin !== '' && String(pin).trim() === storedPin };
 }
 
@@ -584,7 +602,7 @@ function nextUnitId() {
 
 function getAddProductFormHtml() {
   const previewId = nextProductId();
-  const suppliers = readTable('Suppliers').filter(s => s.Active);
+  const suppliers = readTable('Suppliers').filter(s => isActiveFlag(s.Active));
   const options = suppliers.map(s => `<option value="${s.SupplierID}">${s.Name}</option>`).join('');
   return `
     <style>
@@ -605,8 +623,6 @@ function getAddProductFormHtml() {
     <input id="orderUnit" type="text" value="โล">
     <label>ราคาต่อหน่วย (บาท)</label>
     <input id="price" type="number" value="0">
-    <label>สต๊อกขั้นต่ำ (Safety Stock)</label>
-    <input id="safetyStock" type="number" value="0">
     <button id="submitBtn" onclick="submitForm()">บันทึกสินค้าใหม่</button>
     <div id="msg"></div>
     <script>
@@ -617,8 +633,7 @@ function getAddProductFormHtml() {
           supplierId: document.getElementById('supplierId').value,
           name: document.getElementById('name').value.trim(),
           orderUnit: document.getElementById('orderUnit').value.trim(),
-          price: Number(document.getElementById('price').value) || 0,
-          safetyStock: Number(document.getElementById('safetyStock').value) || 0
+          price: Number(document.getElementById('price').value) || 0
         };
         if(!data.name){
           document.getElementById('msg').style.color = '#c00';
@@ -645,7 +660,7 @@ function getAddProductFormHtml() {
 /* ============ addProductFromApp ============ */
 // เพิ่มสินค้าใหม่จากหน้าเว็บมือถือ (หน้างานจริง) — ใช้ตรรกะเดียวกับ submitNewProduct
 // (ฟอร์มฝั่ง Sheets เดิม) แต่รับ supplierId มาจากหน้าซัพพลายเออร์ที่กำลังเปิดอยู่ ไม่ต้องเลือกเอง
-// body = { supplierId, name, orderUnit, safetyStock, costPrice }
+// body = { supplierId, name, orderUnit, costPrice }
 function addProductFromApp(body) {
   if (body.staffName !== PRIVILEGED_STAFF_NAME) throw new Error('ไม่มีสิทธิ์เพิ่มสินค้า');
   if (!body.supplierId || !body.name || !body.orderUnit || !body.costPrice) {
@@ -657,7 +672,6 @@ function addProductFromApp(body) {
     SupplierID: body.supplierId,
     Name: body.name,
     OrderUnit: body.orderUnit,
-    SafetyStock: Number(body.safetyStock) || 0,
     Active: true,
     PricePerOrderUnit: Number(body.costPrice),
     PriceUpdatedDate: todayStr(),
@@ -678,7 +692,7 @@ function addProductFromApp(body) {
     ok: true,
     product: {
       id: productId, supplierId: body.supplierId, name: body.name,
-      orderUnit: body.orderUnit, safetyStock: Number(body.safetyStock) || 0,
+      orderUnit: body.orderUnit,
       photoUrl: null,
       units: [{ id: unitId, label: body.orderUnit, imageUrl: '' }]
     }
@@ -699,7 +713,6 @@ function submitNewProduct(data) {
     SupplierID: data.supplierId,
     Name: data.name,
     OrderUnit: data.orderUnit,
-    SafetyStock: data.safetyStock,
     Active: true,
     PricePerOrderUnit: data.price,
     PriceUpdatedDate: todayStr(),
