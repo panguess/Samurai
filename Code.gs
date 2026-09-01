@@ -776,6 +776,16 @@ function setSupplierOrderConfirm(body) {
 // SkipDates ของแถวสินค้านั้น (กันซ้ำ), skip:false ลบวันที่นั้นออก
 function setProductSkipDate(body) {
   if (!body.productId || !body.date) throw new Error('ข้อมูลไม่ครบ (productId หรือ date หายไป)');
+  // บังคับฟอร์แมต yyyy-MM-dd เฉพาะตอน "ตั้ง" วันที่งดใหม่ (skip:true) เท่านั้น — กันไม่ให้ค่าที่ไม่ใช่
+  // วันที่ล้วนๆ (เช่น toString() ของ Date object ตรงๆ อย่าง "Tue Sep 01 2026 07:00:00 GMT+0700
+  // (เวลาอินโดจีน)") หลุดเข้าไปในชีตได้อีก — ถ้าเคยหลุดเข้าไปแล้วจะไม่ตรงกับ todayISODate() ในฝั่งเว็บเลย
+  // (เทียบสตริงตรงๆ) ทำให้ isProductSkippedToday() คืน false ทั้งที่เจ้าของตั้งงดไว้จริง ฝั่งลูกจ้างเลยเห็นว่า
+  // ยังสั่งได้ปกติ ดู cleanMalformedSkipDates() ด้านล่างสำหรับล้างข้อมูลเก่าที่หลุดไปแล้วก่อนเพิ่มเช็คนี้ —
+  // ตอน "ยกเลิก" (skip:false) ไม่เช็คฟอร์แมต เพราะต้องส่งค่าเดิมที่มีอยู่ในชีตมาตรงๆ เพื่อกรองออก ต่อให้ค่า
+  // เดิมนั้นเสียอยู่แล้วก็ต้องยกเลิกได้ ไม่งั้นผู้ใช้ติดกับดัก ลบของเสียออกเองไม่ได้จากหน้าเว็บเลย
+  if (body.skip !== false && !/^\d{4}-\d{2}-\d{2}$/.test(String(body.date).trim())) {
+    throw new Error('รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น yyyy-MM-dd): ' + body.date);
+  }
   const sh = SHEET.getSheetByName(PRODUCT_SHEET_NAME);
   const data = sh.getDataRange().getValues();
   const headers = data[0];
@@ -801,6 +811,52 @@ function setProductSkipDate(body) {
 
   cacheClear('bootstrap');
   return { ok: true, skipDates: dates };
+}
+
+/* ============ ล้างค่า SkipDates ที่ผิดฟอร์แมต (ข้อมูลเก่าก่อนเพิ่ม validation ใน setProductSkipDate) ============ */
+// ปัญหาที่พบ: บางแถวในคอลัมน์ SkipDates ของชีต Product (Actual) มีค่าเป็น toString() ของ Date object ตรงๆ
+// (เช่น "Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)") แทนที่จะเป็น "2026-09-01" ตามฟอร์แมตที่ควรจะ
+// เป็น — ค่าแบบนี้เทียบกับ todayISODate() ในฝั่งเว็บไม่ตรงกันเลย (เทียบสตริงตรงๆ) ทำให้ isProductSkippedToday()
+// คืน false ทั้งที่เจ้าของตั้งงดไว้จริง สินค้าตัวนั้นเลยไม่ขึ้น "งดสั่งวันนี้" ให้ลูกจ้างเห็น (บั๊กที่เจอ 1 ก.ย. 2569
+// กับ GSB/เล็กโคราช — 4 สินค้ามีค่าเสียแบบนี้ปนอยู่) ไม่รู้ว่ามาจากไหน (อาจพิมพ์มือ/บั๊กเก่าที่แก้ไปแล้ว) แต่
+// setProductSkipDate ตอนนี้กัน validation ไว้แล้ว ไม่ให้ค่าแบบนี้หลุดเข้าไปอีก ฟังก์ชันนี้ไว้ล้างของเก่าที่หลุด
+// เข้าไปแล้วครั้งเดียว
+//
+// วิธีใช้: เปิด Apps Script Editor → เลือกฟังก์ชัน cleanMalformedSkipDates จาก dropdown ด้านบน → กด Run
+// (ปลอดภัย รันซ้ำได้ ไม่กระทบวันที่ที่ฟอร์แมตถูกต้องอยู่แล้ว) เช็คผลได้จาก popup หรือ View > Logs
+function cleanMalformedSkipDates() {
+  const sh = SHEET.getSheetByName(PRODUCT_SHEET_NAME);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf('ProductID');
+  const nameCol = headers.indexOf('Name');
+  const skipCol = headers.indexOf('SkipDates');
+  if (skipCol === -1) throw new Error('ไม่พบคอลัมน์ SkipDates ในชีต ' + PRODUCT_SHEET_NAME);
+
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  let fixedRows = 0, removedEntries = 0;
+  const details = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const raw = String(data[i][skipCol] || '');
+    if (!raw) continue;
+    const entries = raw.split(',').map(d => d.trim()).filter(Boolean);
+    const valid = entries.filter(d => DATE_RE.test(d));
+    const bad = entries.filter(d => !DATE_RE.test(d));
+    if (!bad.length) continue;
+
+    sh.getRange(i + 1, skipCol + 1).setValue(valid.join(','));
+    fixedRows++;
+    removedEntries += bad.length;
+    details.push(`${data[i][idCol]} (${data[i][nameCol]}): ลบ ${bad.length} ค่า เหลือ [${valid.join(', ') || '-'}]`);
+  }
+
+  const msg = fixedRows
+    ? `แก้ไข ${fixedRows} แถว ลบค่าผิดฟอร์แมตรวม ${removedEntries} ค่า:\n` + details.join('\n')
+    : 'ไม่พบค่าผิดฟอร์แมตเลย ทุกแถวสะอาดอยู่แล้ว';
+  Logger.log(msg);
+  if (fixedRows) cacheClear('bootstrap');
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {} // เผื่อรันจาก editor แล้วไม่มี UI context
 }
 
 /* ============ setUnitLabel ============ */
