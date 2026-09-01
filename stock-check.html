@@ -619,6 +619,13 @@ let orderedProductIds = new Set();
 // แยกจาก orderedProductIds ซึ่งแค่บอกว่าแอปสร้างข้อความ/บันทึกคำสั่งซื้อให้แล้วเท่านั้น
 let confirmedSupplierIds = new Set();
 let checkedProducts = new Set();
+// true ระหว่างที่ลูกจ้างกำลังกรอกจำนวน/ติ๊กเช็คในหน้าเช็คสต๊อกแล้วยังไม่ได้กด "เสร็จเจ้านี้" —
+// ใช้ตอนออกจากหน้า (ปัดนิ้วสวนกลับ/ปุ่ม back) เพื่อเซฟอัตโนมัติให้ก่อน กันข้อมูลหายเงียบๆ
+// ไม่ต้องรอกดปุ่มเซฟเอง ดู renderSupplierCheck() และ popstate listener ด้านล่าง
+let supplierCheckDirty = false;
+// renderSupplierCheck() เซ็ตให้ชี้มาที่ตัวเองทุกครั้งที่เข้าหน้านี้ ใช้เรียกจาก popstate listener
+// (อยู่นอก renderSupplierCheck ไปไม่ถึงตัวแปรในนั้นโดยตรง) เพื่อเซฟก่อนค่อยปล่อยให้ปัดกลับสำเร็จจริง
+let supplierCheckAutoSave = null;
 let stockStatusCache = null;
 let _stockStatusTs = 0;
 const STOCK_STATUS_TTL = 45000; // ms - avoid refetching the whole sheet on every screen hop
@@ -676,9 +683,33 @@ function go(screen, extra, opts){
   else { history.pushState(snapshot, ''); }
   render();
 }
+// ปัดนิ้วสวนกลับ (ท่าทางของเบราว์เซอร์/มือถือ) หรือกดปุ่ม back ของเครื่อง ก็ยิง popstate เหมือนกัน
+// ถ้าตอนนั้นอยู่หน้าเช็คสต๊อกแล้วมีข้อมูลที่ยังไม่ได้กด "เสร็จเจ้านี้" ให้ดัน state เดิมกลับขึ้นไปบน
+// history ก่อน (เท่ากับ "ยกเลิก" การ back ที่เพิ่งเกิดไว้ชั่วคราว) แล้วเซฟข้อมูลที่ติ๊กไว้ให้อัตโนมัติ
+// ระหว่างนั้นเงียบๆ ไม่ต้องถามอะไร พอเซฟเสร็จค่อย back จริงให้ (ยิง popstate รอบสองเข้า handler นี้
+// อีกครั้ง คราวนี้ dirty เป็น false แล้วเลยผ่านไปตามปกติ) ถ้าเซฟไม่สำเร็จ (เช่นเน็ตหลุด) เท่านั้นถึงจะถาม
 window.addEventListener('popstate', (e)=>{
+  if(state.screen === 'supplierCheck' && supplierCheckDirty){
+    history.pushState({ screen: state.screen, staffName: state.staffName, currentSupplierId: state.currentSupplierId, ownerTab: state.ownerTab }, '');
+    // ปกติ supplierCheckAutoSave ต้องมีค่าเสมอตอนอยู่หน้านี้ (renderSupplierCheck ตั้งไว้ให้) เผื่อไว้กรณี
+    // แปลกๆ ที่ไม่มีจริงๆ ค่อย fallback ไปถามตรงๆ แทนเซฟอัตโนมัติ
+    const proceed = supplierCheckAutoSave
+      ? supplierCheckAutoSave()
+      : Promise.resolve(confirm('เช็คสต๊อกยังไม่เสร็จ ยืนยันออกจากหน้านี้โดยไม่บันทึกใช่ไหม?')).then(ok=>{ if(ok) supplierCheckDirty=false; return ok; });
+    proceed.then(canLeave=>{ if(canLeave) history.back(); });
+    return;
+  }
   if(e.state){ Object.assign(state, e.state); } else { state.screen = 'home'; }
   render();
+});
+// กันเผื่อกรณีท่าทางปัดสวนกลับทำให้ทั้งหน้าเว็บถูกปิด/รีโหลดเลย (หลุดออกจาก SPA ไปนอก history ของแอป)
+// ไม่ใช่แค่เปลี่ยนหน้าในแอป — เบราว์เซอร์ส่วนใหญ่โชว์กล่องเตือนมาตรฐานของตัวเอง (ข้อความที่ตั้งเองมักไม่ขึ้น
+// บนเบราว์เซอร์รุ่นใหม่ๆ) กันหลุดสุดตัวอีกชั้น เผื่อ popstate ด้านบนไม่ทันจับ
+window.addEventListener('beforeunload', (e)=>{
+  if(state.screen === 'supplierCheck' && supplierCheckDirty){
+    e.preventDefault();
+    e.returnValue = '';
+  }
 });
 
 function renderLoading(app, msg){
@@ -1013,8 +1044,46 @@ async function renderSupplierCheck(app){
     app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`; return;
   }
   app.innerHTML = '';
+  supplierCheckDirty = false; // เข้าหน้านี้ใหม่ ยังไม่มีอะไรที่แก้แล้วยังไม่ได้บันทึกรอบนี้
 
-  app.appendChild(topbar(sup.name, {back:()=>go('supplierList'), numBadge:SUPPLIERS.indexOf(sup)+1}));
+  // บันทึกเฉพาะสินค้าที่ติ๊ก "เช็คแล้ว" จริงๆ ของเจ้านี้ — ใช้ร่วมกันทั้งตอนกดปุ่ม "เสร็จเจ้านี้" เอง
+  // และตอนออกจากหน้าแบบไม่ตั้งใจ (ปัดกลับ/ปุ่ม back) แบบอัตโนมัติด้านล่าง คืน checkedItems ถ้าสำเร็จ,
+  // null ถ้าไม่มีอะไรให้บันทึก (ยังไม่ติ๊กอะไรเลย), หรือ throw error ถ้าบันทึกไม่สำเร็จ
+  async function saveCheckedItems(){
+    const checkedItems = products.filter(p=>checkedProducts.has(p.id));
+    if(!checkedItems.length) return null;
+    const items = checkedItems.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
+    const photos = checkedItems.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
+    await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items, photos });
+    patchStockStatusChecked(checkedItems, items);
+    if(checkedItems.length === products.length){
+      checkedSuppliers.add(sup.id);
+      sessionCheckedSuppliers.add(sup.id);
+      saveSessionChecked();
+    }
+    supplierCheckDirty = false;
+    return checkedItems;
+  }
+
+  // ออกจากหน้านี้แบบไม่ได้ตั้งใจ (ปัดกลับ/ปุ่ม back) ระหว่างที่มีข้อมูลค้าง — เซฟให้อัตโนมัติเงียบๆ ก่อน
+  // ปล่อยให้ออกจริง ไม่ต้องถามอะไรถ้าเซฟผ่าน คืน true = ออกได้ (เซฟสำเร็จ/ไม่มีอะไรต้องเซฟ), false = ควร
+  // อยู่ต่อ (ผู้ใช้เลือกไม่ออกหลังเซฟไม่สำเร็จ) — ถามยืนยันเฉพาะตอนเซฟอัตโนมัติไม่สำเร็จจริงๆ (เช่นเน็ตหลุด)
+  // โชว์ toast "กำลังบันทึก..." ระหว่างรอด้วย เพราะเน็ตอ่อนๆ (ไม่ถึงกับหลุด) อาจรอได้นานสุดถึง API_TIMEOUT_MS
+  // (25 วิ) กว่าจะรู้ผล ถ้าไม่มีอะไรโชว์เลยจะดูเหมือนแอปค้าง
+  async function autoSaveOnLeave(){
+    if(!supplierCheckDirty) return true;
+    const toast = document.createElement('div'); toast.className='copy-toast'; toast.textContent='กำลังบันทึก...';
+    document.body.appendChild(toast);
+    try{ await saveCheckedItems(); return true; }
+    catch(err){ return confirm('บันทึกอัตโนมัติไม่สำเร็จ (' + err.message + ')\nยืนยันออกจากหน้านี้โดยไม่บันทึกใช่ไหม?'); }
+    finally{ toast.remove(); }
+  }
+  supplierCheckAutoSave = autoSaveOnLeave; // ให้ popstate listener (นอกฟังก์ชันนี้) เรียกใช้ได้ตอนปัดกลับ
+
+  async function guardedLeave(){
+    if(await autoSaveOnLeave()) go('supplierList');
+  }
+  app.appendChild(topbar(sup.name, {back:guardedLeave, numBadge:SUPPLIERS.indexOf(sup)+1}));
   const c = document.createElement('div'); c.className='content';
 
   if(!CAMERA_PER_PRODUCT_ENABLED){
@@ -1110,6 +1179,7 @@ async function renderSupplierCheck(app){
       btn.onclick = (e)=>{
         e.stopPropagation();
         const pid = btn.dataset.pid;
+        supplierCheckDirty = true;
         if(checkedProducts.has(pid)) checkedProducts.delete(pid); else checkedProducts.add(pid);
         // แต่ก่อนรื้อสร้างการ์ดสินค้าทั้งหน้าใหม่ (renderGrid()) แค่เพราะติ๊ก/ถอนติ๊กสินค้าตัวเดียว — แก้แค่
         // การ์ดนั้นในจุดที่สถานะ "เช็คแล้ว" มีผลจริง (ไอคอนวงกลม, พื้นหลังรูป, คลาส .checked ของการ์ด)
@@ -1182,6 +1252,7 @@ async function renderSupplierCheck(app){
     // แตะช่องกรอก/กด +/- ของสินค้าไหน ถือว่าลูกจ้าง "เช็คแล้ว" สินค้าตัวนั้นทันที
     // ไม่ต้องกดวงกลม ✓ แยกอีกขั้น กันลืมกรอกแล้วข้อมูลไม่ถูกบันทึกตอนกด "เสร็จเจ้านี้"
     function markCardChecked(uid){
+      supplierCheckDirty = true; // เรียกจากปุ่ม +/- ช่องกรอก และปุ่ม "ของหมด" — ทุกจุดที่แก้ stockValues จริง
       const card = grid.querySelector(`[data-unit="${uid}"]`)?.closest('.prod-card');
       if(!card) return;
       const pid = card.querySelector('.check-toggle')?.dataset.pid;
@@ -1249,22 +1320,13 @@ async function renderSupplierCheck(app){
       <button class="btn-primary btn" id="finishSup">เสร็จเจ้านี้</button>`;
     bar.querySelector('#finishSup').onclick = async ()=>{
       const btn = bar.querySelector('#finishSup');
-      // บันทึกเฉพาะสินค้าที่ลูกจ้างติ๊ก "เช็คแล้ว" จริงๆ เท่านั้น — ตัวที่ยังไม่ได้แตะเลย
-      // ต้องไม่ถูกบันทึกเป็นคงเหลือ 0 ไปด้วย ไม่งั้นเจ้าของจะเข้าใจผิดว่าของหมดจริง
-      // ทั้งที่จริงๆ ยังไม่ได้เช็ค
-      const checkedItems = products.filter(p=>checkedProducts.has(p.id));
-      if(!checkedItems.length){ alert('ยังไม่ได้ติ๊กว่าเช็คสินค้าตัวไหนเลย'); return; }
       btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-      const items = checkedItems.flatMap(p=>p.units.map(u=>({unitId:u.id, remainQty: stockValues[u.id]||0})));
-      const photos = checkedItems.filter(p=>productPhotos[p.id]).map(p=>({productId:p.id, photo:productPhotos[p.id]}));
       try{
-        await apiPost('saveStock', { staffName: state.staffName, supplierId: sup.id, items, photos });
-        patchStockStatusChecked(checkedItems, items);
-        // ทำเครื่องหมาย "เช็คแล้ว" ในหน้าเลือกร้านเฉพาะตอนเช็คครบทุกตัวจริงๆ เท่านั้น
-        if(checkedItems.length === products.length){
-          checkedSuppliers.add(sup.id);
-          sessionCheckedSuppliers.add(sup.id);
-          saveSessionChecked();
+        const checkedItems = await saveCheckedItems();
+        if(!checkedItems){
+          btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
+          alert('ยังไม่ได้ติ๊กว่าเช็คสินค้าตัวไหนเลย');
+          return;
         }
         go('staffDone');
       }catch(err){
