@@ -106,6 +106,27 @@ function readTable(name) {
     return o;
   });
 }
+// อ่านค่าคอลัมน์ SkipDates จาก cell ให้ปลอดภัยเสมอ ไม่ว่า Google Sheets จะเก็บเป็น text ปกติ
+// ("2026-09-01,2026-09-02") หรือดันไปตีความเป็น Date object เอง — ถ้ามีใครพิมพ์วันที่ลงเซลล์นี้ตรงๆ
+// ผ่านหน้า Sheets (ไม่ผ่านแอป) Sheets จะเห็นว่าหน้าตาเหมือนวันที่แล้วแปลง type ของเซลล์เป็น Date ให้เอง
+// พอ Apps Script อ่านออกมาด้วย getValues() เลยได้ Date object จริงๆ กลับมา ไม่ใช่ string — ถ้าเอาไป
+// String(cell) ตรงๆ (ที่นี่และใน setProductSkipDate เดิม) จะได้ toString() เต็มรูปแบบ เช่น
+// "Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)" ซึ่งไม่มีทางตรงกับ todayISODate() ของฝั่งเว็บได้เลย
+// (เทียบสตริงตรงๆ) ทำให้สินค้าที่เจ้าของตั้งงดไว้ไม่ขึ้นเตือนฝั่งลูกจ้าง (บั๊กที่เจอจริง 1 ก.ย. 2569)
+// ฟังก์ชันนี้แปลงกลับเป็น yyyy-MM-dd ให้เสมอ ทั้งกรณีเจอ Date object ตรงๆ หรือ string ที่มีค่าเพี้ยนแบบนี้
+// ปนมาจากการอ่าน/เขียนทับซ้ำในอดีต (parse ย้อนกลับได้ เพราะ toString() ของ Date เป็นฟอร์แมตที่ new Date()
+// อ่านกลับเข้าใจ) ใช้ร่วมกันทั้ง bootstrap() และ setProductSkipDate() กันจุดเดิมพังซ้ำอีกจากทั้งสองทาง
+function normalizeSkipDatesCell(raw) {
+  if (raw instanceof Date) return [Utilities.formatDate(raw, TZ, 'yyyy-MM-dd')];
+  // dedupe ด้วย — กรณีมีทั้งค่าที่สะอาดอยู่แล้วกับค่าเพี้ยนที่ซ่อมกลับมาได้ตรงวันเดียวกันปนกัน (เช่น
+  // "2026-09-01,Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)" ทั้งคู่คือ 1 ก.ย. เหมือนกัน) ไม่งั้น
+  // เขียนกลับไปจะซ้ำกันเปล่าๆ
+  return [...new Set(String(raw || '').split(',').map(d => d.trim()).filter(Boolean).map(d => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const parsed = new Date(d);
+    return isNaN(parsed) ? d : Utilities.formatDate(parsed, TZ, 'yyyy-MM-dd');
+  }))];
+}
 function appendRow(name, obj, headers) {
   const sh = SHEET.getSheetByName(name);
   sh.appendRow(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
@@ -156,7 +177,7 @@ function bootstrap() {
     // SkipDates: คอลัมน์ใหม่ในชีต Product (Actual) เก็บวันที่ (yyyy-MM-dd) ที่เจ้าของกดงดสั่ง/งดเช็ค
     // สินค้าตัวนี้ไว้เป็นครั้งคราว (เช่น ซัพพลายเออร์แจ้งว่าโรงงานหยุดวันนั้น) คั่นด้วยคอมม่า
     // ไม่ใช่กฎประจำสัปดาห์แบบ OrderDays — ตั้ง/ยกเลิกได้จากหน้าสั่งของฝั่งเจ้าของผ่าน setProductSkipDate
-    skipDates: String(p.SkipDates || '').split(',').map(d => d.trim()).filter(Boolean),
+    skipDates: normalizeSkipDatesCell(p.SkipDates),
     units: units.filter(u => String(u.ProductID).trim() === String(p.ProductID).trim())
                 .sort((a, b) => a.SortOrder - b.SortOrder)
                 .map(u => ({ id: u.UnitID, label: u.UnitLabel, imageUrl: u.UnitImageURL }))
@@ -801,7 +822,7 @@ function setProductSkipDate(body) {
   if (rowIdx === -1) throw new Error('ไม่พบสินค้า ' + body.productId);
 
   const date = String(body.date).trim();
-  let dates = String(data[rowIdx][skipCol] || '').split(',').map(d => d.trim()).filter(Boolean);
+  let dates = normalizeSkipDatesCell(data[rowIdx][skipCol]);
   if (body.skip === false) {
     dates = dates.filter(d => d !== date);
   } else if (!dates.includes(date)) {
@@ -813,17 +834,16 @@ function setProductSkipDate(body) {
   return { ok: true, skipDates: dates };
 }
 
-/* ============ ล้างค่า SkipDates ที่ผิดฟอร์แมต (ข้อมูลเก่าก่อนเพิ่ม validation ใน setProductSkipDate) ============ */
-// ปัญหาที่พบ: บางแถวในคอลัมน์ SkipDates ของชีต Product (Actual) มีค่าเป็น toString() ของ Date object ตรงๆ
-// (เช่น "Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)") แทนที่จะเป็น "2026-09-01" ตามฟอร์แมตที่ควรจะ
-// เป็น — ค่าแบบนี้เทียบกับ todayISODate() ในฝั่งเว็บไม่ตรงกันเลย (เทียบสตริงตรงๆ) ทำให้ isProductSkippedToday()
-// คืน false ทั้งที่เจ้าของตั้งงดไว้จริง สินค้าตัวนั้นเลยไม่ขึ้น "งดสั่งวันนี้" ให้ลูกจ้างเห็น (บั๊กที่เจอ 1 ก.ย. 2569
-// กับ GSB/เล็กโคราช — 4 สินค้ามีค่าเสียแบบนี้ปนอยู่) ไม่รู้ว่ามาจากไหน (อาจพิมพ์มือ/บั๊กเก่าที่แก้ไปแล้ว) แต่
-// setProductSkipDate ตอนนี้กัน validation ไว้แล้ว ไม่ให้ค่าแบบนี้หลุดเข้าไปอีก ฟังก์ชันนี้ไว้ล้างของเก่าที่หลุด
-// เข้าไปแล้วครั้งเดียว
+/* ============ ซ่อมค่า SkipDates ที่เพี้ยนในชีตให้เป็น yyyy-MM-dd (รันครั้งเดียว ไม่จำเป็นต้องรันก็ได้) ======= */
+// bootstrap() และ setProductSkipDate() ตอนนี้เรียก normalizeSkipDatesCell() ทุกครั้งที่อ่าน/เขียน
+// SkipDates อยู่แล้ว ฝั่งลูกจ้างเลยเห็นสถานะ "งดสั่งวันนี้" ถูกต้องทันทีโดยไม่ต้องรอรันฟังก์ชันนี้ก่อน —
+// ฟังก์ชันนี้แค่เขียนค่าที่ซ่อมแล้วกลับลงชีตจริงๆ ให้ตัวเซลล์เองสะอาดถาวรด้วย (เผื่อมีที่อื่นในอนาคตอ่าน
+// คอลัมน์นี้ตรงๆ โดยไม่ผ่าน normalizeSkipDatesCell) ไม่ทำให้ข้อมูลหาย — กู้วันที่เดิมคืนจากค่าที่เพี้ยนได้
+// เสมอ (ไม่ใช่ลบทิ้ง) ดู normalizeSkipDatesCell() ด้านบนสำหรับรายละเอียดว่าค่าเพี้ยนมาจากไหน
 //
-// วิธีใช้: เปิด Apps Script Editor → เลือกฟังก์ชัน cleanMalformedSkipDates จาก dropdown ด้านบน → กด Run
-// (ปลอดภัย รันซ้ำได้ ไม่กระทบวันที่ที่ฟอร์แมตถูกต้องอยู่แล้ว) เช็คผลได้จาก popup หรือ View > Logs
+// วิธีใช้ (ไม่จำเป็น แต่แนะนำให้รันสักครั้งเพื่อความสะอาดของข้อมูล): เปิด Apps Script Editor → เลือก
+// ฟังก์ชัน cleanMalformedSkipDates จาก dropdown ด้านบน → กด Run (ปลอดภัย รันซ้ำได้ แถวที่สะอาดอยู่แล้ว
+// จะไม่ถูกแตะเลย) เช็คผลได้จาก popup หรือ View > Logs
 function cleanMalformedSkipDates() {
   const sh = SHEET.getSheetByName(PRODUCT_SHEET_NAME);
   const data = sh.getDataRange().getValues();
@@ -833,27 +853,27 @@ function cleanMalformedSkipDates() {
   const skipCol = headers.indexOf('SkipDates');
   if (skipCol === -1) throw new Error('ไม่พบคอลัมน์ SkipDates ในชีต ' + PRODUCT_SHEET_NAME);
 
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-  let fixedRows = 0, removedEntries = 0;
+  let fixedRows = 0;
   const details = [];
 
   for (let i = 1; i < data.length; i++) {
-    const raw = String(data[i][skipCol] || '');
+    const raw = data[i][skipCol];
     if (!raw) continue;
-    const entries = raw.split(',').map(d => d.trim()).filter(Boolean);
-    const valid = entries.filter(d => DATE_RE.test(d));
-    const bad = entries.filter(d => !DATE_RE.test(d));
-    if (!bad.length) continue;
+    const isDateObj = raw instanceof Date;
+    const rawStr = isDateObj ? String(raw) : String(raw).trim();
+    if (!isDateObj && !rawStr) continue;
 
-    sh.getRange(i + 1, skipCol + 1).setValue(valid.join(','));
+    const fixedStr = normalizeSkipDatesCell(raw).join(',');
+    if (!isDateObj && fixedStr === rawStr) continue; // สะอาดอยู่แล้ว ไม่ต้องแตะ
+
+    sh.getRange(i + 1, skipCol + 1).setValue(fixedStr);
     fixedRows++;
-    removedEntries += bad.length;
-    details.push(`${data[i][idCol]} (${data[i][nameCol]}): ลบ ${bad.length} ค่า เหลือ [${valid.join(', ') || '-'}]`);
+    details.push(`${data[i][idCol]} (${data[i][nameCol]}): "${rawStr}" → "${fixedStr}"`);
   }
 
   const msg = fixedRows
-    ? `แก้ไข ${fixedRows} แถว ลบค่าผิดฟอร์แมตรวม ${removedEntries} ค่า:\n` + details.join('\n')
-    : 'ไม่พบค่าผิดฟอร์แมตเลย ทุกแถวสะอาดอยู่แล้ว';
+    ? `ซ่อม ${fixedRows} แถว:\n` + details.join('\n')
+    : 'ไม่พบแถวที่ต้องซ่อมเลย ทุกแถวสะอาดอยู่แล้ว';
   Logger.log(msg);
   if (fixedRows) cacheClear('bootstrap');
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) {} // เผื่อรันจาก editor แล้วไม่มี UI context
