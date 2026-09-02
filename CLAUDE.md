@@ -40,6 +40,49 @@
 - `normalizeSkipDatesCell(raw)` — แปลงค่าคอลัมน์ SkipDates ให้เป็น array ของ string `yyyy-MM-dd` เสมอ ไม่ว่า cell จะถูก Sheets แปลงเป็น native Date object หรือพิมพ์เป็น string ก็ตาม ใช้ทั้งตอนอ่าน (`bootstrap`) และตอนเขียน (`setProductSkipDate`) เพื่อให้ข้อมูลเก่าที่พังซ่อมตัวเองได้ทุกครั้งที่ถูกแตะ (self-healing) — ห้ามย้อนกลับไปใช้ `String(dateObj)` ตรงๆ เด็ดขาด เพราะจะได้ format แบบ `"Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)"` ที่ผิด
 - ใน `checkPin(pin)` — การ pad PIN ด้วย `.padStart(4, '0')` เมื่อ Sheet เก็บ PIN เป็น number (กัน PIN ที่ขึ้นต้นด้วย 0 หายไป)
 
+## Order Web App (`index.html`) — รายละเอียดเชิงลึก
+
+**Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
+backend Google Apps Script คนละไฟล์ที่ไม่อยู่ใน repo — ผู้ใช้อัปโหลด `.gs` มาให้แยกทุกครั้งที่ต้องแก้ backend
+(ห้ามสมมุติเนื้อหาไฟล์ backend เอง ต้องขอไฟล์จริงก่อนเสมอ)
+
+### Routing (query params บน `index.html`)
+- `?admin=true&key=shop123` → เปิดหน้าแอดมิน (ADMIN_KEY ฝังในโค้ดตรงๆ ที่ตัวแปร `ADMIN_KEY`)
+- `?ref=<customer_id>` → เปิดหน้าสั่งของของลูกค้าคนนั้นโดยเฉพาะ (ลิงก์แต่ละคนอยู่ใน sheet "Link for Customers")
+- ไม่มี param เลย → error screen
+
+### Google Sheet data model (1 workbook หลายแท็บ — คนละไฟล์กับ Sheet ของแอปเช็คสต๊อก)
+- `Customer`: `customer_id, name, product_group` — `product_group` คือกลุ่มราคา (A-Z)
+- `Product`: `product_id, name, price, group, image_url` — สินค้าชื่อเดียวกันมีได้หลายแถว แถวละ 1 กลุ่มราคา
+  (ระบบ per-customer-segment price list ผ่าน `group` — อย่าเข้าใจผิดว่าเป็นข้อมูลซ้ำ/ขยะ)
+- `Order_<ปีพ.ศ.>` (ปีปัจจุบัน = `Order_2569`, sheet เก่าสุดที่ไม่มีปีต่อท้ายชื่อ `Order` ก็ยังใช้ fallback ได้):
+  `order_id, customer_id, customer_name, items, total, note, status, timestamp, payment_status,
+  delivery_status, packing_at, done_at, customer_group`
+  - `status` และ `payment_status` **ไม่ได้ใช้งานจริงแล้ว** ค้างค่า `pending` ทุกแถวเสมอ (เพราะฟังก์ชันที่เคยอัปเดตค่าพวกนี้ถูกลบไปแล้ว — ดูหัวข้อ backend actions ด้านล่าง) — ตัวที่บอกสถานะจริงคือ `delivery_status` (`pending`/`packing`/`done`/`cancelled`)
+- `BusinessNote`: `note_id, date, text` — โน้ตอิสระของแอดมิน ไม่ผูกกับเดือน
+- `Link for Customers`: `customer_id, name, link` — ลิงก์สั่งของเฉพาะตัว (`?ref=...`) ของลูกค้าแต่ละคน
+
+### Backend actions ปัจจุบัน (คลีนแล้ว 31 ส.ค. 69 — ดูรายละเอียดการลบด้านล่าง)
+- `doGet`: `getCustomer, getProducts, getOrders, getAdminOrders, getBusinessNotes, getThaiHolidays`
+- `doPost`: `createOrder, updateOrder, updateDelivery, cancelOrder, addBusinessNote, deleteBusinessNote`
+- **ลบไปแล้ว** เพราะไม่มี frontend เรียกใช้: `getOwnerOrders, updateStatus, updatePayment, uploadSlip, verifyPayment`
+  (ตัวหลังสุดเคยเรียก Claude API ตรวจสลิปโอนเงิน มีค่าใช้จ่ายต่อครั้ง) พร้อม helper ที่กลายเป็นขยะไปด้วย
+  (`checkNameMatch`, ตัวแปร `CLAUDE_API_KEY`) — **ถ้าเจอโค้ดพวกนี้ในไฟล์ `.gs` ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่ายังไม่ได้อัปเดตเป็นเวอร์ชันล่าสุด ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ**
+
+### Known quirks / เรื่องที่ควรรู้ก่อนแก้ index.html
+- Sticky header (`.admin-sticky-wrap`) ทับด้านบนของหน้าแอดมินตลอดเวลา — ถ้าจะทำ scroll-to-element (เช่น การ์ดกดแล้วเลื่อนไป section อื่น) ต้องคำนวณเผื่อ offset ความสูงของมันเองด้วย (`el.offsetHeight`) ไม่งั้นหัวข้อ section ที่เลื่อนไปจะโดนบัง — ห้ามใช้ `scrollIntoView` เปล่าๆ
+- `openOwnerDashboard()` เช็ค `window.innerWidth<768` เพื่อกันไม่ให้เปิดแดชบอร์ดบนจอเล็ก — เวลาทดสอบผ่าน artifact/หน้าต่างที่ถูก embed อาจโดน false positive เพราะเฟรมแคบกว่าหน้าจอจริงของผู้ใช้ (แม้เปิดจาก iPad)
+- เขียน `<div style="...">` แบบ generate ด้วย string ต้องระวังไม่ใส่ attribute `style="..."` ซ้ำสองรอบในแท็กเดียวกัน (เช่น อันจากปุ่ม/helper ทับกับอันเดิมของการ์ด) — เบราว์เซอร์เก็บแค่ attribute แรกแล้วทิ้งอันหลัง ทำให้ style เงียบๆ หายไปทั้งดุ้นโดยไม่มี error ให้เห็น
+
+### ข้อจำกัดของ sandbox นี้ (สำคัญมาก อ่านก่อนลงมือ)
+- เชื่อมต่อโดเมน `google.com` ทั้งหมด (รวม `script.google.com`, `docs.google.com`) ไม่ได้เลย ถูก network policy บล็อกไว้แบบ organization-wide — **ห้ามเสียเวลาลอง curl/fetch ไปหา backend หรือ Google Sheet ตรงๆ** ให้ขอผู้ใช้ export ข้อมูลเป็นไฟล์ (.xlsx/.csv) หรืออัปโหลดไฟล์ `.gs` มาแทนเสมอ
+- อยากทำเดโม่ UI ที่มี "ข้อมูลจริงหรือใกล้เคียงจริง" ให้ทำเป็น Claude Artifact ที่ override ฟังก์ชัน `safeFetchJSON`/`postAction` ของแอปตรงๆ ด้วยข้อมูลจำลอง (ประกาศ `function` ซ้ำหลัง script หลักเพื่อ overwrite) — **ห้าม patch `window.fetch`** เพราะ artifact sandbox บล็อกการเชื่อมต่อโดเมนนอกแบบเงียบๆ ไม่มี error ให้เห็น ทำให้ patch ไม่มีผลจริงและข้อมูลจะว่างเปล่าหมด (0 ทุกช่อง) โดยไม่รู้สาเหตุ
+
+### Workflow ที่ผู้ใช้ย้ำไว้หลายรอบ
+- **ห้าม commit/push เข้า `main` โดยไม่ถามก่อนเด็ดขาด** ต้องส่งเดโม่ให้ดูก่อนเสมอ — และเดโม่ที่ผู้ใช้ต้องการคือ
+  **ลิงก์ที่กดแล้วเปิดเป็นหน้าเว็บใช้งานได้จริง (Claude Artifact)** ไม่ใช่แค่ screenshot ภาพนิ่ง รอ approve ชัดเจนเป็นคำพูดก่อนถึงจะ commit/push ได้ (แม้ stop hook จะเตือนให้ commit ก็ต้องรอ user ยืนยันก่อน ไม่ใช่ทำตาม hook ทันที)
+- ก่อน merge ให้รัน code review เช็คความเรียบร้อยของ diff ก่อนเสมอ (ใช้ syntax check + ไล่ diff เทียบว่าไม่มีโค้ดเดโม่/mock หลุดเข้ามาปนในไฟล์จริง)
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
