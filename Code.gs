@@ -81,6 +81,7 @@ function doPost(e) {
       case 'setSupplierOrderConfirm': result = setSupplierOrderConfirm(body); break;
       case 'setProductSkipDate': result = setProductSkipDate(body);   break;
       case 'setUnitLabel':      result = setUnitLabel(body);      break;
+      case 'setOrderUnitLabel': result = setOrderUnitLabel(body); break;
       default:                 result = { error: 'unknown action: ' + body.action };
     }
   } catch (err) {
@@ -191,7 +192,10 @@ function bootstrap() {
     skipDates: normalizeSkipDatesCell(p.SkipDates),
     units: units.filter(u => String(u.ProductID).trim() === String(p.ProductID).trim())
                 .sort((a, b) => a.SortOrder - b.SortOrder)
-                .map(u => ({ id: u.UnitID, label: u.UnitLabel, imageUrl: u.UnitImageURL }))
+                // orderLabel: ป้ายที่ใช้ตอนสั่งของกับซัพพลายเออร์ (คอลัมน์ OrderLabel แยกจาก UnitLabel
+                // ที่ลูกจ้างใช้เช็คสต๊อก) — สินค้าเก่าที่ยังไม่เคยตั้งค่านี้ (คอลัมน์ว่าง/ยังไม่มีคอลัมน์เลย)
+                // fallback ไปใช้ UnitLabel เดิมเพื่อไม่ให้ของเก่าพัง ดู setOrderUnitLabel()
+                .map(u => ({ id: u.UnitID, label: u.UnitLabel, orderLabel: u.OrderLabel || u.UnitLabel, imageUrl: u.UnitImageURL }))
   }));
 
   const result = {
@@ -893,14 +897,13 @@ function cleanMalformedSkipDates() {
 }
 
 /* ============ setUnitLabel ============ */
-// body = { unitId, label, staffName? } — ใช้กับปุ่มแก้ชื่อหน่วย (เช่น "แพ็ค"/"โล"/"หัว") เรียกได้จาก 2 ที่:
-// 1) หน้าเช็คสต๊อกฝั่งลูกจ้าง (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html) — ส่ง staffName มาด้วยเสมอ
-//    จำกัดให้แก้ได้แค่พนักงานคนเดียว (ต้องตรงกับ PRIVILEGED_STAFF_NAME) ใช้ค่าเดียวกับที่จำกัดฟีเจอร์
-//    "เพิ่มสินค้าใหม่" ฝั่งลูกจ้างด้วย ดู addProductFromApp() ด้านล่าง
-// 2) หน้าสั่งของฝั่งเจ้าของ (ป้ายหน่วยข้างปุ่ม +/-) — ไม่ส่ง staffName มาเลย เหมือนฟังก์ชัน owner-only
-//    ตัวอื่นในระบบ (setProductSkipDate, setSupplierOrderConfirm ฯลฯ) ที่ไม่เช็คซ้ำฝั่งนี้ เพราะถือว่าผ่าน
-//    หน้ารหัส PIN มาแล้วเพียงพอ — เลยเช็ค staffName เฉพาะตอนที่มีค่าส่งมาจริงๆ (มาจากฝั่งลูกจ้าง) เท่านั้น
-// แก้แค่คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
+// body = { unitId, label, staffName } — ปุ่มแก้ชื่อหน่วยฝั่งลูกจ้าง (เช่น "แพ็ค"/"โล"/"หัว") ที่หน้าเช็คสต๊อก
+// (ดู ALLOW_EDIT_UNIT_LABEL ใน stock-check.html) ส่ง staffName มาด้วยเสมอ จำกัดให้แก้ได้แค่พนักงานคนเดียว
+// (ต้องตรงกับ PRIVILEGED_STAFF_NAME) ใช้ค่าเดียวกับที่จำกัดฟีเจอร์ "เพิ่มสินค้าใหม่" ฝั่งลูกจ้างด้วย
+// ดู addProductFromApp() ด้านล่าง — แก้คอลัมน์ UnitLabel ของแถวนั้นในชีต ProductUnits
+// (เดิมปุ่มดินสอหน้าสั่งของฝั่งเจ้าของก็เรียกฟังก์ชันนี้ด้วย ทำให้แก้ป้ายหน่วยฝั่งสั่งของแล้วดันไป
+// เปลี่ยนป้ายที่ลูกจ้างเช็คสต๊อกไว้ด้วยโดยไม่ตั้งใจ เพราะเป็นคอลัมน์เดียวกัน — ตอนนี้แยกออกไปใช้
+// setOrderUnitLabel() ต่างหากแล้ว ดูด้านล่าง)
 const PRIVILEGED_STAFF_NAME = 'Mile';
 function setUnitLabel(body) {
   if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
@@ -923,6 +926,43 @@ function setUnitLabel(body) {
 
   cacheClear('bootstrap');
   return { ok: true, unitId: body.unitId, label };
+}
+
+/* ============ setOrderUnitLabel ============ */
+// body = { unitId, label } — ปุ่มดินสอหน้าสั่งของฝั่งเจ้าของ แก้ป้ายหน่วยที่ใช้ "ตอนสั่งของกับซัพพลายเออร์"
+// เท่านั้น (ตัวเลข +/- ที่จะสั่ง และข้อความสั่งของที่ส่งให้ซัพพลายเออร์ผ่าน createOrderBatch) —
+// ไม่เช็ค staffName เพราะฝั่งเจ้าของไม่มี concept นี้ ใช้ pattern เดียวกับฟังก์ชัน owner-only ตัวอื่น
+// (setSupplierCoverPhoto, setProductSkipDate ฯลฯ) ที่ถือว่าผ่านหน้ารหัส PIN มาแล้วเพียงพอ
+// เขียนลงคอลัมน์ OrderLabel ของชีต ProductUnits โดยเฉพาะ — แยกจากคอลัมน์ UnitLabel ที่ setUnitLabel()
+// ใช้ (ลูกจ้างเช็คสต๊อกด้วยป้ายนั้น) เพื่อไม่ให้เจ้าของแก้ป้ายให้ตรงกับที่ซัพพลายเออร์เรียก แล้วดันไป
+// เปลี่ยนป้ายของยอดที่ลูกจ้างเช็คไว้แล้วโดยไม่ตั้งใจ (บั๊กเดิมตอนสองอย่างนี้ยังเป็นคอลัมน์เดียวกัน)
+// คอลัมน์ OrderLabel ยังไม่มีอยู่ในชีตเดิม — ฟังก์ชันนี้สร้างให้อัตโนมัติตอนถูกเรียกใช้ครั้งแรก
+// (ไม่ต้องให้เจ้าของ/ผู้ใช้ไปเพิ่มคอลัมน์เองในชีต)
+function setOrderUnitLabel(body) {
+  if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
+  const sh = SHEET.getSheetByName('ProductUnits');
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf('UnitID');
+  if (idCol === -1) throw new Error('ไม่พบคอลัมน์ UnitID ในชีต ProductUnits');
+
+  let orderLabelCol = headers.indexOf('OrderLabel');
+  if (orderLabelCol === -1) {
+    orderLabelCol = headers.length;
+    sh.getRange(1, orderLabelCol + 1).setValue('OrderLabel');
+  }
+
+  let rowIdx = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]).trim() === String(body.unitId).trim()) { rowIdx = i; break; }
+  }
+  if (rowIdx === -1) throw new Error('ไม่พบ UnitID นี้ในชีต ProductUnits: ' + body.unitId);
+
+  const label = String(body.label).trim();
+  sh.getRange(rowIdx + 1, orderLabelCol + 1).setValue(label);
+
+  cacheClear('bootstrap');
+  return { ok: true, unitId: body.unitId, orderLabel: label };
 }
 
 /* ============ เพิ่มหน่วยเล็กให้สินค้าทุกตัวที่ยังมีหน่วยเดียว ============ */

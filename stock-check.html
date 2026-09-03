@@ -651,8 +651,11 @@ function patchStockStatusChecked(products, items){
 
 
 // สั่งของเป็นหน่วยใหญ่สุดของสินค้าเสมอ (หน่วยสุดท้ายใน p.units ซึ่งเรียงเล็ก→ใหญ่ตาม SortOrder)
+// ใช้ orderLabel (ป้ายฝั่งสั่งของ แยกจาก label ที่ลูกจ้างใช้เช็คสต๊อก) — สินค้าเก่าที่ยังไม่เคยตั้งค่านี้
+// backend จะ fallback เป็น label เดิมให้เอง (ดู bootstrap() ใน Code.gs)
 function orderUnitLabel(p){
-  return p.units[p.units.length-1]?.label || p.orderUnit;
+  const u = p.units[p.units.length-1];
+  return u?.orderLabel || u?.label || p.orderUnit;
 }
 
 /* ============ STATE / ROUTER ============ */
@@ -1754,17 +1757,19 @@ async function renderOrderPage(app){
         row.querySelector('[data-unit-edit]').onclick = async (e)=>{
           e.stopPropagation();
           const unit = p.units[p.units.length-1];
-          const newLabel = prompt('แก้ชื่อหน่วยของ "' + p.name + '"', unit.label);
+          const current = unit.orderLabel || unit.label;
+          // แก้แค่ป้ายที่ใช้ตอนสั่งของกับซัพพลายเออร์ — ไม่กระทบป้ายที่ลูกจ้างใช้เช็คสต๊อก (unit.label)
+          const newLabel = prompt('แก้ชื่อหน่วยที่ใช้ตอนสั่งของกับซัพพลายเออร์ของ "' + p.name + '"\n(ไม่กระทบหน่วยที่ลูกจ้างใช้เช็คสต๊อก)', current);
           if(newLabel===null) return; // ยกเลิก
           const trimmed = newLabel.trim();
-          if(!trimmed || trimmed===unit.label) return;
-          const oldLabel = unit.label;
-          unit.label = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
+          if(!trimmed || trimmed===current) return;
+          const oldOrderLabel = unit.orderLabel;
+          unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
           renderGroups(c.querySelector('#search').value);
           try{
-            await apiPost('setUnitLabel', { unitId: unit.id, label: trimmed });
+            await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed });
           }catch(err){
-            unit.label = oldLabel;
+            unit.orderLabel = oldOrderLabel;
             renderGroups(c.querySelector('#search').value);
             alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
           }
