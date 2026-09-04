@@ -40,6 +40,24 @@
 - `normalizeSkipDatesCell(raw)` — แปลงค่าคอลัมน์ SkipDates ให้เป็น array ของ string `yyyy-MM-dd` เสมอ ไม่ว่า cell จะถูก Sheets แปลงเป็น native Date object หรือพิมพ์เป็น string ก็ตาม ใช้ทั้งตอนอ่าน (`bootstrap`) และตอนเขียน (`setProductSkipDate`) เพื่อให้ข้อมูลเก่าที่พังซ่อมตัวเองได้ทุกครั้งที่ถูกแตะ (self-healing) — ห้ามย้อนกลับไปใช้ `String(dateObj)` ตรงๆ เด็ดขาด เพราะจะได้ format แบบ `"Tue Sep 01 2026 07:00:00 GMT+0700 (เวลาอินโดจีน)"` ที่ผิด
 - ใน `checkPin(pin)` — การ pad PIN ด้วย `.padStart(4, '0')` เมื่อ Sheet เก็บ PIN เป็น number (กัน PIN ที่ขึ้นต้นด้วย 0 หายไป)
 
+### สถานะล่าสุด (อัปเดต 5 ก.ย. 69) — แยกป้ายหน่วย + performance ตอนโหลด/บันทึก
+
+**แยกป้ายหน่วยเช็คสต๊อกออกจากป้ายหน่วยสั่งของเสร็จแล้ว** — ตอนนี้มี 2 ฝั่ง 3 จุด:
+1. หน้าเช็คของฝั่งลูกจ้าง (หน่วยเล็ก+ใหญ่ ใช้ฟิลด์ `label` / คอลัมน์ `UnitLabel`) แก้ได้เฉพาะ Mile
+2. หน้าสั่งของฝั่งเจ้าของ ฝั่งซ้าย "คงเหลือ" — **mirror จุดที่ 1 ตรงๆ** (อ่าน `u.label` เหมือนกัน) แก้จุด 1 กระทบจุดนี้ด้วยเสมอ ตั้งใจให้เป็นแบบนั้น ไม่ใช่บั๊ก
+3. หน้าสั่งของฝั่งเจ้าของ ฝั่งขวา (หน่วยที่จะสั่ง supplier) — ใช้ฟิลด์แยก `orderLabel` / คอลัมน์ `OrderLabel` แก้ผ่าน action `setOrderUnitLabel` ไม่กระทบจุด 1/2 เลย
+
+⚠️ **ถ้าสินค้าตัวไหนยังไม่เคยกดตั้งชื่อฝั่งสั่งของเองสักครั้ง `OrderLabel` จะว่าง แล้ว `bootstrap()` จะ fallback ไปยืม `UnitLabel` มาโชว์แทน** — เจอบั๊กจริงจากจุดนี้เมื่อ 4 ก.ย. 69 (แก้ป้ายฝั่งเช็คสต๊อกแล้วป้ายฝั่งสั่งของขยับตาม) แก้แล้วด้วย `backfillOrderLabels()` (ฟังก์ชัน one-off ใน `Code.gs`) ที่ต้องรันครั้งเดียวหลังอัปเดตโค้ดชุดนี้เพื่อ "ตรึง" ค่าเดิมลง `OrderLabel` ให้สินค้าเก่าทุกตัว — **ถ้าเจอ Code.gs เวอร์ชันเก่าที่ไม่มีฟังก์ชันนี้ หรือผู้ใช้บอกว่ายังไม่เคยรัน ให้เตือนก่อนแก้เรื่องหน่วยต่อ** สินค้าใหม่ที่สร้างผ่าน `addProductFromApp`/`submitNewProduct` ตั้ง `OrderLabel` ให้อัตโนมัติตั้งแต่สร้างแล้ว ไม่ต้องรอ backfill
+
+**Retry-on-timeout** — `API_TIMEOUT_MS` เดิม 25 วิ พบว่า cold connection ครั้งแรกของ session (ไม่มี sessionStorage cache) มักหลุดเวลานี้บ่อย (DNS+TLS 2 โดเมนซ้อนกันเพราะ `script.google.com` redirect ไป `script.googleusercontent.com` + Apps Script อาจ cold start) ทั้งที่ backend ไม่มีปัญหาเลย (ยืนยันจาก Executions log สะอาดทุกครั้งที่ไล่บั๊กนี้) แก้โดย:
+- `apiGet`/`apiPost` รับ parameter เพิ่ม (`timeoutMs` / `retryOnTimeout`) — `bootstrap()` เรียกรอบแรกด้วย timeout สั้น (10 วิ) ถ้าพังจะ retry เงียบๆ อีกรอบด้วย timeout เต็ม (25 วิ) ก่อนค่อยโชว์ error จริง
+- `apiPost` เพิ่ม flag `retryOnTimeout` (ใส่ `true` เป็น argument ที่ 3) — **ใช้ได้เฉพาะ action ที่ "set" ค่าตรงๆ เรียกซ้ำแล้วผลเหมือนเดิม** (`setProductSkipDate`, `setUnitLabel`, `setOrderUnitLabel`, `setSupplierCoverPhoto`, `setSupplierOrderConfirm`) — **ห้ามใส่กับ action ที่สร้างแถวใหม่/อัปโหลดไฟล์ทุกครั้งที่เรียก** (`createOrderBatch`, `addProduct`, `saveStock`, `saveProductPhotos`, `saveStaffAvatar`) เพราะ retry ซ้ำจะสร้างข้อมูล/ไฟล์ซ้อนจริง (เทียบเคส `createOrderBatch` ไม่ idempotent ที่แอปสั่งของเคยเจอปัญหาเดียวกันมาแล้ว)
+- เพิ่ม `<link rel="preconnect">` ให้ `script.google.com` และ `script.googleusercontent.com` ใน `<head>` ให้เริ่ม DNS/TLS ตั้งแต่หน้าเพิ่งโหลด ไม่ต้องรอ JS ท้าย body เรียก fetch ก่อน
+
+⚠️ **เคย "แก้ไม่ครบ" มาก่อน 1 ครั้งในหัวข้อ OrderLabel** (fallback ทำให้ยังเชื่อมกันอยู่จนกว่าจะรัน backfill) ทำให้ผู้ใช้เสียเวลาไล่บั๊กเดิมซ้ำและหงุดหงิดมาก — ก่อนบอกว่าแก้เรื่องหน่วยเสร็จ ต้องเช็คให้แน่ใจว่าไม่มี fallback ที่ยังโยงสองฟิลด์เข้าด้วยกันเหลืออยู่
+
+**เรื่อง "หมดเวลาเชื่อมต่อ" ที่ไล่กันมายาวมาก (4-5 ก.ย. 69) — สรุปแล้วไม่เกี่ยวกับโค้ด**: มีรอบหนึ่งที่ผู้ใช้เจอ error ซ้ำๆ แม้จะมี retry แล้ว ไล่จนพิสูจน์ได้ว่า**ไม่ใช่บั๊กแอป** เพราะยิง URL ตรงๆ ใน Safari (ไม่ผ่านแอปเลย) ก็ยังค้างเหมือนกัน ทั้งที่ Executions log โชว์ backend รับ request สำเร็จเร็วต่อเนื่องตลอดเวลานั้น — สรุปว่าเป็นปัญหาเน็ต/อุปกรณ์เฉพาะจุดที่เกิดขึ้นเป็นครั้งคราว (ท้ายที่สุดหายเองหลังรีสตาร์ทอุปกรณ์ ไม่ได้แก้ตั้งค่าอะไรเลย) **ถ้าเจอรายงาน "โหลด/บันทึกไม่สำเร็จ" อีก ให้ขอเช็ค Executions log ก่อนเป็นอันดับแรกเสมอ** (ถ้า backend ตอบเร็ว/สำเร็จตลอดช่วงเวลานั้น แปลว่าไม่ใช่โค้ดเราแน่ๆ ไม่ต้องรีบแก้โค้ดเพิ่ม) และลองให้ผู้ใช้เปิดลิงก์ `?action=bootstrap` ตรงๆ บนเครื่อง/เน็ตเดียวกับที่เจอปัญหาเทียบดูก่อนเสมอ
+
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
