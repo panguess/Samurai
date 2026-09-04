@@ -8,6 +8,12 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192-black.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- ให้เบราว์เซอร์เริ่ม DNS + จับมือ TLS กับ backend ล่วงหน้าตั้งแต่หน้าเพิ่งเริ่มโหลด แทนที่จะรอให้
+     สคริปต์ท้าย body เรียก apiGet('bootstrap') ก่อนถึงจะเริ่มเชื่อมต่อ — ช่วยเฉพาะตอน "เชื่อมต่อเย็น"
+     (เพิ่งเปิดแท็บ/แอปใหม่ ไม่มีอะไรแคชไว้เลย) ซึ่งเป็นเคสที่ช้าที่สุด ดูคอมเมนต์ใน bootstrap() ด้วย —
+     ใส่ทั้งสองโดเมนเพราะ script.google.com/exec redirect ไปยัง script.googleusercontent.com เสมอ -->
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <!-- media="print" + onload swap กันฟอนต์/ไอคอนจาก CDN บล็อกการรันสคริปต์หลักของแอป (สคริปต์เดียวที่ยิง
      apiGet('bootstrap') อยู่ท้าย body ต่อจาก <link> พวกนี้ — เบราว์เซอร์จะไม่รันสคริปต์ที่ตามหลัง
      stylesheet ที่ยังโหลดไม่เสร็จ ถ้าเน็ตเอื้อมไม่ถึง fonts.googleapis.com/cdn.jsdelivr.net ได้ (แพลตฟอร์ม
