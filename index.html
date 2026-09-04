@@ -755,7 +755,7 @@ function renderProducts(){
     const div=document.createElement('div');
     div.className='product-card'+(qty>0?' selected':'');
     div.id='pc'+p.product_id;
-    const imgHtml=p.image_url?`<img class="product-img" src="${p.image_url}" alt="${p.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:'' ;
+    const imgHtml=p.image_url?`<img class="product-img" src="${p.image_url}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:'' ;
     const ph=`<div class="product-img-placeholder" ${p.image_url?'style="display:none"':''}>🛍️</div>`;
     div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${fmtMoney(p.price)}</div><div class="qty-row"><button class="qty-btn" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button><input type="number" class="qty-num" id="qty${p.product_id}" value="${qty}" min="0" max="999" oninput="setQty('${p.product_id}',this.value,'${p.name}',${p.price})"><button class="qty-btn" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button></div></div>`;
     grid.appendChild(div);
@@ -994,7 +994,7 @@ function renderEditModal(items,note){
     const prod=prodMap[item.name]||{};
     const price=Number(prod.price)||item.price||0;
     const imgHtml=prod.image_url
-      ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
+      ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
       :`<div class="edit-img-placeholder">🛍️</div>`;
     return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
@@ -1123,7 +1123,7 @@ async function initAdmin(){
     allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
     if(adminCurrentTab==='overview') renderAdminOverview();
     else renderAdminOrders();
-  },10000);
+  },30000);
 }
 
 async function loadAdminOrders(){
@@ -1161,7 +1161,7 @@ function buildAdminItemsHtml(o,canAdjustQty){
     const rowKey=o.order_id+'_'+idx;
     const isPicked=canAdjustQty&&pickedItems.has(rowKey);
     const imgHtml=prod.image_url
-      ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
+      ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
       :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
     const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
     const unitPrice=Number(prod.price)||0;
@@ -1276,7 +1276,7 @@ function renderAdminOrders(){
       const rowKey=o.order_id+'_'+idx;
       const isPicked=canAdjustQty&&pickedItems.has(rowKey);
       const imgHtml=prod.image_url
-        ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
+        ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
         :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
       const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
       const unitPrice=Number(prod.price)||0;
