@@ -1074,9 +1074,44 @@ async function loadBusinessNotes(){
   businessNotes=Array.isArray(data)?data:[];
 }
 
+/* ===== เสียงแจ้งเตือนออเดอร์ใหม่ (หน้าแอดมิน) =====
+ * สร้างเสียงเองด้วย Web Audio API (ไม่มีไฟล์เสียงแนบ) — ต้องปลดล็อกด้วย user gesture ก่อน
+ * (นโยบาย autoplay ของเบราว์เซอร์) จึงผูกกับ pointerdown ครั้งแรกของหน้าแอดมิน
+ * เสียง "ทะลุตลาด": คลื่นสี่เหลี่ยมสลับความถี่สูง-ต่ำ ให้ตัดผ่านเสียงรบกวนหน้าร้าน/ตลาดได้ดีกว่าเสียงไซน์ธรรมดา
+ */
+let orderChimeCtx=null;
+function unlockOrderChime(){
+  if(!orderChimeCtx){
+    try{ orderChimeCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+  }
+  if(orderChimeCtx.state==='suspended') orderChimeCtx.resume();
+}
+function playNewOrderChime(){
+  if(!orderChimeCtx) return;
+  if(orderChimeCtx.state==='suspended') orderChimeCtx.resume();
+  const notes=[{f:1050,t:0,d:0.13,g:0.42},{f:1400,t:0.16,d:0.13,g:0.42},{f:1050,t:0.32,d:0.13,g:0.42},{f:1400,t:0.48,d:0.16,g:0.42}];
+  const now=orderChimeCtx.currentTime+0.02;
+  notes.forEach(n=>{
+    const osc=orderChimeCtx.createOscillator();
+    const gain=orderChimeCtx.createGain();
+    osc.type='square';
+    osc.frequency.value=n.f;
+    const start=now+n.t;
+    const end=start+n.d;
+    gain.gain.setValueAtTime(0.0001,start);
+    gain.gain.exponentialRampToValueAtTime(n.g,start+0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001,end);
+    osc.connect(gain).connect(orderChimeCtx.destination);
+    osc.start(start);
+    osc.stop(end+0.03);
+  });
+}
+let knownOrderIds=null;
+
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
+  document.addEventListener('pointerdown',unlockOrderChime,{once:true});
   document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
 
   // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
@@ -1098,6 +1133,8 @@ async function initAdmin(){
   }else{
     allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
     lastAdminOrdersHash=JSON.stringify(ordersData);
+    // ไม่เล่นเสียงกับออเดอร์ที่มีอยู่แล้วตอนเปิดหน้าครั้งแรก — เก็บไว้เป็น baseline เทียบรอบ refresh ถัดไปเท่านั้น
+    knownOrderIds=new Set(allAdminOrders.map(o=>o.order_id));
     renderAdminOrders();
   }
 
@@ -1121,6 +1158,11 @@ async function initAdmin(){
     if(text===lastAdminOrdersHash) return;
     lastAdminOrdersHash=text;
     allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+    if(knownOrderIds){
+      const newOnes=allAdminOrders.filter(o=>!knownOrderIds.has(o.order_id));
+      if(newOnes.length) playNewOrderChime();
+      allAdminOrders.forEach(o=>knownOrderIds.add(o.order_id));
+    }
     if(adminCurrentTab==='overview') renderAdminOverview();
     else renderAdminOrders();
   },30000);
