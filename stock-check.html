@@ -289,10 +289,10 @@ function debounce(fn, wait){
   let t;
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
-async function apiGet(action, params){
+async function apiGet(action, params, timeoutMs){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
-  const t = setTimeout(()=>controller.abort(), API_TIMEOUT_MS);
+  const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
     const res = await fetch(`${API_URL}?${qs}`, { signal: controller.signal });
     const data = await res.json();
@@ -766,6 +766,27 @@ async function bootstrap(){
   loadingEl.className = 'content';
   loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>กำลังโหลดข้อมูลร้าน...</p></div>`;
   app.appendChild(loadingEl);
+  // การเชื่อมต่อ "เย็น" ครั้งแรกของ session (ไม่มีอะไรแคชไว้เลย เช่น เพิ่งปิดแท็บมาเปิดใหม่) มักช้ากว่า
+  // ปกติมาก เพราะต้อง DNS + TLS handshake ใหม่ทั้งกับ script.google.com และโดเมนที่มัน redirect ไปอีกที
+  // (script.googleusercontent.com) บวกกับ Apps Script อาจต้อง "ตื่น" จาก cold start — รวมกันแล้วหลุด
+  // เวลาที่ตั้งไว้ (API_TIMEOUT_MS) ได้ง่ายๆ ทั้งที่ backend ไม่ได้มีปัญหาอะไรเลย (ยืนยันจาก Executions log
+  // สะอาดหมดตอนไล่บั๊กนี้) พอกด "ลองใหม่" ครั้งที่สองจะติดทันทีเพราะ connection อุ่นแล้ว — ให้แอป retry
+  // ให้เองเงียบๆ 1 ครั้งก่อนถึงจะโชว์ error จริงให้ผู้ใช้เห็น แทนที่จะบังคับให้ต้องกดปุ่มเองทุกครั้ง
+  // รอบแรกให้ timeout สั้นกว่าปกติ (10 วิ แทน 25 วิ) เพราะถ้ามันจะพังจาก cold connection จริง รอนานกว่านี้
+  // ก็ไม่ช่วยอะไร แค่ทำให้ผู้ใช้รอ error เปล่าๆ นานขึ้น — ตัดใจ retry เร็วๆ ไปเลยดีกว่า รอบที่สอง (ซึ่ง
+  // connection น่าจะอุ่นแล้ว) ค่อยให้เวลาเต็ม 25 วิเผื่อไว้จริงๆ
+  try{
+    const data = await apiGet('bootstrap', null, 10000);
+    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+    writeBootstrapCache(data);
+    _bootstrapRefreshTs = Date.now();
+    getStockStatus().catch(()=>{});
+    history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
+    render();
+    return;
+  }catch(firstErr){
+    // ไม่ต้องบอกผู้ใช้ว่ารอบแรกพลาด แค่ลองใหม่เงียบๆ ให้เลย
+  }
   try{
     const data = await apiGet('bootstrap');
     SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
@@ -775,12 +796,7 @@ async function bootstrap(){
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
   }catch(err){
-    // ใส่ err.name + stack (ไม่ใช่แค่ err.message) ไว้ชั่วคราวเพื่อไล่บั๊ก "The string did not match
-    // the expected pattern" ที่เจอเฉพาะบางเครื่อง (ยืนยันแล้วว่า backend ไม่มี error เลย และยิง URL
-    // ตรงๆ ก็ได้ข้อมูลปกติ — แปลว่าเป็นจุดที่ apiGet()/fetch() เองบนเครื่องนั้นพัง) รายละเอียดเพิ่มตรงนี้
-    // จะช่วยระบุว่าพังจากบรรทัดไหนจริงๆ โดยไม่ต้องเดา — เอาออกได้เมื่อหาสาเหตุเจอแล้ว
-    const detail = `${err.name || 'Error'}: ${err.message}${err.stack ? '\n' + err.stack : ''}`;
-    loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 14px; color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}<br><br><button class="btn" onclick="bootstrap()">ลองใหม่</button><br><br><textarea readonly style="width:100%; height:140px; font-size:10px; color:var(--text-tertiary); border:1px solid var(--border); border-radius:6px; padding:6px;" onclick="this.select()">${detail}</textarea></div>`;
+    loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 14px; color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}<br><br><button class="btn" onclick="bootstrap()">ลองใหม่</button></div>`;
   }
 }
 
