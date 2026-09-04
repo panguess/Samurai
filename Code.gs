@@ -193,8 +193,12 @@ function bootstrap() {
     units: units.filter(u => String(u.ProductID).trim() === String(p.ProductID).trim())
                 .sort((a, b) => a.SortOrder - b.SortOrder)
                 // orderLabel: ป้ายที่ใช้ตอนสั่งของกับซัพพลายเออร์ (คอลัมน์ OrderLabel แยกจาก UnitLabel
-                // ที่ลูกจ้างใช้เช็คสต๊อก) — สินค้าเก่าที่ยังไม่เคยตั้งค่านี้ (คอลัมน์ว่าง/ยังไม่มีคอลัมน์เลย)
-                // fallback ไปใช้ UnitLabel เดิมเพื่อไม่ให้ของเก่าพัง ดู setOrderUnitLabel()
+                // ที่ลูกจ้างใช้เช็คสต๊อก) — การ || ตรงนี้เป็นแค่ safety net เผื่อมีแถวหลุดรอดไม่มีค่า
+                // OrderLabel จริงๆ (เช่น เพิ่มแถวมือในชีตตรงๆ ไม่ผ่านแอป) ไม่ใช่พฤติกรรมหลักที่ตั้งใจ —
+                // สินค้าทุกตัวควรมี OrderLabel ของตัวเองอยู่แล้วเสมอ (ตั้งตอนสร้างสินค้าใหม่ผ่าน
+                // addProductFromApp/submitNewProduct, หรือรัน backfillOrderLabels() ครั้งเดียวให้สินค้าเก่า)
+                // ถ้ายังพึ่ง fallback นี้อยู่แปลว่าแก้ UnitLabel ฝั่งเช็คสต๊อกจะยังไปเปลี่ยน orderLabel ที่
+                // เห็นอยู่ด้วย (บั๊กที่เจอจริง 4 ก.ย. 69 — เกิดเพราะตอนนั้นยังไม่ได้รัน backfill)
                 .map(u => ({ id: u.UnitID, label: u.UnitLabel, orderLabel: u.OrderLabel || u.UnitLabel, imageUrl: u.UnitImageURL }))
   }));
 
@@ -683,10 +687,17 @@ function addProductFromApp(body) {
   });
 
   const unitId = nextUnitId();
+  // ตั้ง OrderLabel ให้เท่ากับ UnitLabel ตั้งแต่สร้างแถวเลย (ไม่ปล่อยว่างให้พึ่ง fallback ตอนอ่าน) —
+  // กันปัญหาที่ orderLabel จะยัง "โยง" กับ UnitLabel อยู่จนกว่าเจ้าของจะมากดตั้งชื่อเองสักครั้ง
+  // ดู getOrCreateOrderLabelCol() และ backfillOrderLabels() สำหรับสินค้าเก่าที่สร้างไว้ก่อนหน้านี้
+  const unitsSh = SHEET.getSheetByName('ProductUnits');
+  const unitsHeaders = unitsSh.getDataRange().getValues()[0];
+  getOrCreateOrderLabelCol(unitsSh, unitsHeaders);
   appendRowByHeaders('ProductUnits', {
     UnitID: unitId,
     ProductID: productId,
     UnitLabel: body.orderUnit,
+    OrderLabel: body.orderUnit,
     UnitImageURL: '',
     SortOrder: 1
   });
@@ -698,7 +709,7 @@ function addProductFromApp(body) {
       id: productId, supplierId: body.supplierId, name: body.name,
       orderUnit: body.orderUnit,
       photoUrl: null,
-      units: [{ id: unitId, label: body.orderUnit, imageUrl: '' }]
+      units: [{ id: unitId, label: body.orderUnit, orderLabel: body.orderUnit, imageUrl: '' }]
     }
   };
 }
@@ -723,10 +734,15 @@ function submitNewProduct(data) {
     PhotoURL: ''
   });
 
+  // เหตุผลเดียวกับ addProductFromApp() ด้านบน — ตั้ง OrderLabel ตั้งแต่สร้างแถว ไม่ปล่อยว่าง
+  const unitsSh = SHEET.getSheetByName('ProductUnits');
+  const unitsHeaders = unitsSh.getDataRange().getValues()[0];
+  getOrCreateOrderLabelCol(unitsSh, unitsHeaders);
   appendRowByHeaders('ProductUnits', {
     UnitID: nextUnitId(),
     ProductID: productId,
     UnitLabel: data.orderUnit,
+    OrderLabel: data.orderUnit,
     UnitImageURL: '',
     SortOrder: 1
   });
@@ -938,6 +954,19 @@ function setUnitLabel(body) {
 // เปลี่ยนป้ายของยอดที่ลูกจ้างเช็คไว้แล้วโดยไม่ตั้งใจ (บั๊กเดิมตอนสองอย่างนี้ยังเป็นคอลัมน์เดียวกัน)
 // คอลัมน์ OrderLabel ยังไม่มีอยู่ในชีตเดิม — ฟังก์ชันนี้สร้างให้อัตโนมัติตอนถูกเรียกใช้ครั้งแรก
 // (ไม่ต้องให้เจ้าของ/ผู้ใช้ไปเพิ่มคอลัมน์เองในชีต)
+// หาคอลัมน์ OrderLabel ในชีต ProductUnits ถ้ายังไม่มีให้สร้างเพิ่มท้ายชีตอัตโนมัติ ใช้ร่วมกันทุกจุด
+// ที่ต้องแตะคอลัมน์นี้ (setOrderUnitLabel, addProductFromApp, submitNewProduct, backfillOrderLabels)
+// เพื่อไม่ให้แต่ละจุดเขียน logic สร้างคอลัมน์ซ้ำกันเองแล้วหลุดไม่ตรงกัน
+function getOrCreateOrderLabelCol(sh, headers) {
+  let col = headers.indexOf('OrderLabel');
+  if (col === -1) {
+    col = headers.length;
+    sh.getRange(1, col + 1).setValue('OrderLabel');
+    headers.push('OrderLabel');
+  }
+  return col;
+}
+
 function setOrderUnitLabel(body) {
   if (!body.unitId || !body.label) throw new Error('ข้อมูลไม่ครบ (unitId หรือ label หายไป)');
   const sh = SHEET.getSheetByName('ProductUnits');
@@ -946,11 +975,7 @@ function setOrderUnitLabel(body) {
   const idCol = headers.indexOf('UnitID');
   if (idCol === -1) throw new Error('ไม่พบคอลัมน์ UnitID ในชีต ProductUnits');
 
-  let orderLabelCol = headers.indexOf('OrderLabel');
-  if (orderLabelCol === -1) {
-    orderLabelCol = headers.length;
-    sh.getRange(1, orderLabelCol + 1).setValue('OrderLabel');
-  }
+  const orderLabelCol = getOrCreateOrderLabelCol(sh, headers);
 
   let rowIdx = -1;
   for (let i = 1; i < data.length; i++) {
@@ -963,6 +988,45 @@ function setOrderUnitLabel(body) {
 
   cacheClear('bootstrap');
   return { ok: true, unitId: body.unitId, orderLabel: label };
+}
+
+/* ============ backfillOrderLabels (รันครั้งเดียว) ============ */
+// ทำไมต้องรัน: หน่วยที่มีอยู่ก่อนฟีเจอร์แยกป้ายหน่วย (สั่งของ vs เช็คสต๊อก) ยังไม่มีค่า OrderLabel เป็น
+// ของตัวเอง — bootstrap() เลย fallback ไปอ่าน UnitLabel แทนสดๆ ทุกครั้ง (ดูคอมเมนต์ใน bootstrap())
+// ผลคือถ้าลูกจ้างแก้ UnitLabel ฝั่งเช็คสต๊อกของหน่วยที่ยังไม่เคย fill OrderLabel เลย จะเห็นป้ายฝั่ง
+// สั่งของเปลี่ยนตามไปด้วยทันที ทั้งที่ตั้งใจแยกไม่ให้กระทบกันแล้ว (บั๊กที่เจอจริง 4 ก.ย. 69)
+//
+// ฟังก์ชันนี้ "ตรึง" ค่า OrderLabel ปัจจุบัน (= UnitLabel ตอนนี้) ให้ทุกแถวที่ยังว่างอยู่ ตัดการพึ่ง
+// fallback ทันทีสำหรับสินค้าทุกตัวที่มีอยู่แล้ว โดยไม่เปลี่ยนป้ายที่แสดงผลตอนนี้เลยสักตัว (แค่ copy
+// ค่าเดิมไปเก็บไว้ในคอลัมน์ใหม่ ไม่ใช่เปลี่ยนความหมาย) จากนี้ไปแก้ UnitLabel จะไม่กระทบ OrderLabel อีก
+//
+// วิธีใช้ (ต้องรันครั้งเดียวหลังอัปเดตโค้ดชุดนี้): เปิด Apps Script Editor → เลือกฟังก์ชัน
+// backfillOrderLabels จาก dropdown ด้านบน → กด Run → เช็คผลจาก popup/Log
+// ปลอดภัย รันซ้ำได้เรื่อยๆ (ครั้งที่ 2 เป็นต้นไปจะข้ามแถวที่มีค่า OrderLabel อยู่แล้ว ไม่ทับซ้ำ)
+function backfillOrderLabels() {
+  const sh = SHEET.getSheetByName('ProductUnits');
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const labelCol = headers.indexOf('UnitLabel');
+  if (labelCol === -1) throw new Error('ไม่พบคอลัมน์ UnitLabel ในชีต ProductUnits');
+  const orderLabelCol = getOrCreateOrderLabelCol(sh, headers);
+
+  let filled = 0;
+  for (let i = 1; i < data.length; i++) {
+    const current = data[i][orderLabelCol];
+    if (current !== '' && current !== undefined && current !== null) continue; // มีค่าอยู่แล้ว ข้าม
+    const unitLabel = data[i][labelCol];
+    if (!unitLabel) continue;
+    sh.getRange(i + 1, orderLabelCol + 1).setValue(unitLabel);
+    filled++;
+  }
+
+  cacheClear('bootstrap');
+  const msg = filled
+    ? `เติม OrderLabel ให้ ${filled} แถว (ตรึงค่าปัจจุบันไว้แล้ว — แก้ UnitLabel ฝั่งเช็คสต๊อกจากนี้ไปจะไม่กระทบป้ายฝั่งสั่งของอีกต่อไป)`
+    : 'ไม่มีแถวไหนต้องเติม — ทุกแถวมี OrderLabel ของตัวเองอยู่แล้ว';
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) {} // เผื่อรันจาก editor แล้วไม่มี UI context
 }
 
 /* ============ เพิ่มหน่วยเล็กให้สินค้าทุกตัวที่ยังมีหน่วยเดียว ============ */
