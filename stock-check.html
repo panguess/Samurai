@@ -308,7 +308,11 @@ async function apiGet(action, params, timeoutMs){
     throw err.name==='AbortError' ? new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง') : err;
   }finally{ clearTimeout(t); }
 }
-async function apiPost(action, payload){
+// retryOnTimeout: ใช้เฉพาะ action ที่ "set" ค่าตรงๆ (เรียกซ้ำแล้วผลลัพธ์เหมือนเดิม ไม่สร้างข้อมูลซ้ำ) เช่น
+// setProductSkipDate/setUnitLabel/setOrderUnitLabel/setSupplierCoverPhoto/setSupplierOrderConfirm —
+// ห้ามใช้กับ action ที่สร้างแถวใหม่ทุกครั้งที่เรียก (createOrderBatch, addProduct, saveStock,
+// saveProductPhotos, saveStaffAvatar) เพราะ retry ซ้ำจะสร้างข้อมูล/อัปโหลดไฟล์ซ้ำซ้อนได้จริง
+async function apiPost(action, payload, retryOnTimeout){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), API_TIMEOUT_MS);
   try{
@@ -317,7 +321,11 @@ async function apiPost(action, payload){
     if(data.error) throw new Error(data.error);
     return data;
   }catch(err){
-    throw err.name==='AbortError' ? new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง') : err;
+    if(err.name==='AbortError'){
+      if(retryOnTimeout) return apiPost(action, payload, false); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
+      throw new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง');
+    }
+    throw err;
   }finally{ clearTimeout(t); }
 }
 
@@ -1236,7 +1244,7 @@ async function renderSupplierCheck(app){
           if(!p || !p.photoUrl) return;
           btn.disabled = true;
           try{
-            await apiPost('setSupplierCoverPhoto', { supplierId: sup.id, photoUrl: p.photoUrl });
+            await apiPost('setSupplierCoverPhoto', { supplierId: sup.id, photoUrl: p.photoUrl }, true);
             sup.imageUrl = p.photoUrl; // อัปเดตให้เห็นผลทันทีในเครื่อง
             renderGrid();
           }catch(err){
@@ -1262,7 +1270,7 @@ async function renderSupplierCheck(app){
           u.label = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
           renderGrid();
           try{
-            await apiPost('setUnitLabel', { unitId: uid, label: trimmed, staffName: state.staffName });
+            await apiPost('setUnitLabel', { unitId: uid, label: trimmed, staffName: state.staffName }, true);
           }catch(err){
             u.label = oldLabel;
             renderGrid();
@@ -1710,7 +1718,7 @@ async function renderOrderPage(app){
           if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
           renderStats();
           try{
-            await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName });
+            await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName }, true);
           }catch(err){
             confirmedNow = !checked;
             confirmBtn.classList.toggle('confirmed', !checked);
@@ -1794,7 +1802,7 @@ async function renderOrderPage(app){
           unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
           renderGroups(c.querySelector('#search').value);
           try{
-            await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed });
+            await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed }, true);
           }catch(err){
             unit.orderLabel = oldOrderLabel;
             renderGroups(c.querySelector('#search').value);
@@ -1814,7 +1822,7 @@ async function renderOrderPage(app){
             (async ()=>{
               try{
                 await Promise.all(skipDates.map(date=>
-                  apiPost('setProductSkipDate', { productId: p.id, date, skip: false })
+                  apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true)
                 ));
                 p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
                 renderGroups(c.querySelector('#search').value);
@@ -1823,7 +1831,7 @@ async function renderOrderPage(app){
           }else{
             openSkipDatePicker(p, async (date)=>{
               try{
-                await apiPost('setProductSkipDate', { productId: p.id, date, skip: true });
+                await apiPost('setProductSkipDate', { productId: p.id, date, skip: true }, true);
                 p.skipDates = [...(p.skipDates||[]), date];
                 renderGroups(c.querySelector('#search').value);
               }catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
