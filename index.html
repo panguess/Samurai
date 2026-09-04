@@ -816,6 +816,40 @@ function showConfirm(){
 function backToShop(){show('app');goSection('shop');}
 function startNewOrder(){cart={};goSection('shop');renderProducts();}
 
+/*
+ * หาออเดอร์ของลูกค้าคนนี้ที่ "รายการ+ยอดรวมตรงกันเป๊ะ" และสร้างภายใน 3 นาทีที่ผ่านมา
+ * ใช้ตอน createOrder รายงานว่าล้มเหลว/timeout เพื่อเช็คก่อนว่าจริงๆ แล้วอาจบันทึกสำเร็จไปแล้ว
+ * (แค่ response หลุด/มาช้าเกิน timeout) ป้องกันการยิงซ้ำจนเกิดออเดอร์ซ้ำ
+ * ยอมรับ trade-off: ถ้าลูกค้าสั่งของเซตเดียวกัน ยอดเท่ากันเป๊ะ ภายใน 3 นาที จะถูกมองว่าเป็นรายการเดียวกัน
+ */
+async function findRecentMatchingOrder(itemsText,total){
+  try{
+    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
+    if(!orders||!orders.length) return null;
+    const cutoff=Date.now()-3*60*1000;
+    return orders.find(o=>{
+      if(o.delivery_status==='cancelled') return false;
+      if(o.items!==itemsText) return false;
+      if(Number(o.total)!==Number(total)) return false;
+      const t=new Date(o.timestamp).getTime();
+      return !isNaN(t)&&t>=cutoff;
+    })||null;
+  }catch(e){ return null; }
+}
+
+function showOrderSuccessScreen(oid,items){
+  document.getElementById('confirmScreen').style.display='none';
+  const nowDateTimeStr=fmtOrderDateTime(new Date().toISOString());
+  const nowDatePart=nowDateTimeStr.split(' ')[0];
+  const nowTimePart=nowDateTimeStr.split(' ').slice(1).join(' ');
+  document.getElementById('successOid').textContent=oid+' · '+nowDatePart;
+  document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
+  document.getElementById('successTime').textContent=nowTimePart;
+  document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
+  cart={};
+  document.getElementById('successScreen').style.display='flex';
+}
+
 async function placeOrder(){
   const btn=document.getElementById('btnConfirm');
   btn.disabled=true;btn.textContent='กำลังส่ง...';
@@ -824,11 +858,20 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group},'placeOrder');
+    // retries=0 ตั้งใจ: createOrder ไม่ idempotent (ยิงกี่ครั้งก็สร้างออเดอร์ใหม่ทุกครั้ง)
+    // ปล่อยให้ postAction auto-retry ให้เอง เสี่ยงสร้างออเดอร์ซ้ำถ้าครั้งแรกสำเร็จจริงแต่ response ช้า/หลุด
+    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group},'placeOrder',15000,0);
     // postAction คืน null เมื่อเชื่อมต่อไม่ได้/timeout/ตอบกลับไม่ใช่ JSON
     // และคืน {success:false,error:...} เมื่อ backend ทำงานแต่บันทึกไม่สำเร็จ
     // ต้องเช็คทั้งสองกรณีนี้ก่อน ห้ามโชว์หน้าสำเร็จถ้ายังไม่ยืนยันว่าบันทึกจริง
     if(!result||result.success===false){
+      // ก่อนจะให้ลูกค้ากดลองใหม่ (ซึ่งจะยิง createOrder ซ้ำ) เช็คก่อนว่าออเดอร์นี้อาจสำเร็จไปแล้วจริงๆ
+      const maybeExisting=await findRecentMatchingOrder(itemsText,total);
+      if(maybeExisting){
+        showOrderSuccessScreen(maybeExisting.order_id,items);
+        btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
+        return;
+      }
       alert('บันทึกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือแจ้งร้านค้าโดยตรงหากยังไม่สำเร็จซ้ำๆ'+(result&&result.error?('\n('+result.error+')'):''));
       btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
       return;
@@ -839,16 +882,7 @@ async function placeOrder(){
       const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',15000,1);
       if(orders&&orders.length) realOid=orders[0].order_id;
     }catch(e2){}
-    document.getElementById('confirmScreen').style.display='none';
-    const nowDateTimeStr=fmtOrderDateTime(new Date().toISOString());
-    const nowDatePart=nowDateTimeStr.split(' ')[0];
-    const nowTimePart=nowDateTimeStr.split(' ').slice(1).join(' ');
-    document.getElementById('successOid').textContent=realOid+' · '+nowDatePart;
-    document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
-    document.getElementById('successTime').textContent=nowTimePart;
-    document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
-    cart={};
-    document.getElementById('successScreen').style.display='flex';
+    showOrderSuccessScreen(realOid,items);
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
 }
