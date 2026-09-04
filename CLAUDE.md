@@ -83,6 +83,43 @@ backend Google Apps Script คนละไฟล์ที่ไม่อยู�
   **ลิงก์ที่กดแล้วเปิดเป็นหน้าเว็บใช้งานได้จริง (Claude Artifact)** ไม่ใช่แค่ screenshot ภาพนิ่ง รอ approve ชัดเจนเป็นคำพูดก่อนถึงจะ commit/push ได้ (แม้ stop hook จะเตือนให้ commit ก็ต้องรอ user ยืนยันก่อน ไม่ใช่ทำตาม hook ทันที)
 - ก่อน merge ให้รัน code review เช็คความเรียบร้อยของ diff ก่อนเสมอ (ใช้ syntax check + ไล่ diff เทียบว่าไม่มีโค้ดเดโม่/mock หลุดเข้ามาปนในไฟล์จริง)
 
+### สถานะล่าสุด (อัปเดต 4 ก.ย. 69) — สรุปงานประสิทธิภาพ + แจ้งเตือนของ Order Web App
+
+**ช่องทางแจ้งเตือนออเดอร์ปัจจุบันคือ Telegram** (ไม่ใช่ LINE OA แล้ว) — ย้ายเพราะ LINE OA แผนฟรีมีโควต้าข้อความ/เดือน
+หมดไวเกินไป (แจ้งเตือนได้แค่ 2-3 วันแรกของเดือน) `Code.gs` มีฟังก์ชัน `sendTelegramNotify(message)` เรียกใน 3 จุด:
+`createOrder` (🛒 ออเดอร์ใหม่), `updateDelivery` เมื่อ status เป็น `done` (✅ จัดเสร็จแล้ว), `cancelOrder` (❌ ยกเลิกออเดอร์)
+— **ไม่มี event แจ้งตอนเข้าสถานะ `packing`** ต้องตั้งค่า Script Property 2 ตัวก่อนใช้งานได้: `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID` (ไม่มี fallback ไป LINE แล้ว ถ้าเจอโค้ด `sendLineNotify`/`LINE_CHANNEL_ACCESS_TOKEN` ในไฟล์ `.gs`
+ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่าเป็นเวอร์ชันเก่าก่อนย้าย ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ)
+
+⚠️ **ปัญหาที่ยังไม่จบ**: ผู้ใช้เคยแจ้งว่า "Telegram มันไม่ดัง" แล้วขอให้ลบทิ้ง ก่อนจะพูดกลับว่าพูดผิด (จริงๆ อยากลบแค่
+ฟีเจอร์เสียงในแอปเว็บ ไม่ใช่ Telegram) — โค้ด `sendTelegramNotify` ถูก restore กลับมาแล้ว แต่ **สาเหตุที่ไม่มีเสียง/แจ้งเตือน
+ยังไม่ได้ไล่หาจริงจัง** (เป็นไปได้ทั้งเรื่อง mute แชท/ตั้งค่าเครื่อง หรือบั๊กจริงใน backend) ถ้าคุยเรื่องนี้ต่อให้ไล่เช็คจาก
+Apps Script Editor > Executions ว่ามี error log ตอนยิง Telegram ไหมก่อน
+
+**เสียงแจ้งเตือนในแอปเว็บ (`index.html`) ถูกลบทิ้งไปแล้วตามคำขอ** — เคยมีฟีเจอร์ `playNewOrderChime()`/`orderChimeCtx`
+(สร้างเสียงด้วย Web Audio API ตอนหน้าแอดมิน auto-refresh เจอ order_id ใหม่) ถูก revert ออกทั้งหมด **อย่าเพิ่มกลับเข้าไป
+โดยไม่ถูกขอใหม่**
+
+**แก้ปัญหาออเดอร์ซ้ำ** (ลูกค้ากดสั่งแล้วเกิดออเดอร์ซ้ำ 2-3 อันราคา/รายการเดียวกัน) — สาเหตุคือ `postAction` มี
+auto-retry ในตัว แต่ `createOrder` ที่ backend ไม่ idempotent (ยิงกี่ครั้งก็สร้างแถวใหม่เสมอ) ถ้า response หลุด/ช้าเกิน
+timeout ทั้ง auto-retry และการกดซ้ำของลูกค้าจะสร้างออเดอร์ซ้ำได้ แก้ที่ `index.html`/`placeOrder()`:
+1. เรียก `postAction(...,'placeOrder',15000,0)` ปิด auto-retry เฉพาะ `createOrder` (retries=0)
+2. ก่อนแจ้ง fail จะเรียก `findRecentMatchingOrder(itemsText,total)` เช็คก่อนว่ามีออเดอร์ของลูกค้าคนนี้ที่รายการ+ยอดตรงกันเป๊ะ
+   ภายใน 3 นาทีที่ผ่านมาหรือยัง (ไม่นับที่ถูกยกเลิก) ถ้าเจอ ถือว่าสำเร็จแล้ว ไม่ยิงซ้ำ
+- Trade-off ที่ผู้ใช้ยอมรับแล้ว: ถ้าลูกค้าสั่งของเซตเดียวกัน ยอดเท่ากันเป๊ะ ภายใน 3 นาที จะถูกมองเป็นออเดอร์เดียวกัน
+- ทดสอบผ่าน Playwright E2E จริง (mock request ที่ระดับ `page.route()` ไม่ใช่ mock ฟังก์ชัน) ครอบคลุม 6 เคส — ดูรูปแบบ
+  การทดสอบนี้เป็นตัวอย่างอ้างอิงได้เวลาต้องเทส `placeOrder`/`postAction` อีก
+
+**Performance fixes อื่นๆ ที่ทำไปแล้ว**:
+- `index.html`: เพิ่ม `loading="lazy"` ในรูปสินค้าทุกจุด, auto-refresh หน้าแอดมิน 10s → 30s
+- `Code.gs`: `findOrderLocation()` เรียง sheet ปีปัจจุบันไว้ค้นหาก่อนเสมอ (ใช้ `getOrderSheetByYear()`) ลด scan cost
+  ที่โตขึ้นเรื่อยๆ ตามอายุร้าน — ใช้กับทุก action ที่แก้ไข order ที่มีอยู่ (`updateOrder`/`updateDelivery`/`cancelOrder`)
+
+**Backlog ที่ยังไม่ทำ (ตั้งใจพักไว้)**: จำกัดช่วงข้อมูลย้อนหลังที่ `getAdminOrders()` ส่งกลับ (ตอนนี้ส่งออเดอร์ทั้งหมด
+ทุกปีทุกครั้ง ไม่มี limit) — ตอนคุยกันข้อมูลมีแค่ ~3 เดือนยังไม่กระทบมาก แต่จะเป็นปัญหาความเร็วเพิ่มขึ้นเรื่อยๆ ตามอายุร้าน
+ถ้าจะทำต้องคุยก่อนว่าฟีเจอร์ "ภาพรวม/กราฟยอดขาย" (`renderAdminOverview`) ต้องดูย้อนหลังกี่เดือน ไม่งั้นจะพังฟีเจอร์นั้น
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
