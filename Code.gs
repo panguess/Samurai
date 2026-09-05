@@ -21,6 +21,57 @@ const SUPPLIER_ORDER_CONFIRM_SHEET = 'OrderConfirmations';
 // ถ้าชีตนี้ยังไม่มี ระบบจะสร้างให้อัตโนมัติตอนเช็คสต๊อกครั้งแรก (ดู ensureSheetWithHeaders)
 // หัวคอลัมน์: UnitID | Date | RemainQty | CheckedBy | Timestamp
 const STOCK_LOGS_LATEST_SHEET = 'StockLogsLatest';
+// ============ รับของ — ถ่ายบิล (บันทึกต้นทุนจากบิลซัพพลายเออร์) ============
+// ชีตเก็บ log ต้นทุนแต่ละรายการที่รับของจริง — 1 แถวต่อ 1 รายการสินค้าในบิล (ไม่รวมรายการที่ข้าม เช่น ค่าขนส่ง)
+// ต้องสร้างชีตนี้เองก่อนใช้งาน (เหมือน SUPPLIER_ORDER_CONFIRM_SHEET) — หัวคอลัมน์ดูที่ savePurchaseReceipt()
+const PURCHASE_RECEIPTS_SHEET = 'PurchaseReceipts';
+// ชีตจำ "การจับคู่ชื่อบิล -> สินค้าในระบบ" ต่อซัพพลายเออร์ (SupplierID+BillText คือ key) รวมอัตราแปลงหน่วย
+// ไว้ด้วย เพื่อให้ analyzeBillPhoto() จับคู่อัตโนมัติได้ทันทีถ้าเคยเจอชื่อนี้จากเจ้านี้มาก่อน — ต้องสร้างเอง
+// ก่อนใช้งานเช่นกัน — หัวคอลัมน์ดูที่ upsertProductAlias()
+const PRODUCT_ALIAS_SHEET = 'ProductAlias';
+// ชีตเก็บ "บิลที่ลูกจ้างส่งมาแล้วรอเจ้าของตรวจ" — ลูกจ้างไม่มีสิทธิ์เขียนเข้า PurchaseReceipts ตรงๆ เลย
+// ไม่ว่าจะจับคู่รายการไว้ครบแค่ไหนก็ตาม ทุกใบต้องผ่านชีตนี้ก่อนเสมอ (ดู submitBillForReview) แล้วเจ้าของ
+// เป็นคนกด "บันทึกต้นทุน" จริงจากหน้ารีวิว (finalizePurchaseReceipt) ถึงจะย้ายไป PurchaseReceipts จริง
+// ต้องสร้างชีตนี้เองก่อนใช้งาน — หัวคอลัมน์ดูที่ submitBillForReview()
+const PENDING_BILL_SHEET = 'PendingBillReceipts';
+// ⚠️ ต้องแก้เป็น Folder ID จริงใน Google Drive สำหรับเก็บรูปบิล (สร้างโฟลเดอร์ใหม่แล้วเอา ID มาใส่ เหมือน
+// PRODUCT_PHOTOS_FOLDER_ID/STAFF_PHOTOS_FOLDER_ID ด้านบน) — ใต้โฟลเดอร์นี้ระบบจะสร้างโฟลเดอร์ย่อยเองอัตโนมัติ
+// เป็น [ปี พ.ศ.]/[รหัส+ชื่อซัพพลายเออร์] ให้ (ดู getBillPhotoFolderForSupplier) ไม่ต้องสร้างล่วงหน้า
+const BILL_PHOTOS_FOLDER_ID = '14hYENihKGsCs-WW2MGnQpZZ9l9zLQga6';
+// โมเดล Gemini ที่ใช้อ่านบิล — ต้องตั้งค่า Script Property ชื่อ GEMINI_API_KEY ก่อนใช้งาน (Extensions >
+// Apps Script > Project Settings > Script Properties) เอา API key จาก https://aistudio.google.com/apikey
+// (มี free tier ให้ใช้ฟรีตามโควต้าต่อวัน/ต่อนาที ไม่ต้องผูกบัตร — สำหรับปริมาณบิลของร้านนี้ไม่มีทางชนโควต้า)
+// ⚠️ Google เลิกใช้/เปลี่ยนชื่อรุ่นโมเดลบ่อยมาก (gemini-2.0-flash ที่เคยใส่ไว้ถูกปลดไปแล้วตั้งแต่ 1 มิ.ย. 69)
+// ถ้าวันไหนเรียกแล้ว error ว่าไม่พบโมเดล ให้เข้า https://aistudio.google.com ดูชื่อรุ่นปัจจุบันแล้วแก้ค่านี้
+const GEMINI_MODEL = 'gemini-2.5-flash';
+// ข้อมูลอ้างอิงรูปแบบบิลต่อซัพพลายเออร์ (ย่อจาก CLAUDE.md หัวข้อ "Bill Templates by Supplier") — ใส่ไว้ใน
+// prompt ที่ส่งให้ Gemini ตอนอ่านบิลของเจ้านั้นๆ ช่วยให้อ่านแม่นขึ้นโดยเฉพาะบิลเขียนมือที่ไม่มีชื่อซัพพลายเออร์
+// บนบิลเอง (เช่น ลุงทวี/ตานะ) — เพิ่ม/แก้ตรงนี้ได้เรื่อยๆ ถ้ามีซัพพลายเออร์ใหม่หรือรูปแบบบิลเปลี่ยน
+const BILL_TEMPLATE_HINTS = {
+  S001: "ใบส่งสินค้าเขียนมือ กระดาษเหลือง/ขาว หมึกน้ำเงิน หัวบิลเขียน 'ชื่อลูกค้า ซามูไร ไส้กรอก 1/2' ไม่มีชื่อซัพพลายเออร์บนบิล สินค้าหลัก: แฮมหมู (โทสต์แฮม/กุ๊กแฮม), เอ็นเนื้อ/เอ็นหมูปอง, ลูกชิ้น, ยอ/จ้อ/หมูยอ, ไส้อั่ว, เต้าหู้หมู รายการเยอะ 20-30 รายการ",
+  S002: "โลโก้อักษรจีน 八仙 มุมบนซ้าย หัวบิล 'บิลเรียกเก็บเงิน — แปดเชียน ฟู้ด' ร้านค้า: เจ๊พัชร์ลิตา",
+  S004: "หัวบิล 'บริษัท ชินต้า จำกัด' หรือ 'SIMTA' ที่อยู่ ต.บางจาก อ.พระประแดง สมุทรปราการ",
+  S005: "หัวบิล CPF Global Food Solution พื้นขาวตัวอักษรน้ำเงิน รหัสสินค้า 8 หลัก Tax ID 0107566000135",
+  S006: "บริษัท พี.เอฟ.พี. เทรดดิ้ง จำกัด ที่อยู่ถนนรัชดาภิเษก แขวงช่องนนทรี ยานนาวา",
+  S007: "บริษัท มหาชัยฟู้ดส์ จำกัด สมุทรสาคร รหัสลูกค้า C2408005 เลขที่บิล SM260XXXXXX รหัสสินค้า V+6หลัก",
+  S008: "บริษัท นำชัย ฟู้ด อินโนเวชันส์ จำกัด เขตทวีวัฒนา กรุงเทพ Tax ID 0105567220455",
+  S009: "บริษัท สตาร์อัพ มาร์เก็ตติ้ง จำกัด รหัสลูกค้า 6402051 สินค้าหลัก STUF ไส้อั่วไข่ชีส",
+  S010: "บริษัท เจริญ ฟู้ดส์ โปรดักส์ จำกัด ลำลูกกา ปทุมธานี",
+  S011: "GSB INTERNATIONAL CO., LTD. รหัสลูกค้า NPU-01 สินค้าหลัก ไก่แต่งรมควัน/ไส้กรอกรมควัน",
+  S012: "บริษัท อุตสาหกรรมทวีวงษ์ จำกัด ซ.อ่อนนุช 62 สวนหลวง กรุงเทพ",
+  S014: "บริษัท ไอ.โอ.พี.ฟู้ดส์ จำกัด นครปฐม รหัสลูกค้า BK-K003-BK รหัสสินค้า 01-01-002",
+  S015: "โรงงานลูกชิ้นไก่ พี.พี.ฟู้ด สมุทรปราการ สินค้าหลักลูกชิ้นไก่",
+  S016: "บริษัท เบทาโกรเกษตรอุตสาหกรรม จำกัด โลโก้ BETAGRO เขียว ถนนวิภาวดีรังสิต",
+  S017: "ใบส่งของ (ง่วนเฮงฟาร์ม) พิมพ์สำเร็จรูป มีช่องค้างลังเก่า/ยอดส่ง/คืน สินค้าหลักไข่นก",
+  S018: "พิมพ์ดอตเมทริกซ์น้ำเงิน หัวบิล 'ธนนวรรณ พลขันธ์กสิกร' รหัสลูกค้า M4-408 มีคอลัมน์ Lot No./หน่วย(จุก)",
+  S019: "โลโก้วงกลมเขียว LAEMTHONG PROTEIN FOODS พื้นหลังเขียว รหัสสินค้า 9 หลัก",
+  S020: "บริษัท จัสมิน ฟู้ด แอนด์ มาร์เก็ตติ้ง จำกัด ลำลูกกา ปทุมธานี รหัสสินค้าตัวอักษร+4หลัก เช่น B0015",
+  S021: "บริษัท ซีเค-ฟูดส์ เอ็นเตอร์ไพรส์ จำกัด บางละมุง ชลบุรี รหัสสินค้า FG-CK-XXX",
+  S022: "บริษัท ทรัพย์ไพศาล มาร์เก็ตติ้ง จำกัด ลำลูกกา ปทุมธานี รหัสลูกค้า S040",
+  S023: "โลโก้ 'C&J' ตัวหนา พนง.ขาย สถาพร (เก่ง) สินค้าหลัก ไม้เสียบ/น้ำจิ้ม",
+  S024: "บิลเงินสด (CASH SALE) พื้นฟ้า อักษรจีน 現兌單 เขียนมือทั้งหมด ไม่มีชื่อบริษัทพิมพ์ สินค้าหลัก อีสาน 17 ไม้/อีสานสด",
+  S025: "ใบเก็บเงินเขียนมือ กระดาษขาว/เหลือง ตาราง~70ช่อง ไม่มีชื่อซัพพลายเออร์บนบิล สินค้าหลัก เต้าหู้ไข/เส้น/วุ้นเส้น/ยอ/เอ็นเนื้อ/จ้อ",
+};
 /* ============ server-side cache (ลดการอ่านชีตซ้ำ) ============ */
 const CACHE = CacheService.getScriptCache();
 const CACHE_TTL = {
@@ -28,8 +79,14 @@ const CACHE_TTL = {
   stockStatus: 60,    // 60 วิ (เดิม 20 วิ) — กันหลายคนกดพร้อมกันแล้วอ่านชีตซ้ำรัวๆ
                        // ยืดได้มากขึ้นเพราะตอนนี้ getStockStatus() อ่านแค่ StockLogsLatest (ขนาดคงที่)
                        // ไม่ได้อ่านทั้ง StockLogs ที่โตขึ้นทุกวันอีกต่อไป — ผลคือรอบแรกหลังแคชหมดอายุก็เร็วอยู่แล้ว
-  analytics: 120       // 2 นาที — getAnalytics() ยังอ่านทั้งชีต OrderLogs (ไม่มีตัวสรุปแยกแบบ StockLogsLatest)
+  analytics: 120,      // 2 นาที — getAnalytics() ยังอ่านทั้งชีต OrderLogs (ไม่มีตัวสรุปแยกแบบ StockLogsLatest)
                        // เดิมไม่มีแคชเลยเลยอ่านทั้งชีตซ้ำทุกครั้งที่เปิดหน้า analytics แม้เพิ่งเปิดไปเมื่อครู่
+  orderedToday: 60,    // 60 วิ — getOrderedToday/getOrderedItemsToday เดิมไม่มีแคชเลย อ่านทั้งชีต OrderLogs
+                       // (โตขึ้นทุกวันตามอายุร้าน ไม่มีตัวสรุปแยกแบบ StockLogsLatest) ใหม่ทุกครั้งที่ลูกจ้าง
+                       // เปิดหน้า "เลือกร้านที่จะเช็ค" (เรียกบ่อยมาก เปิดๆ ปิดๆ ทั้งกะ) — เคลียร์แคชทันทีใน
+                       // createOrderBatch() กันเห็นสถานะ "ยังไม่สั่ง" ค้างหลังเพิ่งสั่งไปเอง
+  confirmedToday: 120  // 2 นาที — getConfirmedToday() อ่านทั้งชีต OrderConfirmations (โตช้ากว่า OrderLogs
+                       // มาก แค่ ~1 แถวต่อเจ้าต่อวัน) เรียกน้อยกว่า orderedToday เลยให้ TTL ยาวกว่าได้
 };
 function cacheGet(key) {
   const raw = CACHE.get(key);
@@ -56,6 +113,7 @@ function doGet(e) {
       case 'orderedToday':  result = getOrderedToday();                        break;
       case 'orderedItemsToday': result = getOrderedItemsToday();               break;
       case 'confirmedToday':result = getConfirmedToday();                     break;
+      case 'pendingBills':  result = getPendingBillReceipts();                break;
       default:              result = { error: 'unknown action: ' + action };
     }
   } catch (err) {
@@ -82,6 +140,9 @@ function doPost(e) {
       case 'setProductSkipDate': result = setProductSkipDate(body);   break;
       case 'setUnitLabel':      result = setUnitLabel(body);      break;
       case 'setOrderUnitLabel': result = setOrderUnitLabel(body); break;
+      case 'analyzeBillPhoto':  result = analyzeBillPhoto(body);  break;
+      case 'submitBillForReview': result = submitBillForReview(body); break;
+      case 'finalizePurchaseReceipt': result = finalizePurchaseReceipt(body); break;
       default:                 result = { error: 'unknown action: ' + body.action };
     }
   } catch (err) {
@@ -491,6 +552,10 @@ function createOrderBatch(body) {
 
   cacheClear('analytics_7d');
   cacheClear('analytics_30d');
+  // เพิ่งเขียนออเดอร์ใหม่ลง OrderLogs — ล้างแคช orderedToday/orderedItemsToday ของวันนี้ทันที กันหน้า
+  // "เลือกร้านที่จะเช็ค"/หน้าสั่งของเห็นสถานะ "ยังไม่สั่ง" ค้างจากแคชเก่าหลังเพิ่งสั่งไปเอง (ดู CACHE_TTL.orderedToday)
+  cacheClear('orderedToday_' + date);
+  cacheClear('orderedItemsToday_' + date);
   return { ok: true, batchId };
 }
 
@@ -752,11 +817,20 @@ function submitNewProduct(data) {
 }
 
 /* ============ getOrderedToday ============ */
+// เดิมไม่มีแคชเลย อ่านทั้งชีต OrderLogs (โตขึ้นทุกวันตามอายุร้าน ไม่มีตัวสรุปแยกแบบ StockLogsLatest)
+// ใหม่ทุกครั้งที่เรียก — หน้านี้ถูกเรียกบ่อยมาก (ทุกครั้งที่ลูกจ้างเปิดหน้า "เลือกร้านที่จะเช็ค") เลยเพิ่ม
+// แคช 60 วิ แบบเดียวกับ getStockStatus — cacheClear ใน createOrderBatch() ทันทีหลังสั่งของ กันเห็นสถานะ
+// "ยังไม่สั่ง" ค้างจากแคชหลังเพิ่งสั่งไปเอง
 function getOrderedToday() {
   const date = todayStr();
+  const cacheKey = 'orderedToday_' + date;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
   const orders = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
-  const productIds = [...new Set(orders.map(o => String(o.ProductID).trim()))];
-  return { productIds };
+  const result = { productIds: [...new Set(orders.map(o => String(o.ProductID).trim()))] };
+  cacheSet(cacheKey, result, CACHE_TTL.orderedToday);
+  return result;
 }
 
 /* ============ getOrderedItemsToday ============ */
@@ -765,26 +839,40 @@ function getOrderedToday() {
 // วันนี้ได้อีกครั้ง โดยไม่ต้องเลือกรายการ+กดสั่งใหม่ทั้งหมด ใช้ได้กับออเดอร์ที่สั่งไปแล้วก่อนเปิดแอป
 // รอบนี้ด้วย เพราะอ่านจาก OrderLogs ตรงๆ ไม่ได้พึ่งข้อมูลที่จำไว้ในเครื่อง — ถ้าสินค้าตัวเดียวกันถูก
 // สั่งมากกว่า 1 รอบในวันนี้ ใช้ค่าจากรอบล่าสุด (แถวหลังสุดของวันนั้นในชีต ชนะแถวก่อนหน้าเสมอ)
+// แคชเหตุผลเดียวกับ getOrderedToday ด้านบน (คนละ cache key เพราะ shape ผลลัพธ์ไม่เหมือนกัน)
 function getOrderedItemsToday() {
   const date = todayStr();
+  const cacheKey = 'orderedItemsToday_' + date;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
   const rows = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
   const latestByProduct = {};
   rows.forEach(r => { latestByProduct[String(r.ProductID).trim()] = r; });
-  return {
+  const result = {
     items: Object.values(latestByProduct).map(r => ({
       productId: r.ProductID, orderQty: r.OrderQty, orderUnit: r.OrderUnit
     }))
   };
+  cacheSet(cacheKey, result, CACHE_TTL.orderedToday);
+  return result;
 }
 
 /* ============ getConfirmedToday / setSupplierOrderConfirm ============ */
 // แยกจาก getOrderedToday: "สั่งแล้ว" (OrderLogs) แปลว่าแอปสร้างข้อความ/บันทึกคำสั่งซื้อให้แล้ว
 // ส่วนอันนี้คือ "ยืนยันด้วยมือว่าส่งข้อความไปหา supplier จริงแล้ว" (เช่น กดส่งในไลน์แล้ว)
-// เก็บแยกชีตเพราะเป็น flag ที่คนกดยืนยันเอง ไม่ได้เกิดขึ้นอัตโนมัติเหมือน OrderLogs
+// เก็บแยกชีตเพราะเป็น flag ที่คนกดยืนยันเอง ไม่ได้เกิดขึ้นอัตโนมัติเหมือน OrderLogs — แคชสั้นๆ เหตุผล
+// เดียวกับด้านบน (ชีตนี้โตช้ากว่า OrderLogs มาก แต่ก็ยังโตเรื่อยๆ ไม่มีสิ้นสุด) cacheClear ใน
+// setSupplierOrderConfirm() เองทันทีหลังกดยืนยัน/ยกเลิก กันเห็นสถานะเก่าค้าง
 function getConfirmedToday() {
   const date = todayStr();
+  const cacheKey = 'confirmedToday_' + date;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
   const rows = readTable(SUPPLIER_ORDER_CONFIRM_SHEET).filter(r => normDate(r.Date) === date);
-  return { supplierIds: [...new Set(rows.map(r => String(r.SupplierID).trim()))] };
+  const result = { supplierIds: [...new Set(rows.map(r => String(r.SupplierID).trim()))] };
+  cacheSet(cacheKey, result, CACHE_TTL.confirmedToday);
+  return result;
 }
 
 // body = { supplierId, confirmed, staffName } — confirmed:true เพิ่มแถวยืนยัน (ถ้ายังไม่มีของวันนี้)
@@ -821,6 +909,7 @@ function setSupplierOrderConfirm(body) {
   } else if (foundRow !== -1) {
     sh.deleteRow(foundRow);
   }
+  cacheClear('confirmedToday_' + date);
   return { ok: true };
 }
 
@@ -1194,6 +1283,277 @@ function syncProductUnits() {
     cacheClear('bootstrap'); // เคลียร์แคชทันที ไม่ต้องรอครบ 5 นาที
     Logger.log(`sync: สร้างครบให้ ${createdBoth} สินค้า, เติมหน่วยเล็กให้ ${upgradedOne} สินค้า`);
   }
+}
+
+/* ============ รับของ — ถ่ายบิล: analyzeBillPhoto / savePurchaseReceipt ============ */
+// เรียก Gemini (multimodal) อ่านรูปบิลที่ลูกจ้างถ่ายมา แล้วแยกเป็นรายการสินค้า — ไม่เขียนอะไรลงชีตเลย
+// (pure read + เรียก API ภายนอก) จับคู่ล่วงหน้ากับ ProductAlias ที่เคยบันทึกไว้ให้ด้วยถ้าเจอ
+// body = { supplierId, photos: [dataURL, ...] }
+function analyzeBillPhoto(body) {
+  if (!body.supplierId || !body.photos || !body.photos.length) {
+    throw new Error('ข้อมูลไม่ครบ (supplierId หรือรูปบิลหายไป)');
+  }
+  const suppliers = readTable('Suppliers');
+  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
+  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
+
+  const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
+  const promptText = 'คุณกำลังอ่านใบส่งของ/ใบวางบิลจากซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
+    (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
+    'อ่านทุกบรรทัดรายการที่เห็นในรูป (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แล้วตอบกลับเป็น JSON array เท่านั้น ' +
+    'แต่ละสมาชิกในรูปแบบ {"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
+    '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
+    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ';
+
+  const parts = [{ text: promptText }];
+  body.photos.forEach(dataUrl => {
+    const base64 = String(dataUrl).split(',').pop();
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64 } });
+  });
+
+  const items = callGemini(parts);
+  if (!Array.isArray(items)) throw new Error('อ่านบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+
+  const aliasSheet = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
+  const aliases = (aliasSheet ? readTable(PRODUCT_ALIAS_SHEET) : [])
+    .filter(a => String(a.SupplierID).trim() === String(body.supplierId).trim());
+  const normalized = items.map(it => {
+    const billText = String(it.billText || '').trim();
+    const match = findAliasMatch(aliases, billText);
+    return {
+      billText, qty: Number(it.qty) || 0,
+      unit: String(it.unit || 'หน่วย').trim(),
+      unitPrice: Number(it.unitPrice) || 0,
+      likelyNonProduct: !!it.likelyNonProduct,
+      productId: match ? match.ProductID : null,
+      conversionFactor: match ? (Number(match.ConversionFactor) || 1) : null,
+      // 'exact': ข้อความตรงกับที่เคยยืนยันไว้เป๊ะๆ (หลัง normalize) จับคู่ให้ทันทีไม่ต้องถามซ้ำ
+      // 'fuzzy': ใกล้เคียงแต่ไม่เป๊ะ (เทียบด้วย Levenshtein ในโค้ดเอง ไม่ใช่ให้ AI เดาแล้วเชื่อเลย) — ต้องให้
+      // คนกดยืนยันเองก่อนเสมอ กันเคสจับคู่ผิดหลุดผ่านไปโดยไม่มีใครสังเกต (ดู renderBillReview ฝั่งเว็บ)
+      matchType: match ? match.matchType : null,
+      // ข้อความ alias เดิมที่ทำให้เกิด fuzzy match — ใช้โชว์ในหน้าเว็บว่า "เจอคำนี้ใกล้เคียงกับคำนี้ที่เคยยืนยันไว้"
+      matchedAliasText: (match && match.matchType === 'fuzzy') ? match.BillText : null
+    };
+  });
+
+  return { items: normalized };
+}
+
+// Levenshtein distance ธรรมดา (dynamic programming) — ใช้หาความคล้ายของข้อความบิลแบบ deterministic
+// ไม่ใช่ให้ AI ตัดสินเองว่า "คล้ายกันไหม" เพราะอยากให้ตรวจสอบ/อธิบายได้ว่าทำไมถึงจับคู่ให้
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = [];
+  for (let i = 0; i <= m; i++) dp[i] = [i];
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+function textSimilarity(a, b) {
+  const d = levenshtein(a, b);
+  const len = Math.max(a.length, b.length) || 1;
+  return 1 - d / len;
+}
+// ปรับได้ทีหลังถ้าเจอ false positive (จับคู่มั่วเกินไป) หรือ false negative (ควรจับคู่ได้แต่ไม่จับ) จากการใช้งานจริง
+const FUZZY_MATCH_THRESHOLD = 0.75;
+
+// หา alias ที่ตรง/ใกล้เคียงที่สุดของซัพพลายเออร์นี้ (aliases ต้อง filter เฉพาะ supplier นี้มาก่อนแล้ว)
+// คืน {..alias, matchType:'exact'|'fuzzy'} หรือ null ถ้าไม่เจออะไรใกล้เคียงพอ
+function findAliasMatch(aliases, billText) {
+  const key = normalizeAliasKey(billText);
+  const exact = aliases.find(a => normalizeAliasKey(a.BillText) === key);
+  if (exact) return Object.assign({}, exact, { matchType: 'exact' });
+  let best = null, bestScore = 0;
+  aliases.forEach(a => {
+    const score = textSimilarity(key, normalizeAliasKey(a.BillText));
+    if (score > bestScore) { bestScore = score; best = a; }
+  });
+  if (best && bestScore >= FUZZY_MATCH_THRESHOLD) return Object.assign({}, best, { matchType: 'fuzzy' });
+  return null;
+}
+
+// เรียก Gemini API (generateContent) แบบ multimodal — บังคับให้ตอบเป็น JSON ล้วนๆ ผ่าน responseMimeType
+// กันปัญหาโมเดลตอบเป็นข้อความอธิบายปนโค้ด/markdown fence ที่ parse ต่อไม่ได้
+function callGemini(parts) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error('ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Script Properties (Project Settings)');
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + apiKey;
+  const payload = {
+    contents: [{ parts }],
+    generationConfig: { responseMimeType: 'application/json' }
+  };
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true
+  });
+  const code = res.getResponseCode();
+  let json;
+  try { json = JSON.parse(res.getContentText()); } catch (e) { throw new Error('Gemini ตอบกลับมาไม่ใช่ JSON ที่ใช้ได้'); }
+  if (code !== 200) throw new Error('Gemini API error (' + code + '): ' + (json.error && json.error.message || res.getContentText()));
+  const text = json.candidates && json.candidates[0] && json.candidates[0].content &&
+    json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
+  if (!text) throw new Error('Gemini ไม่ส่งผลลัพธ์ที่ใช้ได้กลับมา');
+  return JSON.parse(text);
+}
+
+// normalize ชื่อบิลก่อนเทียบ/ใช้เป็น key จับคู่ ProductAlias — ตัดช่องว่างหัวท้าย + รวมช่องว่างซ้ำ + ตัวพิมพ์เล็ก
+// ทั้งหมด กัน alias เดิมไม่ auto-match แค่เพราะ AI อ่านช่องว่าง/ตัวพิมพ์ใหญ่เล็กมาไม่เป๊ะเท่าครั้งก่อน
+function normalizeAliasKey(text) {
+  return String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// ============ ลูกจ้างส่งบิลให้เจ้าของตรวจ (ไม่เขียน PurchaseReceipts เลย — แค่คิวรอตรวจ) ============
+// สร้างแถวใหม่ + อัปโหลดรูปทุกครั้งที่เรียก (ไม่ idempotent ห้ามใส่ retryOnTimeout ฝั่งเว็บเด็ดขาด)
+// body = { supplierId, staffName, photos:[dataURL,...], items:[{billText, unit, qty, receivedQty,
+//          unitPrice, likelyNonProduct, skip, productId, factor, fromAlias}] } — เก็บทุกรายการรวมที่ข้ามไว้
+// ด้วย (ต่างจาก finalizePurchaseReceipt) เพราะเจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
+function submitBillForReview(body) {
+  if (!body.supplierId || !body.staffName || !body.items || !body.items.length) {
+    throw new Error('ข้อมูลไม่ครบ (supplierId, staffName หรือรายการสินค้าหายไป)');
+  }
+  const suppliers = readTable('Suppliers');
+  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
+  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
+
+  const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
+  if (!sh) throw new Error('ไม่พบชีต ' + PENDING_BILL_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: BatchID, Date, SupplierID, StaffName, PhotoURL, ItemsJSON, Timestamp)');
+
+  const batchId = 'RB' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
+  const photoUrl = (body.photos && body.photos.length) ? saveBillPhotosOrganized(body.photos, batchId, body.supplierId, sup.Name) : '';
+
+  appendRowByHeaders(PENDING_BILL_SHEET, {
+    BatchID: batchId, Date: todayStr(), SupplierID: body.supplierId, StaffName: body.staffName,
+    PhotoURL: photoUrl, ItemsJSON: JSON.stringify(body.items), Timestamp: new Date().toISOString()
+  });
+
+  return { ok: true, batchId };
+}
+
+// รายการบิลที่ยังรอเจ้าของตรวจ — ใช้กับหน้า "บิลรอตรวจสอบ" ฝั่งเจ้าของ
+function getPendingBillReceipts() {
+  const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
+  if (!sh) return { batches: [] };
+  return {
+    batches: readTable(PENDING_BILL_SHEET).map(r => ({
+      batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
+      photoUrl: r.PhotoURL, items: JSON.parse(r.ItemsJSON || '[]')
+    }))
+  };
+}
+
+// ============ เจ้าของตรวจ+กดบันทึกจริง — จุดเดียวในระบบที่เขียนลง PurchaseReceipts ============
+// ไม่ idempotent (สร้างแถวใหม่ทุกครั้ง) ห้ามใส่ retryOnTimeout ฝั่งเว็บ — รูปถูกอัปโหลดไปแล้วตอน
+// submitBillForReview ไม่ต้องอัปโหลดซ้ำ แค่ลบแถวออกจาก PENDING_BILL_SHEET หลังบันทึกจริงสำเร็จ
+// body = { batchId, supplierId, staffName, items:[{productId, billText, billQty, billUnit, receivedQty,
+//          conversionFactor, unitPrice, saveAlias}] } — ไม่รวมรายการที่ข้าม (ไม่ใช่สินค้า) แล้ว
+function finalizePurchaseReceipt(body) {
+  if (!body.batchId || !body.supplierId || !body.staffName || !body.items || !body.items.length) {
+    throw new Error('ข้อมูลไม่ครบ (batchId, supplierId, staffName หรือรายการสินค้าหายไป)');
+  }
+  const sh = SHEET.getSheetByName(PURCHASE_RECEIPTS_SHEET);
+  if (!sh) throw new Error('ไม่พบชีต ' + PURCHASE_RECEIPTS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: ReceiptID, BatchID, Date, SupplierID, ProductID, BillText, BillQty, ReceivedQty, BillUnit, ConversionFactor, ConvertedQty, UnitPrice, TotalPrice, PhotoURL, StaffName, Timestamp)');
+  // อ่านหัวคอลัมน์จริงจากชีต ไม่ hardcode ลำดับ — กันกรณีผู้ใช้สร้างชีตเรียงคอลัมน์ไม่ตรงที่แนะนำเป๊ะๆ
+  // (เหมือน appendRowByHeaders() ต่างกันตรงที่นี่ต้องเขียนหลายแถวพร้อมกันด้วย setValues() เพื่อความเร็ว
+  // เลย map เองแทนที่จะเรียก appendRowByHeaders() วนทีละแถว)
+  const headers = sh.getDataRange().getValues()[0];
+
+  // หา PhotoURL เดิมจากแถว pending (รูปอัปโหลดไปแล้วตอน submit ไม่ต้องอัปใหม่)
+  const pendingSh = SHEET.getSheetByName(PENDING_BILL_SHEET);
+  let photoUrl = '';
+  let pendingRowIdx = -1;
+  if (pendingSh) {
+    const pData = pendingSh.getDataRange().getValues();
+    const pHeaders = pData[0];
+    const batchCol = pHeaders.indexOf('BatchID'), photoCol = pHeaders.indexOf('PhotoURL');
+    for (let i = 1; i < pData.length; i++) {
+      if (String(pData[i][batchCol]).trim() === String(body.batchId).trim()) { pendingRowIdx = i; photoUrl = pData[i][photoCol]; break; }
+    }
+  }
+
+  const date = todayStr();
+  const ts = new Date().toISOString();
+  const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
+  const newRows = body.items.map((item, i) => {
+    const factor = Number(item.conversionFactor) || 1;
+    const receivedQty = Number(item.receivedQty != null ? item.receivedQty : item.billQty);
+    const obj = {
+      ReceiptID: 'PR' + stamp + '-' + (i + 1), BatchID: body.batchId, Date: date, SupplierID: body.supplierId,
+      ProductID: item.productId, BillText: item.billText, BillQty: item.billQty, ReceivedQty: receivedQty,
+      BillUnit: item.billUnit, ConversionFactor: factor, ConvertedQty: receivedQty * factor,
+      UnitPrice: item.unitPrice, TotalPrice: Number(item.billQty) * Number(item.unitPrice),
+      PhotoURL: photoUrl, StaffName: body.staffName, Timestamp: ts
+    };
+    return headers.map(h => obj[h] !== undefined ? obj[h] : '');
+  });
+  sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
+
+  let learnedCount = 0;
+  body.items.filter(it => it.saveAlias && it.productId).forEach(it => {
+    if (upsertProductAlias(body.supplierId, it, body.staffName, ts)) learnedCount++;
+  });
+
+  if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
+
+  return { ok: true, learnedCount };
+}
+
+// หาโฟลเดอร์ลูกชื่อ name ใต้ parent ถ้ายังไม่มีให้สร้างใหม่ — ใช้ทำโครงสร้าง [ปี พ.ศ.]/[ซัพพลายเออร์]
+function findOrCreateFolder(parent, name) {
+  const it = parent.getFoldersByName(name);
+  return it.hasNext() ? it.next() : parent.createFolder(name);
+}
+// จัดเก็บรูปบิลเป็น BILL_PHOTOS_FOLDER_ID/[ปี พ.ศ. เช่น 2569]/[รหัส+ชื่อซัพพลายเออร์]/ — เลือกจัดกลุ่มตาม
+// ซัพพลายเออร์ (ไม่ใช่ตามวัน) เพราะการใช้งานจริงของฟีเจอร์นี้คือ "เปิดดูประวัติ/ราคาของเจ้านี้ย้อนหลัง"
+// เป็นหลัก ไม่ใช่ "ดูของที่เข้าร้านวันนี้ทั้งหมด" (มีหน้าเช็คสต๊อกทำหน้าที่นั้นอยู่แล้ว) — ชื่อไฟล์ขึ้นต้นด้วย
+// วันที่เสมอ พอ Drive เรียงชื่อไฟล์ (ค่า default) ก็ได้ลำดับตามวันที่อัตโนมัติในตัว ไม่ต้องมีโฟลเดอร์ย่อยระดับวันอีกชั้น
+function getBillPhotoFolderForSupplier(supplierId, supplierName) {
+  const root = DriveApp.getFolderById(BILL_PHOTOS_FOLDER_ID);
+  const beYear = Number(Utilities.formatDate(new Date(), TZ, 'yyyy')) + 543;
+  const yearFolder = findOrCreateFolder(root, String(beYear));
+  return findOrCreateFolder(yearFolder, supplierId + ' ' + supplierName);
+}
+function saveBillPhotosOrganized(photos, batchId, supplierId, supplierName) {
+  const folder = getBillPhotoFolderForSupplier(supplierId, supplierName);
+  const datePrefix = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  const urls = photos.map((dataUrl, i) => {
+    const base64 = String(dataUrl).split(',').pop();
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', datePrefix + '_' + batchId + '-' + (i + 1) + '.jpg');
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return file.getUrl();
+  });
+  return urls.join(',');
+}
+
+// เพิ่ม/แก้ไข ProductAlias แถวเดียว (upsert ด้วย key SupplierID+BillText ที่ normalize แล้ว) — คืนค่า true
+// ถ้าเป็นแถวใหม่ (ไว้ให้ savePurchaseReceipt นับ "จดจำเพิ่มกี่รายการ" ไปโชว์ผู้ใช้)
+function upsertProductAlias(supplierId, item, staffName, ts) {
+  const sh = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
+  if (!sh) throw new Error('ไม่พบชีต ' + PRODUCT_ALIAS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: AliasID, SupplierID, BillText, ProductID, ConversionFactor, BillUnit, UpdatedBy, Timestamp)');
+  const data = sh.getDataRange().getValues();
+  const headers = data[0]; // อ่านหัวคอลัมน์จริง ไม่ hardcode ลำดับ (เหตุผลเดียวกับ savePurchaseReceipt)
+  const supCol = headers.indexOf('SupplierID'), textCol = headers.indexOf('BillText');
+  if (supCol === -1 || textCol === -1) throw new Error('ไม่พบคอลัมน์ SupplierID หรือ BillText ในชีต ' + PRODUCT_ALIAS_SHEET);
+  const key = normalizeAliasKey(item.billText);
+  let foundRow = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][supCol]).trim() === String(supplierId).trim() && normalizeAliasKey(data[i][textCol]) === key) { foundRow = i; break; }
+  }
+  const obj = {
+    AliasID: 'AL' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss'),
+    SupplierID: supplierId, BillText: item.billText, ProductID: item.productId,
+    ConversionFactor: Number(item.conversionFactor) || 1, BillUnit: item.billUnit,
+    UpdatedBy: staffName, Timestamp: ts
+  };
+  if (foundRow === -1) {
+    sh.appendRow(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
+    return true;
+  }
+  headers.forEach((h, ci) => { if (h !== 'AliasID') sh.getRange(foundRow + 1, ci + 1).setValue(obj[h]); });
+  return false;
 }
 
 /* ============ เรียงเลข SupplierID ใหม่ให้ตรงกับลำดับแถวในชีต Suppliers ============ */

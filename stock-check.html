@@ -29,6 +29,9 @@
     --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.22);
     --radius-md:8px; --radius-lg:12px;
     --green:#085041; --green-bg:#E1F5EE;
+    /* สเกลความเสี่ยงของการจับคู่รายการบิล (รับของ-ถ่ายบิล): เขียว(ตรงเป๊ะ) < เหลือง(คล้าย ต้องยืนยัน) <
+       ส้ม(จับคู่ไม่ได้เลย — ใช้ --amber ด้านล่างนี้แหละ) — ดู renderBillReview() */
+    --yellow:#7A6900; --yellow-bg:#FFF6C8;
     --amber:#854F0B; --amber-bg:#FAEEDA; --amber-mid:#EF9F27;
     --purple:#3C3489; --purple-bg:#EEEDFE;
     --pink:#993556; --pink-bg:#FBEAF0;
@@ -272,6 +275,10 @@
   .status-pill{font-size:9px; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap; margin-top:-2px;}
   .status-pill.urgent{background:var(--danger-bg); color:var(--danger);}
   .status-pill.ordered{background:var(--green-bg); color:var(--green);}
+  .status-pill.matched{background:var(--green-bg); color:var(--green);}
+  .status-pill.unmatched{background:var(--amber-bg); color:var(--amber);}
+  .status-pill.skip{background:var(--brand-bg); color:var(--text-secondary);}
+  .status-pill.fuzzy{background:var(--yellow-bg); color:var(--yellow);}
   .section-label.urgent{color:var(--danger);}
   .section-label.urgent::after{background:rgba(163,45,45,0.22);}
   .section-label.ordered{color:var(--green);}
@@ -279,6 +286,90 @@
   .other-section .sup-card{opacity:0.7;}
   .other-section .sup-card.done{opacity:0.55;}
   .topbar-num-badge{min-width:28px; height:28px; padding:0 6px; border-radius:14px; background:var(--brand); color:var(--cream); border:2px solid #fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-left:auto;}
+
+  /* ============ รับของ — ถ่ายบิล ============ */
+  .capture-hint{font-size:13px; color:var(--text-secondary); line-height:1.55; margin-bottom:16px;}
+  .capture-zone{border:1.5px dashed var(--border-strong); border-radius:var(--radius-lg); padding:26px 16px; text-align:center; margin-bottom:14px;}
+  .capture-zone i{font-size:26px; color:var(--text-tertiary); margin-bottom:8px; display:block;}
+  .capture-zone p{font-size:12.5px; color:var(--text-tertiary); margin:0 0 14px;}
+  .bill-photo-strip{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .bill-photo-chip{position:relative; width:72px; height:96px; border-radius:8px; overflow:hidden; border:1px solid var(--border-strong); flex-shrink:0; background:var(--bg);}
+  .bill-photo-chip img{width:100%; height:100%; object-fit:cover; display:block;}
+  .bill-photo-chip .rm{position:absolute; top:3px; right:3px; width:18px; height:18px; border-radius:50%; background:rgba(28,26,20,0.72); color:#fff; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; font-size:11px; line-height:1;}
+
+  .analyzing-wrap{display:flex; flex-direction:column; align-items:center; justify-content:center; padding:70px 20px; text-align:center;}
+  .spin-ring{width:40px; height:40px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--purple); animation:spin 0.9s linear infinite; margin-bottom:18px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){.spin-ring{animation:none; border-top-color:var(--border-strong);}}
+  .analyzing-wrap h2{font-size:15px; font-weight:600; margin:0 0 6px;}
+  .analyzing-wrap p{font-size:12.5px; color:var(--text-tertiary); max-width:280px; line-height:1.5; margin:0;}
+
+  .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff;}
+  .item-card.is-matched{border-color:rgba(8,80,65,0.22);}
+  .item-card.is-skip{opacity:0.6;}
+  .item-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:9px;}
+  .item-bill-text{font-size:13.5px; font-weight:600; flex:1; min-width:0;}
+  .item-bill-raw{font-size:11px; color:var(--text-tertiary); margin-top:1px;}
+  .item-field-row{display:flex; gap:8px; margin-bottom:8px;}
+  .item-field{flex:1; min-width:0;}
+  .item-field label{display:block; font-size:10.5px; color:var(--text-tertiary); margin-bottom:3px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;}
+  .item-field input{font-size:13.5px; padding:7px 9px; font-variant-numeric:tabular-nums;}
+  .item-field.received label{color:var(--text-secondary);}
+  .item-field.received input{border-color:var(--text); font-weight:600;}
+  .drift-flag{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; border-radius:6px; padding:7px 9px; margin-bottom:8px;}
+  .drift-flag.short{background:var(--danger-bg); color:var(--danger);}
+  .drift-flag.over{background:var(--amber-bg); color:var(--amber);}
+  .matched-line{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--green); background:var(--green-bg); border-radius:6px; padding:6px 9px; margin-bottom:8px;}
+  .conversion-box{background:var(--amber-bg); border-radius:8px; padding:9px 10px; margin-bottom:8px;}
+  .conversion-box .cv-label{font-size:11.5px; color:var(--amber); font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:5px;}
+  .conversion-row{display:flex; align-items:center; gap:6px; font-size:13px; flex-wrap:wrap;}
+  .conversion-row input{width:64px; text-align:center; padding:6px;}
+  .conversion-hint{font-size:11px; color:rgba(122,70,8,0.75); margin-top:6px; line-height:1.4;}
+  .fuzzy-box{background:var(--yellow-bg); border-radius:8px; padding:10px 11px; margin-bottom:8px;}
+  .fuzzy-box .fz-label{font-size:11.5px; color:var(--yellow); font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:5px;}
+  .fuzzy-box .fz-name{font-size:13.5px; font-weight:600; margin-bottom:8px;}
+  .fuzzy-box .fz-hint{font-size:11px; color:rgba(122,105,0,0.8); margin-bottom:9px; line-height:1.4;}
+  .fuzzy-box .fz-actions{display:flex; gap:8px;}
+  .fuzzy-box .fz-actions button{flex:1; padding:8px; font-size:12.5px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-weight:600;}
+  .fz-confirm{background:var(--yellow); color:#fff;}
+  .fz-reject{background:#fff; color:var(--text-secondary); border:1px solid var(--border-strong) !important;}
+  .item-total{display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--text-secondary); margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); font-variant-numeric:tabular-nums;}
+  .item-total b{color:var(--text); font-size:14px;}
+  .item-skip-toggle{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); margin-top:8px; cursor:pointer; user-select:none;}
+  .item-skip-toggle input{width:14px; height:14px; margin:0;}
+
+  .review-footer{position:sticky; bottom:0; background:var(--cream); border-top:1px solid var(--border); padding:12px 16px 14px; margin:0 -14px -80px;}
+  .review-footer .rf-summary{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--text-secondary); margin-bottom:9px;}
+  .review-footer .rf-summary .warn{color:var(--amber); font-weight:600;}
+  .review-footer .rf-total{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;}
+
+  .success-wrap{text-align:center; padding:24px 8px 6px;}
+  .success-icon{width:56px; height:56px; border-radius:50%; background:var(--green-bg); color:var(--green); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:26px;}
+  .success-wrap h2{font-size:16.5px; font-weight:700; margin:0 0 4px;}
+  .success-wrap p{font-size:12.5px; color:var(--text-tertiary); margin:0;}
+  .recap-card{background:var(--bg); border-radius:var(--radius-lg); padding:14px; margin:18px 0; text-align:left;}
+  .recap-row{display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums;}
+  .recap-row:last-child{border-bottom:none;}
+  .recap-row .rr-name{color:var(--text-secondary); font-variant-numeric:normal;}
+  .recap-row .rr-val{font-weight:600; text-align:right; flex-shrink:0;}
+  .learned-note{display:flex; gap:8px; background:var(--purple-bg); color:var(--purple); border-radius:8px; padding:9px 11px; font-size:12px; line-height:1.5; text-align:left; margin-bottom:18px;}
+  .learned-note i{flex-shrink:0; margin-top:1px;}
+  .drift-note{background:var(--danger-bg); color:var(--danger);}
+
+  .review-bill-strip{display:flex; align-items:center; gap:10px; background:var(--bg); border-radius:var(--radius-md); padding:8px 10px; margin-bottom:14px;}
+  .review-bill-strip .rb-thumb{width:34px; height:44px; border-radius:5px; border:1px solid var(--border-strong); object-fit:cover; flex-shrink:0; background:#fff;}
+  .review-bill-strip .rb-txt{flex:1; min-width:0; font-size:11.5px; color:var(--text-secondary); line-height:1.5;}
+  .review-bill-strip .rb-txt b{color:var(--text); font-weight:600;}
+  .review-bill-strip button{flex-shrink:0;}
+  .bill-photo-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
+  .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block;}
+  .bill-photo-lightbox .lb-close{position:absolute; top:20px; right:18px; color:#fff; font-size:26px; background:none; border:none; cursor:pointer; padding:6px;}
+
+  .pending-row{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:9px; cursor:pointer;}
+  .pending-row .pr-body{flex:1; min-width:0;}
+  .pending-row .pr-title{font-size:14px; font-weight:600;}
+  .pending-row .pr-sub{font-size:11.5px; color:var(--text-tertiary); margin-top:2px;}
 </style>
 </head>
 <body>
@@ -312,9 +403,12 @@ async function apiGet(action, params, timeoutMs){
 // setProductSkipDate/setUnitLabel/setOrderUnitLabel/setSupplierCoverPhoto/setSupplierOrderConfirm —
 // ห้ามใช้กับ action ที่สร้างแถวใหม่ทุกครั้งที่เรียก (createOrderBatch, addProduct, saveStock,
 // saveProductPhotos, saveStaffAvatar) เพราะ retry ซ้ำจะสร้างข้อมูล/อัปโหลดไฟล์ซ้ำซ้อนได้จริง
-async function apiPost(action, payload, retryOnTimeout){
+// timeoutMs: เผื่อไว้สำหรับ action ที่รู้อยู่แล้วว่าช้ากว่าปกติ (เช่น analyzeBillPhoto ที่ต้องรอ AI
+// อ่านรูปบิล) ไม่ใส่ก็ใช้ API_TIMEOUT_MS ปกติเหมือนเดิม — คนละเรื่องกับ retryOnTimeout (ห้ามใส่ retryOnTimeout
+// กับ action ที่ไม่ idempotent เด็ดขาด ดูคอมเมนต์ apiGet ด้านบน)
+async function apiPost(action, payload, retryOnTimeout, timeoutMs){
   const controller = new AbortController();
-  const t = setTimeout(()=>controller.abort(), API_TIMEOUT_MS);
+  const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
     const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
     const data = await res.json();
@@ -322,7 +416,7 @@ async function apiPost(action, payload, retryOnTimeout){
     return data;
   }catch(err){
     if(err.name==='AbortError'){
-      if(retryOnTimeout) return apiPost(action, payload, false); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
+      if(retryOnTimeout) return apiPost(action, payload, false, timeoutMs); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
       throw new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง');
     }
     throw err;
@@ -673,7 +767,13 @@ function orderUnitLabel(p){
 }
 
 /* ============ STATE / ROUTER ============ */
-let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{} };
+let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock', orderQty:{},
+  // ============ รับของ — ถ่ายบิล (billStaff/billSupplier/billCapture/billAnalyzing/billReview/billSuccess/billPendingList) ============
+  // billMode: 'staff' (ถ่ายบิลใหม่ ส่งให้เจ้าของตรวจ ไม่เขียนต้นทุนจริงเลย) หรือ 'owner-resume'
+  // (เจ้าของเปิดบิลค้างจาก billPendingList มาตรวจ+บันทึกจริง) — คุมว่า renderBillReview/renderBillSuccess
+  // จะโชว์ปุ่ม/ข้อความแบบไหน ดูคอมเมนต์ในสองฟังก์ชันนั้น
+  billMode:'staff', billResumeBatchId:null,
+  billStaffName:'', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0 };
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
@@ -692,7 +792,8 @@ const ICON_PALETTE = [
 function iconColor(idx){ return ICON_PALETTE[idx % ICON_PALETTE.length]; }
 function go(screen, extra, opts){
   state.screen = screen; Object.assign(state, extra||{});
-  const snapshot = { screen: state.screen, staffName: state.staffName, currentSupplierId: state.currentSupplierId, ownerTab: state.ownerTab };
+  const snapshot = { screen: state.screen, staffName: state.staffName, currentSupplierId: state.currentSupplierId, ownerTab: state.ownerTab,
+    billStaffName: state.billStaffName, billSupplierId: state.billSupplierId, billMode: state.billMode };
   if(opts && opts.replace){ history.replaceState(snapshot, ''); }
   else { history.pushState(snapshot, ''); }
   render();
@@ -822,6 +923,9 @@ function render(){
     supplierCheck: renderSupplierCheck, staffDone: renderStaffDone,
     ownerMenu: renderOwnerMenu, ownerPin: renderOwnerPin, ownerStockAnalytics: renderOwnerStockAnalytics,
     orderPage: renderOrderPage, orderMessage: renderOrderMessage,
+    billStaff: renderBillStaff, billSupplier: renderBillSupplier, billCapture: renderBillCapture,
+    billAnalyzing: renderBillAnalyzing, billReview: renderBillReview, billSuccess: renderBillSuccess,
+    billPendingList: renderBillPendingList,
   };
   (map[state.screen] || renderHome)(app);
 }
@@ -871,7 +975,7 @@ const c = document.createElement('div'); c.className='content';
   app.appendChild(c);
   c.querySelector('#goStaff').onclick = ()=>go('staffName');
   c.querySelector('#goOwner').onclick = ()=>go('ownerPin');
-  c.querySelector('#goBill').onclick = ()=>alert('ฟีเจอร์นี้กำลังพัฒนา 🚧');
+  c.querySelector('#goBill').onclick = ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0});
 }
 
 /* ============ STAFF: choose name ============ */
@@ -948,6 +1052,426 @@ function renderStaffName(app){
     };
   });
   c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('supplierList', {staffName: el.dataset.name}));
+}
+
+/* ============ รับของ — ถ่ายบิล ============ */
+// เปิดให้พนักงานทุกคนใช้ได้ ไม่ผูกกับ PRIVILEGED_STAFF_NAME (ต่างจากแก้ชื่อหน่วย/เพิ่มสินค้าใหม่)
+// เพราะเป็นงานประจำวันที่ต้องทำทุกครั้งที่ของมาส่ง ไม่ใช่การตั้งค่าระบบ
+
+/* ---- 1) เลือกชื่อพนักงาน ---- */
+function renderBillStaff(app){
+  app.appendChild(topbar('ใครถ่ายบิลนี้?', {back:()=>go('home')}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = STAFF.map((s,i)=>{
+    const col = iconColor(i);
+    const thumb = s.avatarUrl ? `<img src="${s.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">` : s.name[0];
+    return `<div class="sup-row" data-name="${s.name}">
+      <div class="sup-thumb" style="background:${col.bg}; color:${col.fg}; overflow:hidden;">${thumb}</div>
+      <p>${s.name}</p>
+      <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
+    </div>`;
+  }).join('');
+  app.appendChild(c);
+  c.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billSupplier', {billStaffName: el.dataset.name}));
+}
+
+/* ---- 2) เลือกซัพพลายเออร์ ---- */
+function renderBillSupplier(app){
+  app.appendChild(topbar('บิลของซัพพลายเออร์ไหน?', {back:()=>go('billStaff'), meta: state.billStaffName}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<input type="text" id="search" placeholder="ค้นหาซัพพลายเออร์" style="margin-bottom:12px;"><div id="supList"></div>`;
+  const listEl = c.querySelector('#supList');
+  function draw(filter){
+    const items = SUPPLIERS.filter(s=> s.name.includes(filter||''));
+    listEl.innerHTML = items.map(s=>{
+      const n = PRODUCTS.filter(p=>p.supplierId===s.id).length;
+      const thumb = s.imageUrl ? `<img src="${s.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '<i class="ti ti-building-store" aria-hidden="true"></i>';
+      return `<div class="sup-row" data-id="${s.id}">
+        <div class="sup-thumb" style="overflow:hidden;">${thumb}</div>
+        <p>${s.name}<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">สินค้า ${n} รายการ</span></p>
+        <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
+      </div>`;
+    }).join('') || `<p class="empty-state">ไม่พบซัพพลายเออร์</p>`;
+    listEl.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[]}));
+  }
+  app.appendChild(c);
+  draw('');
+  c.querySelector('#search').oninput = debounce((e)=>draw(e.target.value.trim()), 200);
+}
+
+/* ---- 3) ถ่าย/เลือกรูปบิล ---- */
+function renderBillCapture(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  app.appendChild(topbar('ถ่ายรูปบิล', {back:()=>go('billSupplier'), meta: sup.name}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <p class="capture-hint">ถ่ายรูปใบส่งของ/ใบวางบิลจาก <b>${sup.name}</b> ให้เห็นชัดทุกรายการ ถ่ายได้หลายรูปถ้าบิลมีหลายหน้า</p>
+    <div class="bill-photo-strip" id="photoStrip"></div>
+    <div class="capture-zone">
+      <i class="ti ti-camera" aria-hidden="true"></i>
+      <p id="captureLabel">ยังไม่มีรูปบิล</p>
+      <button class="btn" id="pickPhoto">ถ่ายรูป / เลือกไฟล์</button>
+    </div>
+    <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>วิเคราะห์บิลด้วย AI</button>
+  `;
+  app.appendChild(c);
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.multiple = true; // ไม่ตั้ง capture — ให้เลือกได้ทั้งถ่ายรูปใหม่หรือเลือกจากคลังภาพ (เหมือน avatarInput)
+  fileInput.style.display = 'none';
+  c.appendChild(fileInput);
+  c.querySelector('#pickPhoto').onclick = ()=> fileInput.click();
+
+  function drawPhotos(){
+    const strip = c.querySelector('#photoStrip');
+    strip.innerHTML = state.billPhotos.map((url,i)=>`
+      <div class="bill-photo-chip"><img src="${url}" alt=""><button class="rm" data-i="${i}">✕</button></div>`).join('');
+    strip.querySelectorAll('.rm').forEach(b=> b.onclick = ()=>{ state.billPhotos.splice(+b.dataset.i,1); drawPhotos(); });
+    c.querySelector('#captureLabel').textContent = state.billPhotos.length ? `เลือกไว้ ${state.billPhotos.length} รูป` : 'ยังไม่มีรูปบิล';
+    c.querySelector('#analyzeBtn').disabled = state.billPhotos.length===0;
+  }
+  drawPhotos();
+
+  fileInput.onchange = async ()=>{
+    const files = [...fileInput.files]; fileInput.value = '';
+    for(const file of files){
+      try{ state.billPhotos.push(await compressImage(file, 1600, 0.8)); }catch(e){}
+    }
+    drawPhotos();
+  };
+
+  c.querySelector('#analyzeBtn').onclick = ()=> go('billAnalyzing');
+}
+
+/* ---- 4) กำลังวิเคราะห์ด้วย AI ---- */
+function renderBillAnalyzing(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  app.appendChild(topbar('กำลังวิเคราะห์', {}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<div class="analyzing-wrap">
+      <div class="spin-ring"></div>
+      <h2>กำลังอ่านบิล...</h2>
+      <p id="analyzeMsg">กำลังแยกรายการ จำนวน และราคาจากรูปที่ถ่ายไว้ อาจใช้เวลาสักครู่</p>
+    </div>`;
+  app.appendChild(c);
+
+  // ปิด retryOnTimeout เอง — ถ้าพัง ให้ผู้ใช้กดลองใหม่เอง ไม่ auto-retry เงียบๆ เพราะยิงซ้ำ = เรียก AI ซ้ำ
+  // (ไม่ได้เสียเงินก็จริง แต่ก็ไม่จำเป็นต้องยิงซ้ำโดยไม่รู้ตัว) ให้ timeout นานกว่าปกติเพราะ AI อ่านรูปช้ากว่า action ทั่วไป
+  apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 60000)
+    .then(res=>{
+      const items = (res.items||[]).map((it,i)=>({
+        _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
+        receivedQty: it.qty, // ค่าเริ่มต้น = ตามบิล — AI อ่านได้แค่ตัวเลขบนบิล ส่วน "รับจริง" ให้คนถ่ายแก้เองถ้านับไม่ตรง
+        unitPrice: it.unitPrice,
+        likelyNonProduct: !!it.likelyNonProduct, skip: !!it.likelyNonProduct,
+        productId: it.productId || null, factor: it.conversionFactor || null,
+        matchType: it.matchType || null, // 'exact' | 'fuzzy' | null (จาก Code.gs analyzeBillPhoto)
+        matchedAliasText: it.matchedAliasText || null, // ข้อความเดิมที่ทำให้เกิด fuzzy match (โชว์เป็นคำอธิบาย)
+        confirmed: it.matchType === 'exact', // fuzzy ต้องกดยืนยันเองเสมอ ไม่นับว่าจับคู่แล้วจนกว่าจะกด
+      }));
+      if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
+      go('billReview', {billItems: items, billMode:'staff'}, {replace:true});
+    })
+    .catch(err=>{
+      c.querySelector('.analyzing-wrap').innerHTML = `
+        <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">อ่านบิลไม่สำเร็จ</p>
+        <p style="margin-bottom:16px;">${err.message}</p>
+        <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
+        <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
+      `;
+      c.querySelector('#retryAnalyze').onclick = ()=> render();
+      c.querySelector('#backCapture').onclick = ()=> go('billCapture');
+    });
+}
+
+/* ---- 5) ตรวจสอบ/จับคู่รายการ ---- */
+// ใช้ 2 โหมด (state.billMode):
+// - 'staff': ลูกจ้างถ่ายบิลใหม่ — กด "บันทึกรายการนี้" ได้เสมอไม่ว่าจับคู่ครบหรือยัง ไม่มีทางเขียน
+//   PurchaseReceipts เองได้เลย (เรียก submitBillForReview ไปเข้าคิว PendingBillReceipts เท่านั้น)
+// - 'owner-resume': เจ้าของเปิดบิลค้างจากหน้า "บิลรอตรวจสอบ" มาทำต่อ — ต้องจับคู่ครบก่อนถึงจะกด
+//   "บันทึกต้นทุน" ได้ (เรียก finalizePurchaseReceipt เขียนลง PurchaseReceipts จริง)
+function renderBillReview(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
+  const isResume = state.billMode === 'owner-resume';
+  app.appendChild(topbar('ตรวจสอบรายการ', {
+    back: ()=> isResume ? go('billPendingList') : go('billCapture'),
+    meta: sup.name
+  }));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <div class="review-bill-strip">
+      ${state.billPhotos[0] ? `<img class="rb-thumb" src="${state.billPhotos[0]}" alt="">` : ''}
+      <div class="rb-txt">อ่านได้ <b>${state.billItems.length} รายการ</b> จากรูปบิล ${state.billPhotos.length} ใบ ${isResume ? '· ถ่ายโดย '+state.billStaffName : ''}<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
+      <button class="btn" id="viewPhoto">ดูรูป</button>
+    </div>
+    <div id="itemList"></div>
+    <div class="review-footer">
+      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      ${isResume
+        ? `<button class="btn btn-primary btn-block" id="saveBtn" disabled>บันทึกต้นทุน</button>`
+        : `<button class="btn btn-primary btn-block" id="submitBtn">บันทึกรายการนี้</button>`}
+    </div>
+  `;
+  app.appendChild(c);
+  c.querySelector('#viewPhoto').onclick = ()=>{
+    const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
+    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
+      <div class="lb-scroll">${state.billPhotos.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
+    lb.onclick = ()=> lb.remove();
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+    document.body.appendChild(lb);
+  };
+
+  const listEl = c.querySelector('#itemList');
+
+  // "จับคู่แล้ว" นับจริงเฉพาะที่ confirmed:true เท่านั้น — รายการที่ AI คาดว่าใช่ (matchType:'fuzzy')
+  // ยังไม่นับว่าจับคู่จนกว่าจะมีคนกดยืนยันเอง กันเคส AI เดาผิดแล้วหลุดผ่านไปโดยไม่มีใครสังเกต
+  function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
+  function fmtMoney(n){ return '฿'+(n||0).toLocaleString('th-TH',{maximumFractionDigits:2}); }
+
+  function itemCard(it){
+    const card = document.createElement('div');
+    const pendingFuzzy = it.productId && !it.confirmed;
+    card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    const total = (it.qty * it.unitPrice) || 0;
+    const product = products.find(p=>p.id===it.productId);
+    let pillHtml, bodyHtml = '';
+
+    if(it.skip) pillHtml = `<span class="status-pill skip"><i class="ti ti-eye-off" aria-hidden="true"></i> ไม่ใช่สินค้า</span>`;
+    else if(pendingFuzzy) pillHtml = `<span class="status-pill fuzzy"><i class="ti ti-sparkles" aria-hidden="true"></i> คล้ายรายการเดิม — ยืนยัน</span>`;
+    else if(it.productId) pillHtml = `<span class="status-pill matched"><i class="ti ti-check" aria-hidden="true"></i> ${it.matchType==='exact' ? 'จับคู่อัตโนมัติ' : 'จับคู่แล้ว'}</span>`;
+    else pillHtml = `<span class="status-pill unmatched"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ต้องจับคู่</span>`;
+
+    if(!it.skip){
+      if(pendingFuzzy){
+        // ข้อความบนบิลไม่ตรงกับที่เคยจำไว้เป๊ะ (แค่ "ใกล้เคียง" ตาม similarity score จาก Code.gs) — ต้องให้
+        // คนตัดสินใจเอง ไม่จับคู่ให้อัตโนมัติเงียบๆ เหมือน exact match เพราะนี่คือจุดที่ AI อาจเดาผิดได้จริง
+        bodyHtml += `
+          <div class="fuzzy-box">
+            <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
+            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
+            <div class="fz-actions">
+              <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
+              <button class="fz-reject" data-reject="1">ไม่ใช่ เลือกใหม่</button>
+            </div>
+          </div>`;
+      } else if(it.productId){
+        const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+          <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
+      } else {
+        bodyHtml += `<select class="matchSelect">
+            <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
+            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+          </select>`;
+      }
+      if(it.productId && it.needsFactor){
+        bodyHtml += `<div class="conversion-box">
+            <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
+          </div>`;
+      }
+      bodyHtml += `
+        <div class="item-field-row">
+          <div class="item-field"><label>ตามบิล (${it.unit})</label><input type="number" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
+          <div class="item-field received"><label>รับจริง (${it.unit})</label><input type="number" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
+        </div>
+        <div id="driftSlot-${it._id}"></div>
+        <div class="item-field-row">
+          <div class="item-field"><label>ราคา/หน่วย (฿)</label><input type="number" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
+        </div>
+        <div class="item-total"><span>รวมรายการนี้ (ตามบิล)</span><b>${fmtMoney(total)}</b></div>`;
+    }
+
+    card.innerHTML = `
+      <div class="item-head">
+        <div style="flex:1;min-width:0;">
+          <div class="item-bill-text">${it.billText}</div>
+          <div class="item-bill-raw">อ่านจากบิล: ${it.qty} ${it.unit} × ฿${it.unitPrice}</div>
+        </div>
+        ${pillHtml}
+      </div>
+      ${bodyHtml}
+      ${it.likelyNonProduct ? `<label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก)</label>` : ''}
+    `;
+
+    function renderDrift(){
+      const slot = card.querySelector(`#driftSlot-${it._id}`);
+      if(!slot) return;
+      const d = Number((it.receivedQty - it.qty).toFixed(2));
+      if(!d){ slot.innerHTML = ''; return; }
+      slot.innerHTML = d < 0
+        ? `<div class="drift-flag short"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ซัพพลายเออร์ส่งขาด ${Math.abs(d)} ${it.unit} (บิลระบุ ${it.qty} แต่รับจริง ${it.receivedQty})</div>`
+        : `<div class="drift-flag over"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ได้รับเกินบิล ${d} ${it.unit} (บิลระบุ ${it.qty} แต่รับจริง ${it.receivedQty})</div>`;
+    }
+    renderDrift();
+
+    const sel = card.querySelector('.matchSelect');
+    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; drawAll(); };
+    const rematchBtn = card.querySelector('[data-rematch]');
+    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    const confirmBtn = card.querySelector('[data-confirm]');
+    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; drawAll(); };
+    const rejectBtn = card.querySelector('[data-reject]');
+    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    const fac = card.querySelector('.factorInput');
+    if(fac) fac.oninput = ()=>{ it.factor = fac.value ? Number(fac.value) : null; updateFooter(); };
+    const qtyI = card.querySelector('.qtyInput');
+    if(qtyI) qtyI.oninput = ()=>{ it.qty = Number(qtyI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); renderDrift(); };
+    const recI = card.querySelector('.receivedInput');
+    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); };
+    const priI = card.querySelector('.priceInput');
+    if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); };
+    const skipT = card.querySelector('.skipToggle');
+    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; drawAll(); };
+
+    return card;
+  }
+
+  function drawAll(){
+    listEl.innerHTML = '';
+    state.billItems.forEach(it=> listEl.appendChild(itemCard(it)));
+    updateFooter();
+  }
+  function updateFooter(){
+    const pending = state.billItems.filter(it=> !isResolved(it)).length;
+    const total = state.billItems.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
+    // ฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการส่ง (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
+    // ฝั่งเจ้าของ (resume): ต้องจับคู่ครบก่อนถึงจะบันทึกจริงได้ เพราะรายการที่ไม่มี ProductID ผูกต้นทุนเข้ากับสินค้าไหนไม่ได้เลย
+    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${state.billItems.length} รายการ)`;
+    c.querySelector('#rfTotal').textContent = fmtMoney(total);
+    const saveBtn = c.querySelector('#saveBtn');
+    if(saveBtn) saveBtn.disabled = pending>0;
+  }
+  drawAll();
+
+  const saveBtn = c.querySelector('#saveBtn');
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    // โหมดเจ้าของเท่านั้นที่มีปุ่มนี้ — จุดเดียวในระบบที่เขียนต้นทุนจริงลง PurchaseReceipts
+    saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...';
+    try{
+      const items = state.billItems.filter(it=>!it.skip).map(it=>({
+        productId: it.productId, billText: it.billText, billQty: it.qty, billUnit: it.unit,
+        receivedQty: it.receivedQty, conversionFactor: it.factor || 1, unitPrice: it.unitPrice, saveAlias: true
+      }));
+      // ห้ามใส่ retryOnTimeout — finalizePurchaseReceipt สร้างแถวใหม่ทุกครั้งที่เรียก ไม่ idempotent
+      const res = await apiPost('finalizePurchaseReceipt', {
+        batchId: state.billResumeBatchId, supplierId: state.billSupplierId, staffName: state.billStaffName, items
+      });
+      go('billSuccess', {billLearnedCount: res.learnedCount||0});
+    }catch(err){
+      saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
+      alert('บันทึกไม่สำเร็จ: ' + err.message);
+    }
+  };
+
+  const submitBtn = c.querySelector('#submitBtn');
+  if(submitBtn) submitBtn.onclick = async ()=>{
+    // ฝั่งลูกจ้างไม่มีทางเขียนลง PurchaseReceipts เองเลย ไม่ว่าจะจับคู่ครบหรือไม่ก็ตาม — ทุกใบต้องผ่าน
+    // เจ้าของตรวจ/กดบันทึกจริงอีกทีเสมอ (ดู renderBillPendingList / โหมด owner-resume ด้านบน)
+    submitBtn.disabled = true; submitBtn.textContent = 'กำลังบันทึก...';
+    try{
+      // ส่งทุกรายการ (รวมที่ข้าม) ไปด้วย — เจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
+      // ห้ามใส่ retryOnTimeout — สร้างแถวใหม่/อัปโหลดรูปทุกครั้งที่เรียก ไม่ idempotent
+      await apiPost('submitBillForReview', {
+        supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems
+      });
+      go('billSuccess', {});
+    }catch(err){
+      submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
+      alert('บันทึกไม่สำเร็จ: ' + err.message);
+    }
+  };
+}
+
+/* ---- 6) บันทึกสำเร็จ ---- */
+function renderBillSuccess(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
+
+  if(state.billMode !== 'owner-resume'){
+    // ลูกจ้างส่งแล้ว — ยังไม่ใช่การบันทึกต้นทุนจริง แค่ส่งเข้าคิวให้เจ้าของตรวจ/กดบันทึกจริงอีกที
+    app.appendChild(topbar('บันทึกสำเร็จ', {}));
+    const c = document.createElement('div'); c.className='content';
+    c.innerHTML = `
+      <div class="success-wrap">
+        <div class="success-icon" style="background:var(--amber-bg); color:var(--amber);"><i class="ti ti-clock" aria-hidden="true"></i></div>
+        <h2>บันทึกรายการนี้แล้ว</h2>
+        <p>${sup.name} · ถ่ายโดย ${state.billStaffName}</p>
+      </div>
+      <div class="recap-card" style="text-align:left;">
+        <p style="margin:0; font-size:13px; color:var(--text-secondary);">รูปบิลกับสิ่งที่จับคู่ไว้แล้วถูกเก็บไว้ให้แล้ว เจ้าของร้านจะเห็นในเมนู "บิลรอตรวจสอบ" ตรวจทานอีกรอบแล้วกดบันทึกต้นทุนจริงเอง</p>
+      </div>
+      <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
+    `;
+    app.appendChild(c);
+    c.querySelector('#doneBtn').onclick = ()=> go('home');
+    return;
+  }
+
+  const kept = state.billItems.filter(it=>!it.skip);
+  const total = kept.reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
+  const drifted = kept.filter(it=> Number((it.receivedQty-it.qty).toFixed(2)) !== 0);
+  app.appendChild(topbar('บันทึกสำเร็จ', {}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <div class="success-wrap">
+      <div class="success-icon"><i class="ti ti-check" aria-hidden="true"></i></div>
+      <h2>บันทึกต้นทุนเรียบร้อย</h2>
+      <p>${sup.name} · โดย ${state.billStaffName}</p>
+    </div>
+    <div class="recap-card">
+      ${kept.map(it=>{
+        const p = products.find(x=>x.id===it.productId);
+        const diff = Number((it.receivedQty-it.qty).toFixed(2));
+        return `<div class="recap-row"><span class="rr-name">${p?p.name:it.billText}${diff!==0?` <span style="color:${diff<0?'var(--danger)':'var(--amber)'};font-weight:700;">(${diff<0?'ขาด':'เกิน'} ${Math.abs(diff)})</span>`:''}</span><span class="rr-val">${it.qty}${it.unit} · ฿${(it.qty*it.unitPrice).toLocaleString('th-TH',{maximumFractionDigits:0})}</span></div>`;
+      }).join('')}
+      <div class="recap-row"><span class="rr-name"><b>ยอดรวม (ตามบิล)</b></span><span class="rr-val" style="font-size:15px;">฿${total.toLocaleString('th-TH',{maximumFractionDigits:2})}</span></div>
+    </div>
+    ${drifted.length ? `<div class="learned-note drift-note"><i class="ti ti-alert-triangle" aria-hidden="true"></i> พบส่วนต่างจากบิล ${drifted.length} รายการ — เช็คช่อง "รับจริง" ของแต่ละรายการด้านบนเพื่อดูว่าซัพพลายเออร์ส่งขาด/เกินตรงไหน</div>` : ''}
+    ${state.billLearnedCount>0 ? `<div class="learned-note"><i class="ti ti-sparkles" aria-hidden="true"></i> จดจำการจับคู่ใหม่ ${state.billLearnedCount} รายการไว้แล้ว ครั้งหน้าเจอชื่อเดิมจาก ${sup.name} ระบบจะจับคู่ให้อัตโนมัติทันที</div>` : ''}
+    <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
+    <button class="btn-text-cancel" id="moreBtn">กลับไปดูบิลรอตรวจสอบใบอื่น</button>
+  `;
+  app.appendChild(c);
+  c.querySelector('#doneBtn').onclick = ()=> go('home');
+  c.querySelector('#moreBtn').onclick = ()=> go('billPendingList');
+}
+
+/* ---- 7) เจ้าของ: บิลรอตรวจสอบ ---- */
+async function renderBillPendingList(app){
+  app.appendChild(topbar('บิลรอตรวจสอบ', {back:()=>go('ownerMenu')}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
+  app.appendChild(c);
+  try{
+    const { batches } = await apiGet('pendingBills');
+    if(!batches.length){ c.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
+    c.innerHTML = batches.map(b=>{
+      const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
+      const done = b.items.filter(it=> it.skip || (it.productId && it.factor && it.confirmed)).length;
+      return `<div class="pending-row" data-id="${b.batchId}">
+        <div class="sup-thumb"><i class="ti ti-building-store" aria-hidden="true"></i></div>
+        <div class="pr-body">
+          <div class="pr-title">${sup ? sup.name : b.supplierId}</div>
+          <div class="pr-sub">ถ่ายโดย ${b.staffName} · ${b.date}</div>
+        </div>
+        <span class="status-pill unmatched">${done}/${b.items.length} จับคู่แล้ว</span>
+      </div>`;
+    }).join('');
+    c.querySelectorAll('.pending-row').forEach(el=> el.onclick = ()=>{
+      const b = batches.find(x=>x.batchId===el.dataset.id);
+      go('billReview', {
+        billMode:'owner-resume', billResumeBatchId:b.batchId, billSupplierId:b.supplierId,
+        billStaffName:b.staffName, billPhotos: String(b.photoUrl||'').split(',').filter(Boolean), billItems:b.items
+      });
+    });
+  }catch(err){
+    c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>`;
+  }
 }
 
 /* ============ STAFF: supplier list (all suppliers always shown) ============ */
@@ -1440,10 +1964,13 @@ function renderOwnerMenu(app){
       <div><p>สั่งของ</p><small>เลือกรายการที่จะสั่ง</small></div></div>
     <div class="nav-tile" id="goStockAnalytics"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);"></i>
       <div><p>สต๊อก & วิเคราะห์</p><small>Dashboard + แนวโน้มการสั่งซื้อ</small></div></div>
+    <div class="nav-tile" id="goPendingBills"><i class="ti ti-clock" style="font-size:20px; color:#7A4608;"></i>
+      <div><p>บิลรอตรวจสอบ</p><small>บิลที่ลูกจ้างถ่ายไว้ รอเจ้าของจับคู่+บันทึกต้นทุน</small></div></div>
   `;
   app.appendChild(c);
   c.querySelector('#goOrder').onclick = ()=>go('orderPage');
   c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
+  c.querySelector('#goPendingBills').onclick = ()=>go('billPendingList');
 }
 
 /* ============ OWNER: merged Dashboard + Analytics ============ */
