@@ -1062,17 +1062,74 @@ function renderStaffName(app){
 function renderBillStaff(app){
   app.appendChild(topbar('ใครถ่ายบิลนี้?', {back:()=>go('home')}));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = STAFF.map((s,i)=>{
-    const col = iconColor(i);
-    const thumb = s.avatarUrl ? `<img src="${s.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">` : s.name[0];
-    return `<div class="sup-row" data-name="${s.name}">
-      <div class="sup-thumb" style="background:${col.bg}; color:${col.fg}; overflow:hidden;">${thumb}</div>
-      <p>${s.name}</p>
-      <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
-    </div>`;
-  }).join('');
+  const emojis = ['👋','✨','🌸','🔥','🍀'];
+  c.innerHTML = `
+    <p style="font-size:14px; font-weight:600; margin:0 0 2px;">วันนี้ใครถ่ายบิลนี้? 🙋</p>
+    <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 16px;">แตะเลือกชื่อตัวเองได้เลย</p>
+    ${STAFF.map((s,i)=>{
+      const col = iconColor(i);
+      const avatarInner = s.avatarUrl
+        ? `<img src="${s.avatarUrl}" alt="">`
+        : `<i class="ti ti-camera" style="font-size:26px; color:${col.fg};" aria-hidden="true"></i>`;
+      return `<div class="pick-row">
+        <div class="avatar-wrap">
+          <div class="pick-avatar avatar-pick" data-staff-id="${s.id}" style="background:${col.bg};">
+            ${avatarInner}
+          </div>
+          <span class="avatar-edit-badge"><i class="ti ti-camera" aria-hidden="true"></i></span>
+        </div>
+        <div class="staff-pick" data-name="${s.name}" style="display:flex; align-items:center; flex:1; cursor:pointer;">
+          <p style="margin:0; font-size:15px; font-weight:600; flex:1;">${s.name}</p>
+          <span style="font-size:17px;">${emojis[i % emojis.length]}</span>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
   app.appendChild(c);
-  c.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billSupplier', {billStaffName: el.dataset.name}));
+
+  const avatarInput = document.createElement('input');
+  avatarInput.type = 'file'; avatarInput.accept = 'image/*'; // ไม่ตั้ง capture — ให้เลือกได้ทั้งถ่ายรูปใหม่หรือเลือกจากคลังภาพ
+  avatarInput.style.display = 'none';
+  c.appendChild(avatarInput);
+  let avatarTargetId = null;
+  avatarInput.onchange = async ()=>{
+    const file = avatarInput.files[0];
+    const staffId = avatarTargetId;
+    avatarInput.value = '';
+    if(!file || !staffId) return;
+    const targetEl = c.querySelector(`.avatar-pick[data-staff-id="${staffId}"]`);
+    try{
+      const photo = await compressImage(file, 500, 0.7);
+      const { avatarUrl } = await apiPost('saveStaffAvatar', { staffId, photo });
+      const s = STAFF.find(x=>x.id===staffId);
+      if(s) s.avatarUrl = avatarUrl;
+      if(targetEl) targetEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
+    }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + err.message); }
+  };
+  function openAvatarLightbox(url){
+    const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
+    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="">`;
+    lb.onclick = ()=> lb.remove();
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+    document.body.appendChild(lb);
+  }
+  c.querySelectorAll('.avatar-pick').forEach(avatar=>{
+    avatar.onclick = (e)=>{
+      e.stopPropagation();
+      const staffId = avatar.dataset.staffId;
+      const s = STAFF.find(x=>x.id===staffId);
+      if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl);
+      else{ avatarTargetId = staffId; avatarInput.click(); }
+    };
+  });
+  c.querySelectorAll('.avatar-edit-badge').forEach(badge=>{
+    badge.onclick = (e)=>{
+      e.stopPropagation();
+      avatarTargetId = badge.closest('.avatar-wrap').querySelector('.avatar-pick').dataset.staffId;
+      avatarInput.click();
+    };
+  });
+  c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('billSupplier', {billStaffName: el.dataset.name}));
 }
 
 /* ---- 2) เลือกซัพพลายเออร์ ---- */
