@@ -41,9 +41,10 @@ const BILL_PHOTOS_FOLDER_ID = '14hYENihKGsCs-WW2MGnQpZZ9l9zLQga6';
 // โมเดล Gemini ที่ใช้อ่านบิล — ต้องตั้งค่า Script Property ชื่อ GEMINI_API_KEY ก่อนใช้งาน (Extensions >
 // Apps Script > Project Settings > Script Properties) เอา API key จาก https://aistudio.google.com/apikey
 // (มี free tier ให้ใช้ฟรีตามโควต้าต่อวัน/ต่อนาที ไม่ต้องผูกบัตร — สำหรับปริมาณบิลของร้านนี้ไม่มีทางชนโควต้า)
-// ⚠️ Google เลิกใช้/เปลี่ยนชื่อรุ่นโมเดลบ่อยมาก (gemini-2.0-flash ที่เคยใส่ไว้ถูกปลดไปแล้วตั้งแต่ 1 มิ.ย. 69)
+// ⚠️ Google เลิกใช้/เปลี่ยนชื่อรุ่นโมเดลบ่อยมาก (gemini-2.0-flash ปลดไปตั้งแต่ 1 มิ.ย. 69, gemini-2.5-flash
+// ปลดตามมาอีกตัวก่อน 5 ก.ย. 69 — เปลี่ยนเป็น gemini-3.6-flash ตามที่ Gemini API เองแจ้งชื่อรุ่นทดแทนมาตรงๆ)
 // ถ้าวันไหนเรียกแล้ว error ว่าไม่พบโมเดล ให้เข้า https://aistudio.google.com ดูชื่อรุ่นปัจจุบันแล้วแก้ค่านี้
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 // ข้อมูลอ้างอิงรูปแบบบิลต่อซัพพลายเออร์ (ย่อจาก CLAUDE.md หัวข้อ "Bill Templates by Supplier") — ใส่ไว้ใน
 // prompt ที่ส่งให้ Gemini ตอนอ่านบิลของเจ้านั้นๆ ช่วยให้อ่านแม่นขึ้นโดยเฉพาะบิลเขียนมือที่ไม่มีชื่อซัพพลายเออร์
 // บนบิลเอง (เช่น ลุงทวี/ตานะ) — เพิ่ม/แก้ตรงนี้ได้เรื่อยๆ ถ้ามีซัพพลายเออร์ใหม่หรือรูปแบบบิลเปลี่ยน
@@ -1300,10 +1301,15 @@ function analyzeBillPhoto(body) {
   const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
   const promptText = 'คุณกำลังอ่านใบส่งของ/ใบวางบิลจากซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
     (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
-    'อ่านทุกบรรทัดรายการที่เห็นในรูป (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แล้วตอบกลับเป็น JSON array เท่านั้น ' +
-    'แต่ละสมาชิกในรูปแบบ {"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
+    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"items": [...], "billHeader": {...} หรือ null}\n' +
+    '"items": อ่านทุกบรรทัดรายการที่เห็นในรูป (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แต่ละสมาชิกในรูปแบบ ' +
+    '{"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
     '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
-    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ';
+    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ\n' +
+    '"billHeader": ใส่เฉพาะเมื่อบิลนี้เป็นเอกสารของบริษัทที่จดทะเบียนจริง (มีเลขประจำตัวผู้เสียภาษี/Tax ID พิมพ์ไว้ หรือเลขที่เอกสารรันเป็นชุดแบบพิมพ์ ไม่ใช่เขียนมือ) ' +
+    'รูปแบบ {"billDate": วันที่บนบิล เป็น string ตามที่เขียน (string), "billNumber": เลขที่เอกสาร/ใบกำกับภาษี (string), ' +
+    '"subtotal": ยอดรวมก่อนภาษี (number), "vat": ยอดภาษีมูลค่าเพิ่ม (number, ใส่ 0 ถ้าบิลนี้ไม่มี VAT แต่ยังเป็นเอกสารบริษัท), "total": ยอดรวมสุทธิ (number)}. ' +
+    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง';
 
   const parts = [{ text: promptText }];
   body.photos.forEach(dataUrl => {
@@ -1311,8 +1317,10 @@ function analyzeBillPhoto(body) {
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64 } });
   });
 
-  const items = callGemini(parts);
-  if (!Array.isArray(items)) throw new Error('อ่านบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+  const result = callGemini(parts);
+  if (!result || !Array.isArray(result.items)) throw new Error('อ่านบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+  const items = result.items;
+  const billHeader = sanitizeBillHeader(result.billHeader);
 
   const aliasSheet = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
   const aliases = (aliasSheet ? readTable(PRODUCT_ALIAS_SHEET) : [])
@@ -1336,7 +1344,21 @@ function analyzeBillPhoto(body) {
     };
   });
 
-  return { items: normalized };
+  return { items: normalized, billHeader };
+}
+
+// ทำความสะอาดผลลัพธ์ billHeader จาก Gemini ให้เป็น null หรือ object ที่มี field ครบเสมอ — กัน AI ส่งค่า
+// ประหลาด (string ว่าง, field ขาดหาย, ตัวเลขเป็น string ฯลฯ) มาปนแล้วโค้ดฝั่งเว็บ/การเขียนชีตพัง
+// คืน null ถ้าไม่มีข้อมูลอะไรเลย (บิลเขียนมือ) — renderBillReview ฝั่งเว็บจะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
+function sanitizeBillHeader(h) {
+  if (!h || typeof h !== 'object') return null;
+  const billDate = String(h.billDate || '').trim();
+  const billNumber = String(h.billNumber || '').trim();
+  const subtotal = Number(h.subtotal) || 0;
+  const vat = Number(h.vat) || 0;
+  const total = Number(h.total) || 0;
+  if (!billDate && !billNumber && !subtotal && !vat && !total) return null;
+  return { billDate, billNumber, subtotal, vat, total };
 }
 
 // Levenshtein distance ธรรมดา (dynamic programming) — ใช้หาความคล้ายของข้อความบิลแบบ deterministic
@@ -1419,17 +1441,35 @@ function submitBillForReview(body) {
   if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
 
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
-  if (!sh) throw new Error('ไม่พบชีต ' + PENDING_BILL_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: BatchID, Date, SupplierID, StaffName, PhotoURL, ItemsJSON, Timestamp)');
+  if (!sh) throw new Error('ไม่พบชีต ' + PENDING_BILL_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: BatchID, Date, SupplierID, StaffName, PhotoURL, ItemsJSON, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
 
   const batchId = 'RB' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
   const photoUrl = (body.photos && body.photos.length) ? saveBillPhotosOrganized(body.photos, batchId, body.supplierId, sup.Name) : '';
+  // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — มีเฉพาะบิลบริษัทจดทะเบียนที่ Gemini อ่านได้ (ดู analyzeBillPhoto)
+  // เขียนเป็นค่าว่างไปเลยถ้าไม่มี ไม่ต้องเก็บ null/undefined ลงชีต
+  const bh = body.billHeader || {};
 
   appendRowByHeaders(PENDING_BILL_SHEET, {
     BatchID: batchId, Date: todayStr(), SupplierID: body.supplierId, StaffName: body.staffName,
-    PhotoURL: photoUrl, ItemsJSON: JSON.stringify(body.items), Timestamp: new Date().toISOString()
+    PhotoURL: photoUrl, ItemsJSON: JSON.stringify(body.items),
+    BillDate: bh.billDate || '', BillNumber: bh.billNumber || '', BillSubtotal: bh.subtotal || '',
+    BillVat: bh.vat || '', BillTotal: bh.total || '', Timestamp: new Date().toISOString()
   });
 
   return { ok: true, batchId };
+}
+
+// สร้าง billHeader object จากแถวชีต (PendingBillReceipts หรือ PurchaseReceipts) — คืน null ถ้าไม่มีข้อมูล
+// อะไรเลย (บิลเขียนมือ) ใช้ normDate() กับ BillDate เผื่อ Sheets auto-convert เป็น Date object ไปเงียบๆ
+// เหมือนที่เคยเจอบั๊กนี้กับคอลัมน์วันที่อื่นในไฟล์นี้ (ดู normalizeSkipDatesCell/isActiveFlag)
+function buildBillHeaderFromRow(r) {
+  const billDate = normDate(r.BillDate);
+  const billNumber = String(r.BillNumber || '').trim();
+  const subtotal = Number(r.BillSubtotal) || 0;
+  const vat = Number(r.BillVat) || 0;
+  const total = Number(r.BillTotal) || 0;
+  if (!billDate && !billNumber && !subtotal && !vat && !total) return null;
+  return { billDate, billNumber, subtotal, vat, total };
 }
 
 // รายการบิลที่ยังรอเจ้าของตรวจ — ใช้กับหน้า "บิลรอตรวจสอบ" ฝั่งเจ้าของ
@@ -1439,7 +1479,7 @@ function getPendingBillReceipts() {
   return {
     batches: readTable(PENDING_BILL_SHEET).map(r => ({
       batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
-      photoUrl: r.PhotoURL, items: JSON.parse(r.ItemsJSON || '[]')
+      photoUrl: r.PhotoURL, items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
     }))
   };
 }
@@ -1454,7 +1494,7 @@ function finalizePurchaseReceipt(body) {
     throw new Error('ข้อมูลไม่ครบ (batchId, supplierId, staffName หรือรายการสินค้าหายไป)');
   }
   const sh = SHEET.getSheetByName(PURCHASE_RECEIPTS_SHEET);
-  if (!sh) throw new Error('ไม่พบชีต ' + PURCHASE_RECEIPTS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: ReceiptID, BatchID, Date, SupplierID, ProductID, BillText, BillQty, ReceivedQty, BillUnit, ConversionFactor, ConvertedQty, UnitPrice, TotalPrice, PhotoURL, StaffName, Timestamp)');
+  if (!sh) throw new Error('ไม่พบชีต ' + PURCHASE_RECEIPTS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: ReceiptID, BatchID, Date, SupplierID, ProductID, BillText, BillQty, ReceivedQty, BillUnit, ConversionFactor, ConvertedQty, UnitPrice, TotalPrice, PhotoURL, StaffName, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
   // อ่านหัวคอลัมน์จริงจากชีต ไม่ hardcode ลำดับ — กันกรณีผู้ใช้สร้างชีตเรียงคอลัมน์ไม่ตรงที่แนะนำเป๊ะๆ
   // (เหมือน appendRowByHeaders() ต่างกันตรงที่นี่ต้องเขียนหลายแถวพร้อมกันด้วย setValues() เพื่อความเร็ว
   // เลย map เองแทนที่จะเรียก appendRowByHeaders() วนทีละแถว)
@@ -1476,6 +1516,10 @@ function finalizePurchaseReceipt(body) {
   const date = todayStr();
   const ts = new Date().toISOString();
   const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
+  // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — เจ้าของอาจแก้ไขมาจากที่ AI อ่านได้ตอน analyzeBillPhoto แล้ว
+  // เขียนซ้ำลงทุกแถวของ batch นี้ (denormalized ตั้งใจ) เพื่อให้แต่ละแถว PurchaseReceipts มีบริบทครบในตัว
+  // เอง พร้อมต่อยอดทำรายงานต้นทุน/บัญชีในอนาคตโดยไม่ต้อง join กลับไปหา PendingBillReceipts ที่ถูกลบไปแล้ว
+  const billHeader = body.billHeader || {};
   const newRows = body.items.map((item, i) => {
     const factor = Number(item.conversionFactor) || 1;
     const receivedQty = Number(item.receivedQty != null ? item.receivedQty : item.billQty);
@@ -1484,7 +1528,10 @@ function finalizePurchaseReceipt(body) {
       ProductID: item.productId, BillText: item.billText, BillQty: item.billQty, ReceivedQty: receivedQty,
       BillUnit: item.billUnit, ConversionFactor: factor, ConvertedQty: receivedQty * factor,
       UnitPrice: item.unitPrice, TotalPrice: Number(item.billQty) * Number(item.unitPrice),
-      PhotoURL: photoUrl, StaffName: body.staffName, Timestamp: ts
+      PhotoURL: photoUrl, StaffName: body.staffName,
+      BillDate: billHeader.billDate || '', BillNumber: billHeader.billNumber || '',
+      BillSubtotal: billHeader.subtotal || '', BillVat: billHeader.vat || '', BillTotal: billHeader.total || '',
+      Timestamp: ts
     };
     return headers.map(h => obj[h] !== undefined ? obj[h] : '');
   });
