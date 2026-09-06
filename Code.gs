@@ -1363,6 +1363,20 @@ function sanitizeBillHeader(h) {
   return { billDate, billNumber, subtotal, vat, total };
 }
 
+// พยายามแปลง billHeader.billDate (string อิสระที่ AI อ่านมาจากบิล เช่น "26/06/2569") ให้เป็น yyyy-MM-dd
+// แบบเดียวกับ todayStr() — รองรับทั้งปี พ.ศ. (ลบ 543 ถ้าปี > 2400) และปี ค.ศ. ตรงๆ, ตัวคั่น / - .
+// คืน null ถ้า parse ไม่ได้ (เช่น บิลเขียนมือไม่มี billHeader เลย หรือ AI อ่านรูปแบบวันที่แปลกไป) —
+// ผู้เรียก (finalizePurchaseReceipt) ต้อง fallback ไป todayStr() เอง กันแถวไม่มีวันที่เลย
+function parseBillDateToSheetFormat(raw) {
+  const m = String(raw || '').match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (!m) return null;
+  let d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  if (y > 2400) y -= 543; // พ.ศ. -> ค.ศ.
+  if (y < 1900 || y > 2200) return null; // กันปีเพี้ยนหลุดผ่านมา
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
 // Levenshtein distance ธรรมดา (dynamic programming) — ใช้หาความคล้ายของข้อความบิลแบบ deterministic
 // ไม่ใช่ให้ AI ตัดสินเองว่า "คล้ายกันไหม" เพราะอยากให้ตรวจสอบ/อธิบายได้ว่าทำไมถึงจับคู่ให้
 function levenshtein(a, b) {
@@ -1515,13 +1529,16 @@ function finalizePurchaseReceipt(body) {
     }
   }
 
-  const date = todayStr();
   const ts = new Date().toISOString();
   const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
   // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — เจ้าของอาจแก้ไขมาจากที่ AI อ่านได้ตอน analyzeBillPhoto แล้ว
   // เขียนซ้ำลงทุกแถวของ batch นี้ (denormalized ตั้งใจ) เพื่อให้แต่ละแถว PurchaseReceipts มีบริบทครบในตัว
   // เอง พร้อมต่อยอดทำรายงานต้นทุน/บัญชีในอนาคตโดยไม่ต้อง join กลับไปหา PendingBillReceipts ที่ถูกลบไปแล้ว
   const billHeader = body.billHeader || {};
+  // Date = วันที่บนบิลจริง (BillDate) ถ้า AI อ่านออกมาเป็นรูปแบบที่ parse ได้ — ใช้วันนี้แค่ตอน parse ไม่ได้
+  // (บิลเขียนมือไม่มี billHeader เลย, หรือ AI อ่านวันที่มาเป็นข้อความแปลกๆ) เดิม hardcode เป็นวันนี้เสมอ
+  // ทำให้บิลเก่าที่เพิ่งมาลง (backlog) ไปกองอยู่ที่ "วันนี้" ทั้งหมด รายงานยอดซื้อรายวัน/เดือนพังได้
+  const date = parseBillDateToSheetFormat(billHeader.billDate) || todayStr();
   const newRows = body.items.map((item, i) => {
     const factor = Number(item.conversionFactor) || 1;
     const receivedQty = Number(item.receivedQty != null ? item.receivedQty : item.billQty);
