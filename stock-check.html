@@ -1246,12 +1246,13 @@ function renderBillAnalyzing(app){
 
   // ปิด retryOnTimeout เอง — ถ้าพัง ให้ผู้ใช้กดลองใหม่เอง ไม่ auto-retry เงียบๆ เพราะยิงซ้ำ = เรียก AI ซ้ำ
   // (ไม่ได้เสียเงินก็จริง แต่ก็ไม่จำเป็นต้องยิงซ้ำโดยไม่รู้ตัว) ให้ timeout นานกว่าปกติเพราะ AI อ่านรูปช้ากว่า action ทั่วไป
-  // เดิมตั้ง 60 วิ แล้วขยับเป็น 90 วิ (เจอ 59.9 วิใน Executions log) แต่วันที่ 6 ก.ย. 69 เจอจริงอีกว่า
-  // doPost ของ analyzeBillPhoto ใช้เวลาถึง 88.454 วิ และ 113.475 วิ (ทั้งคู่ Completed สำเร็จฝั่ง backend
-  // แต่หน้าเว็บตัดก่อนที่ 90 วิ เลยขึ้น error "Load failed" ทั้งที่ backend ทำงานเสร็จเรียบร้อย) ขยับเผื่อเป็น
-  // 150 วิ กันโดนตัดกลางคันอีก — ถ้าเจอ error ค้างอีกใน Executions log ให้เช็คคอลัมน์ Duration ก่อนเสมอว่า
-  // เกิน timeout ที่ตั้งไว้ตอนนั้นหรือเปล่า ก่อนจะสรุปว่าเป็นบั๊กโค้ด
-  apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 150000)
+  // เดิมตั้ง 60 วิ แล้วขยับเป็น 90 วิ (เจอ 59.9 วิใน Executions log) แล้วขยับเป็น 150 วิ (เจอ 88.454/113.475
+  // วิ ใน Executions log — Completed สำเร็จฝั่ง backend แต่หน้าเว็บตัดก่อน) วันที่ 6 ก.ย. 69 เดียวกัน Code.gs
+  // เพิ่ม retry อัตโนมัติ 1 ครั้งใน callGemini() ตอนเจอ Gemini 503 "high demand" หรือตอบมาแบบ parse ไม่ได้
+  // (ดูคอมเมนต์ที่ callGemini() ใน Code.gs) ทำให้ doPost 1 ครั้งอาจกิน 2 เท่าของเวลาอ่านบิลปกติในกรณีแย่สุด
+  // ขยับ timeout ฝั่งนี้ตามเป็น 270 วิ (4.5 นาที) เผื่อไว้ — ถ้าเจอ error ค้างอีกใน Executions log ให้เช็ค
+  // คอลัมน์ Duration ก่อนเสมอว่าเกิน timeout ที่ตั้งไว้ตอนนั้นหรือเปล่า ก่อนจะสรุปว่าเป็นบั๊กโค้ด
+  apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000)
     .then(res=>{
       const items = (res.items||[]).map((it,i)=>({
         _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,

@@ -1416,14 +1416,8 @@ function findAliasMatch(aliases, billText) {
 
 // เรียก Gemini API (generateContent) แบบ multimodal — บังคับให้ตอบเป็น JSON ล้วนๆ ผ่าน responseMimeType
 // กันปัญหาโมเดลตอบเป็นข้อความอธิบายปนโค้ด/markdown fence ที่ parse ต่อไม่ได้
-function callGemini(parts) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!apiKey) throw new Error('ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Script Properties (Project Settings)');
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + apiKey;
-  const payload = {
-    contents: [{ parts }],
-    generationConfig: { responseMimeType: 'application/json' }
-  };
+// ลองเรียก Gemini ครั้งเดียว — แยกออกมาจาก callGemini() เพื่อให้ retry wrapper เรียกซ้ำได้สะอาดๆ
+function callGeminiOnce(url, payload) {
   const res = UrlFetchApp.fetch(url, {
     method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true
   });
@@ -1435,6 +1429,31 @@ function callGemini(parts) {
     json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
   if (!text) throw new Error('Gemini ไม่ส่งผลลัพธ์ที่ใช้ได้กลับมา');
   return JSON.parse(text);
+}
+// เจอจริงคืนวันที่ 6 ก.ย. 69 ว่า Gemini คืน 503 "high demand" เป็นระยะ (ข้อความเองบอกว่า "usually
+// temporary") และบางรอบคืน 200 แต่ไม่มีข้อความ/items ให้ parse เลย (น่าจะอาการเดียวกันจากโหลดสูง
+// แค่ไม่ error ชัดเจน) — ลองซ้ำอัตโนมัติ 1 ครั้งหลังรอ 3 วิ ก่อนค่อยโยน error จริงให้ผู้ใช้เห็น ทำใน
+// ฝั่ง backend (ไม่ใช่ client auto-retry) เพราะเป็นแค่การอ่าน ยังไม่เขียนอะไรลงชีตเลยตอนนี้ ปลอดภัย
+// ไม่ทำให้ข้อมูลซ้ำซ้อนแบบ action ที่สร้างแถวใหม่ — analyzeBillPhoto ฝั่งเว็บต้องขยาย timeout ตามด้วย
+// (ดู 150000 → 270000 ใน stock-check.html) กันกรณีแย่สุดที่ทั้ง 2 รอบใช้เวลานานพอกัน
+function callGemini(parts) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error('ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Script Properties (Project Settings)');
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + apiKey;
+  const payload = {
+    contents: [{ parts }],
+    generationConfig: { responseMimeType: 'application/json' }
+  };
+  try {
+    return callGeminiOnce(url, payload);
+  } catch (firstErr) {
+    Utilities.sleep(3000);
+    try {
+      return callGeminiOnce(url, payload);
+    } catch (secondErr) {
+      throw secondErr; // โยน error ของรอบสอง (มักมีข้อมูลใหม่กว่า/ตรงกว่ารอบแรก)
+    }
+  }
 }
 
 // normalize ชื่อบิลก่อนเทียบ/ใช้เป็น key จับคู่ ProductAlias — ตัดช่องว่างหัวท้าย + รวมช่องว่างซ้ำ + ตัวพิมพ์เล็ก
