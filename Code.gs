@@ -86,8 +86,12 @@ const CACHE_TTL = {
                        // (โตขึ้นทุกวันตามอายุร้าน ไม่มีตัวสรุปแยกแบบ StockLogsLatest) ใหม่ทุกครั้งที่ลูกจ้าง
                        // เปิดหน้า "เลือกร้านที่จะเช็ค" (เรียกบ่อยมาก เปิดๆ ปิดๆ ทั้งกะ) — เคลียร์แคชทันทีใน
                        // createOrderBatch() กันเห็นสถานะ "ยังไม่สั่ง" ค้างหลังเพิ่งสั่งไปเอง
-  confirmedToday: 120  // 2 นาที — getConfirmedToday() อ่านทั้งชีต OrderConfirmations (โตช้ากว่า OrderLogs
+  confirmedToday: 120, // 2 นาที — getConfirmedToday() อ่านทั้งชีต OrderConfirmations (โตช้ากว่า OrderLogs
                        // มาก แค่ ~1 แถวต่อเจ้าต่อวัน) เรียกน้อยกว่า orderedToday เลยให้ TTL ยาวกว่าได้
+  productAlias: 600   // 10 นาที ต่อซัพพลายเออร์ (key แยกด้วย supplierId ไม่ใช่ค่าเดียวรวมทุกเจ้า) — เดิม
+                       // analyzeBillPhoto อ่านทั้งชีต ProductAlias ใหม่ทุกครั้งที่มีคนถ่ายบิล (ชีตนี้โตเรื่อยๆ
+                       // ตามจำนวน alias ที่สะสมข้ามซัพพลายเออร์ทั้งหมด) invalidate ทันทีใน
+                       // batchUpsertProductAlias() ตอนมีการเรียนรู้ alias ใหม่ของเจ้านั้น กันข้อมูลค้าง
 };
 function cacheGet(key) {
   const raw = CACHE.get(key);
@@ -1322,9 +1326,7 @@ function analyzeBillPhoto(body) {
   const items = result.items;
   const billHeader = sanitizeBillHeader(result.billHeader);
 
-  const aliasSheet = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
-  const aliases = (aliasSheet ? readTable(PRODUCT_ALIAS_SHEET) : [])
-    .filter(a => String(a.SupplierID).trim() === String(body.supplierId).trim());
+  const aliases = getProductAliasIndex(body.supplierId);
   const normalized = items.map(it => {
     const billText = String(it.billText || '').trim();
     const match = findAliasMatch(aliases, billText);
@@ -1537,10 +1539,8 @@ function finalizePurchaseReceipt(body) {
   });
   sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
 
-  let learnedCount = 0;
-  body.items.filter(it => it.saveAlias && it.productId).forEach(it => {
-    if (upsertProductAlias(body.supplierId, it, body.staffName, ts)) learnedCount++;
-  });
+  const toLearn = body.items.filter(it => it.saveAlias && it.productId);
+  const learnedCount = toLearn.length ? batchUpsertProductAlias(body.supplierId, toLearn, body.staffName, ts) : 0;
 
   if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
 
@@ -1575,32 +1575,67 @@ function saveBillPhotosOrganized(photos, batchId, supplierId, supplierName) {
   return urls.join(',');
 }
 
-// เพิ่ม/แก้ไข ProductAlias แถวเดียว (upsert ด้วย key SupplierID+BillText ที่ normalize แล้ว) — คืนค่า true
-// ถ้าเป็นแถวใหม่ (ไว้ให้ savePurchaseReceipt นับ "จดจำเพิ่มกี่รายการ" ไปโชว์ผู้ใช้)
-function upsertProductAlias(supplierId, item, staffName, ts) {
+// อ่าน ProductAlias ของซัพพลายเออร์เดียว ผ่านแคช (10 นาที, แยก key ต่อเจ้า) — เดิม analyzeBillPhoto
+// อ่านทั้งชีต ProductAlias ทุกซัพพลายเออร์ใหม่ทุกครั้งที่มีคนถ่ายบิล ยิ่งชีตโตยิ่งช้าขึ้นเรื่อยๆ
+// invalidate ทันทีใน batchUpsertProductAlias() ตอนมีการเรียนรู้ alias ใหม่ของเจ้านั้น กันข้อมูลค้าง
+function getProductAliasIndex(supplierId) {
+  const key = 'productAlias_' + supplierId;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+  const sh = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
+  const aliases = sh ? readTable(PRODUCT_ALIAS_SHEET).filter(a => String(a.SupplierID).trim() === String(supplierId).trim()) : [];
+  cacheSet(key, aliases, CACHE_TTL.productAlias);
+  return aliases;
+}
+function invalidateProductAliasCache(supplierId) {
+  cacheClear('productAlias_' + supplierId);
+}
+
+// เพิ่ม/แก้ไข ProductAlias หลายแถวพร้อมกันในการอ่าน/เขียนชีตครั้งเดียว (เดิม upsertProductAlias() อ่าน
+// ทั้งชีตซ้ำทุกรายการในบิล — บิลนึงมี 10-20 รายการก็อ่านทั้งชีต 10-20 รอบ) คืนจำนวนแถวที่เป็นการเรียนรู้
+// ใหม่จริง (ไว้ให้ finalizePurchaseReceipt นับ "จดจำเพิ่มกี่รายการ" ไปโชว์ผู้ใช้)
+function batchUpsertProductAlias(supplierId, items, staffName, ts) {
   const sh = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
   if (!sh) throw new Error('ไม่พบชีต ' + PRODUCT_ALIAS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: AliasID, SupplierID, BillText, ProductID, ConversionFactor, BillUnit, UpdatedBy, Timestamp)');
   const data = sh.getDataRange().getValues();
   const headers = data[0]; // อ่านหัวคอลัมน์จริง ไม่ hardcode ลำดับ (เหตุผลเดียวกับ savePurchaseReceipt)
   const supCol = headers.indexOf('SupplierID'), textCol = headers.indexOf('BillText');
   if (supCol === -1 || textCol === -1) throw new Error('ไม่พบคอลัมน์ SupplierID หรือ BillText ในชีต ' + PRODUCT_ALIAS_SHEET);
-  const key = normalizeAliasKey(item.billText);
-  let foundRow = -1;
+
+  // index แถวเดิมของซัพพลายเออร์นี้ไว้ในหน่วยความจำครั้งเดียว แทนที่จะ scan ทั้งชีตซ้ำทุกรายการ
+  const rowByKey = {};
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][supCol]).trim() === String(supplierId).trim() && normalizeAliasKey(data[i][textCol]) === key) { foundRow = i; break; }
+    if (String(data[i][supCol]).trim() === String(supplierId).trim()) {
+      rowByKey[normalizeAliasKey(data[i][textCol])] = i; // index ในตัวแปร data (ตรงกับแถวชีตจริงคือ +1)
+    }
   }
-  const obj = {
-    AliasID: 'AL' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss'),
-    SupplierID: supplierId, BillText: item.billText, ProductID: item.productId,
-    ConversionFactor: Number(item.conversionFactor) || 1, BillUnit: item.billUnit,
-    UpdatedBy: staffName, Timestamp: ts
-  };
-  if (foundRow === -1) {
-    sh.appendRow(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
-    return true;
+
+  const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
+  let seq = 0, learnedCount = 0;
+  const newRows = [];
+
+  items.forEach(item => {
+    const key = normalizeAliasKey(item.billText);
+    const obj = {
+      AliasID: 'AL' + stamp + '-' + (seq++), // ใส่ seq กันชนกันเวลา upsert หลายแถวในวินาทีเดียวกัน (เดิมทำทีละแถวไม่มีปัญหานี้)
+      SupplierID: supplierId, BillText: item.billText, ProductID: item.productId,
+      ConversionFactor: Number(item.conversionFactor) || 1, BillUnit: item.billUnit,
+      UpdatedBy: staffName, Timestamp: ts
+    };
+    const rowIdx = rowByKey[key];
+    if (rowIdx === undefined) {
+      newRows.push(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
+      learnedCount++;
+    } else {
+      headers.forEach((h, ci) => { if (h !== 'AliasID') sh.getRange(rowIdx + 1, ci + 1).setValue(obj[h]); });
+    }
+  });
+
+  if (newRows.length) {
+    sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
   }
-  headers.forEach((h, ci) => { if (h !== 'AliasID') sh.getRange(foundRow + 1, ci + 1).setValue(obj[h]); });
-  return false;
+  invalidateProductAliasCache(supplierId);
+  return learnedCount;
 }
 
 /* ============ เรียงเลข SupplierID ใหม่ให้ตรงกับลำดับแถวในชีต Suppliers ============ */

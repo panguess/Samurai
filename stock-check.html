@@ -292,6 +292,8 @@
   .capture-zone{border:1.5px dashed var(--border-strong); border-radius:var(--radius-lg); padding:26px 16px; text-align:center; margin-bottom:14px;}
   .capture-zone i{font-size:26px; color:var(--text-tertiary); margin-bottom:8px; display:block;}
   .capture-zone p{font-size:12.5px; color:var(--text-tertiary); margin:0 0 14px;}
+  .bill-pick-row{display:flex; gap:8px;}
+  .bill-pick-row .btn{flex:1; white-space:nowrap;}
   .bill-photo-strip{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
   .bill-photo-chip{position:relative; width:72px; height:96px; border-radius:8px; overflow:hidden; border:1px solid var(--border-strong); flex-shrink:0; background:var(--bg);}
   .bill-photo-chip img{width:100%; height:100%; object-fit:cover; display:block;}
@@ -1183,17 +1185,29 @@ function renderBillCapture(app){
     <div class="capture-zone">
       <i class="ti ti-camera" aria-hidden="true"></i>
       <p id="captureLabel">ยังไม่มีรูปบิล</p>
-      <button class="btn" id="pickPhoto">ถ่ายรูป / เลือกไฟล์</button>
+      <div class="bill-pick-row">
+        <button class="btn" id="pickCamera"><i class="ti ti-camera" style="font-size:15px; vertical-align:-2px; margin-right:5px;" aria-hidden="true"></i>ถ่ายรูป</button>
+        <button class="btn" id="pickGallery"><i class="ti ti-photo-plus" style="font-size:15px; vertical-align:-2px; margin-right:5px;" aria-hidden="true"></i>เลือกจากคลังภาพ</button>
+      </div>
     </div>
     <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>วิเคราะห์บิลด้วย AI</button>
   `;
   app.appendChild(c);
 
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.multiple = true; // ไม่ตั้ง capture — ให้เลือกได้ทั้งถ่ายรูปใหม่หรือเลือกจากคลังภาพ (เหมือน avatarInput)
-  fileInput.style.display = 'none';
-  c.appendChild(fileInput);
-  c.querySelector('#pickPhoto').onclick = ()=> fileInput.click();
+  // 2 input แยกกัน — กดปุ่มไหนเปิดตัวเลือกนั้นตรงๆ ทันที ไม่ต้องผ่านเมนูเลือก "กล้อง/คลังภาพ" กลางของเบราว์เซอร์อีกที
+  const cameraInput = document.createElement('input');
+  cameraInput.type = 'file'; cameraInput.accept = 'image/*';
+  cameraInput.setAttribute('capture', 'environment'); // ต้องใช้ setAttribute ไม่ใช่ property assignment ถึงจะบังคับเปิดกล้องตรงได้ชัวร์ทุกเบราว์เซอร์
+  cameraInput.style.display = 'none';
+  c.appendChild(cameraInput);
+
+  const galleryInput = document.createElement('input');
+  galleryInput.type = 'file'; galleryInput.accept = 'image/*'; galleryInput.multiple = true; // ไม่ตั้ง capture — เปิดคลังภาพตรงๆ เลือกได้หลายรูป
+  galleryInput.style.display = 'none';
+  c.appendChild(galleryInput);
+
+  c.querySelector('#pickCamera').onclick = ()=> cameraInput.click();
+  c.querySelector('#pickGallery').onclick = ()=> galleryInput.click();
 
   function drawPhotos(){
     const strip = c.querySelector('#photoStrip');
@@ -1205,13 +1219,15 @@ function renderBillCapture(app){
   }
   drawPhotos();
 
-  fileInput.onchange = async ()=>{
-    const files = [...fileInput.files]; fileInput.value = '';
+  async function onPicked(input){
+    const files = [...input.files]; input.value = '';
     for(const file of files){
       try{ state.billPhotos.push(await compressImage(file, 1600, 0.8)); }catch(e){}
     }
     drawPhotos();
-  };
+  }
+  cameraInput.onchange = ()=> onPicked(cameraInput);
+  galleryInput.onchange = ()=> onPicked(galleryInput);
 
   c.querySelector('#analyzeBtn').onclick = ()=> go('billAnalyzing');
 }
@@ -1783,7 +1799,8 @@ async function renderSupplierCheck(app){
 
   let photoTargetPid = null;
   const photoInput = document.createElement('input');
-  photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.capture = 'environment';
+  photoInput.type = 'file'; photoInput.accept = 'image/*';
+  photoInput.setAttribute('capture', 'environment'); // ต้องใช้ setAttribute ไม่ใช่ property assignment ถึงจะบังคับเปิดกล้องตรงได้ชัวร์ทุกเบราว์เซอร์
   photoInput.style.display = 'none';
   c.appendChild(photoInput);
   photoInput.onchange = async ()=>{
