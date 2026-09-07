@@ -1306,7 +1306,7 @@ function analyzeBillPhoto(body) {
   const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
   const promptText = 'คุณกำลังอ่านใบส่งของ/ใบวางบิลจากซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
     (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
-    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"items": [...], "billHeader": {...} หรือ null}\n' +
+    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"items": [...], "billHeader": {...} หรือ null, "supplierMismatchWarning": string หรือ null}\n' +
     '"items": อ่านทุกบรรทัดรายการที่เห็นในรูป (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แต่ละสมาชิกในรูปแบบ ' +
     '{"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
     '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
@@ -1314,7 +1314,10 @@ function analyzeBillPhoto(body) {
     '"billHeader": ใส่เฉพาะเมื่อบิลนี้เป็นเอกสารของบริษัทที่จดทะเบียนจริง (มีเลขประจำตัวผู้เสียภาษี/Tax ID พิมพ์ไว้ หรือเลขที่เอกสารรันเป็นชุดแบบพิมพ์ ไม่ใช่เขียนมือ) ' +
     'รูปแบบ {"billDate": วันที่บนบิล เป็น string ตามที่เขียน (string), "billNumber": เลขที่เอกสาร/ใบกำกับภาษี (string), ' +
     '"subtotal": ยอดรวมก่อนภาษี (number), "vat": ยอดภาษีมูลค่าเพิ่ม (number, ใส่ 0 ถ้าบิลนี้ไม่มี VAT แต่ยังเป็นเอกสารบริษัท), "total": ยอดรวมสุทธิ (number)}. ' +
-    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง';
+    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง\n' +
+    '"supplierMismatchWarning": เช็คว่ารูปนี้น่าจะเป็นบิลจากซัพพลายเออร์ "' + sup.Name + '" ตามที่ระบุไว้ข้างบนจริงไหม โดยเทียบกับข้อมูลอ้างอิงรูปแบบบิลที่ให้ไว้ (โลโก้/ชื่อบริษัท/ที่อยู่/รูปแบบเอกสาร) ' +
+    'ถ้าเห็นชัดเจนว่าไม่ตรง (เช่น ชื่อบริษัท/โลโก้บนบิลเป็นคนละเจ้ากับที่ระบุไว้ชัดๆ) ให้ใส่คำอธิบายสั้นๆ ว่าทำไมถึงคิดว่าไม่ตรง (string) ' +
+    'ถ้าดูตรงกันดี หรือไม่มีข้อมูลอ้างอิงให้เทียบ หรือไม่แน่ใจ (เช่นบิลเขียนมือไม่มีชื่อบริษัทให้เทียบเลย) ให้ใส่เป็น null เฉยๆ อย่าฟันธงมั่วถ้าไม่มีหลักฐานชัดเจนพอ';
 
   const parts = [{ text: promptText }];
   body.photos.forEach(dataUrl => {
@@ -1326,6 +1329,11 @@ function analyzeBillPhoto(body) {
   if (!result || !Array.isArray(result.items)) throw new Error('อ่านบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
   const items = result.items;
   const billHeader = sanitizeBillHeader(result.billHeader);
+  // เตือนตอนเลือกซัพพลายเออร์ผิด (ไม่ตรงกับหัวบิลจริง) — เดิมไม่มีการเช็คนี้เลย เจอผู้ใช้ถามหลัง backlog
+  // session ว่า "ถ้าเลือกเจ้าผิดจะรู้ไหม" คำตอบเดิมคือไม่รู้เลย (จับคู่สินค้าจะพังเงียบๆ เพราะดึงสินค้าผิดเจ้า
+  // มาให้เลือก) — ใช้ string ว่างเป็น null เพื่อกัน AI ส่งค่าประหลาด (false/0/whitespace) มาปนแล้วโค้ด/
+  // หน้าเว็บพัง เหมือน pattern ของ sanitizeBillHeader ด้านบน
+  const supplierMismatchWarning = String(result.supplierMismatchWarning || '').trim() || null;
 
   const aliases = getProductAliasIndex(body.supplierId);
   const normalized = items.map(it => {
@@ -1347,7 +1355,7 @@ function analyzeBillPhoto(body) {
     };
   });
 
-  return { items: normalized, billHeader };
+  return { items: normalized, billHeader, supplierMismatchWarning };
 }
 
 // ============ โหมดใหม่: อัปโหลดรูปหลายบิลพร้อมกัน ให้ AI แยกขอบเขตเอกสารเอง (7 ก.ย. 69) ============
@@ -1585,13 +1593,26 @@ function buildBillHeaderFromRow(r) {
 }
 
 // รายการบิลที่ยังรอเจ้าของตรวจ — ใช้กับหน้า "บิลรอตรวจสอบ" ฝั่งเจ้าของ
+// แปลงลิงก์ Drive แบบเก่า (https://drive.google.com/file/d/ID/view... — หน้า "ดูไฟล์" ของ Drive ใช้เป็น
+// <img src> ไม่ได้) ให้เป็นลิงก์ thumbnail ที่ embed เป็นรูปได้จริงเสมอ (ดูเหตุผลเต็มๆ ที่คอมเมนต์
+// saveBillPhotosOrganized) — ทำตอนอ่านแทนที่จะไปแก้ข้อมูลเก่าในชีตตรงๆ (self-healing pattern เดียวกับ
+// normalizeSkipDatesCell) กันบิลที่ submitBillForReview ไปแล้วก่อนแก้บั๊กนี้ยังโชว์รูปไม่ขึ้นค้างอยู่
+// รับได้ทั้ง URL เดียวหรือหลายอันคั่นด้วย , (รูปแบบเดียวกับที่ saveBillPhotosOrganized คืนมา)
+function toEmbeddableDriveUrl(urlStr) {
+  return String(urlStr || '').split(',').map(u => {
+    u = u.trim();
+    const m = u.match(/drive\.google\.com\/file\/d\/([^/]+)\//);
+    return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w2000' : u;
+  }).filter(Boolean).join(',');
+}
+
 function getPendingBillReceipts() {
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) return { batches: [] };
   return {
     batches: readTable(PENDING_BILL_SHEET).map(r => ({
       batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
-      photoUrl: r.PhotoURL, items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
+      photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
     }))
   };
 }
@@ -1683,7 +1704,12 @@ function saveBillPhotosOrganized(photos, batchId, supplierId, supplierName) {
     const blob = Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', datePrefix + '_' + batchId + '-' + (i + 1) + '.jpg');
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return file.getUrl();
+    // เจอบั๊กจริง 7 ก.ย. 69: file.getUrl() คืนลิงก์หน้า "ดูไฟล์" ของ Drive (https://drive.google.com/
+    // file/d/ID/view) ซึ่งเป็นหน้า HTML ไม่ใช่ไฟล์รูปตรงๆ — ใช้เป็น <img src="..."> ไม่ได้เลย รูปเลย
+    // ไม่ขึ้น (เจอฝั่งเจ้าของเปิดบิลค้างจาก PendingBillReceipts มาดู เพราะฝั่งพนักงานถ่ายบิลใหม่ใช้
+    // base64 data URL ตรงๆ ไม่เคยพึ่งค่านี้เลยจนถึงตอนนี้ ไม่มีใครเจอบั๊กนี้มาก่อน) เปลี่ยนเป็น endpoint
+    // thumbnail ของ Drive ที่ตั้งใจให้ embed เป็นรูปได้ตรงๆ แทน
+    return 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w2000';
   });
   return urls.join(',');
 }

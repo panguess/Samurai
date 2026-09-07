@@ -382,6 +382,14 @@
   .bhc-field.total{padding-top:9px; border-top:1px dashed var(--border);}
   .bhc-field.total input{font-weight:700; font-size:15px;}
   .bhc-mismatch{margin-top:9px; background:var(--amber-bg); color:var(--amber); font-size:11.5px; padding:8px 10px; border-radius:8px; display:flex; gap:6px; align-items:flex-start; line-height:1.5;}
+
+  /* คำเตือน "เลือกซัพพลายเออร์ผิด" (7 ก.ย. 69) — สีแดงเข้มกว่า .bhc-mismatch เพราะรุนแรงกว่า (ทั้งบิลผิดเจ้า
+     ไม่ใช่แค่ยอดไม่ตรงบรรทัดเดียว) วางไว้บนสุดของหน้ารีวิวให้เห็นก่อนอย่างอื่นเสมอ */
+  .supplier-mismatch-warning{background:var(--danger-bg); border:1.5px solid var(--danger); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:9px; align-items:flex-start;}
+  .supplier-mismatch-warning .icon{color:var(--danger); font-size:17px; flex-shrink:0; margin-top:1px;}
+  .supplier-mismatch-warning .smw-title{font-size:13px; font-weight:700; color:var(--danger); margin:0 0 3px;}
+  .supplier-mismatch-warning .smw-body{font-size:12px; color:var(--text); line-height:1.55; margin:0 0 9px;}
+  .supplier-mismatch-warning .btn{padding:7px 12px; font-size:12px;}
   .bill-photo-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;}
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block;}
@@ -857,7 +865,10 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   // billBatchGroups: [{photoIndices:[int,...], items:[...], billHeader, reviewed:bool, submitted:bool}, ...]
   // — แต่ละสมาชิกคือ 1 บิลที่ AI แยกให้ (หรือคนแก้กลุ่มเองผ่าน renderBillBatchRegroup) reviewed:true เมื่อ
   // กด "ยืนยันบิลนี้" ที่ renderBillBatchItemReview, submitted:true เมื่อส่ง submitBillForReview สำเร็จแล้ว
-  billBatchGroups:[], billBatchActiveIndex:null, billBatchRegroupFrom:null, billBatchSubmittedCount:null };
+  billBatchGroups:[], billBatchActiveIndex:null, billBatchRegroupFrom:null, billBatchSubmittedCount:null,
+  // เตือนตอนเลือกซัพพลายเออร์ผิด (ไม่ตรงกับหัวบิลจริง) — AI เทียบให้ตอน analyzeBillPhoto (ดู Code.gs)
+  // null ถ้าดูตรงกันดี/ไม่มีข้อมูลอ้างอิงให้เทียบ ไม่ใช่ error แค่คำเตือนให้คนตรวจสอบเอง (ดู renderBillReview)
+  billSupplierMismatchWarning:null };
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
@@ -1363,7 +1374,7 @@ function renderBillAnalyzing(app){
       }));
       if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
       // null สำหรับบิลเขียนมือที่ไม่มีเลขที่บิล/VAT — renderBillReview จะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
-      go('billReview', {billItems: items, billHeader: res.billHeader || null, billMode:'staff'}, {replace:true});
+      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billMode:'staff'}, {replace:true});
     })
     .catch(err=>{
       c.querySelector('.analyzing-wrap').innerHTML = `
@@ -1441,6 +1452,7 @@ function renderBillBatchAnalyzing(app){
             confirmed: it.matchType === 'exact',
           })),
           billHeader: res.billHeader || null,
+          supplierMismatchWarning: res.supplierMismatchWarning || null,
           reviewed: false, submitted: false,
         });
       }
@@ -1467,6 +1479,15 @@ function renderBillReview(app){
   }));
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
+    ${state.billSupplierMismatchWarning ? `
+    <div class="supplier-mismatch-warning">
+      <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
+        <p class="smw-body">${state.billSupplierMismatchWarning}</p>
+        <button class="btn" id="wrongSupplierBtn">เลือกซัพพลายเออร์ใหม่</button>
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${state.billPhotos[0] ? `<img class="rb-thumb" src="${state.billPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${state.billItems.length} รายการ</b> จากรูปบิล ${state.billPhotos.length} ใบ ${isResume ? '· ถ่ายโดย '+state.billStaffName : ''}<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1482,6 +1503,8 @@ function renderBillReview(app){
     </div>
   `;
   app.appendChild(c);
+  const wrongSupplierBtn = c.querySelector('#wrongSupplierBtn');
+  if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=> go('billSupplier');
   c.querySelector('#viewPhoto').onclick = ()=>{
     const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
     lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
@@ -1508,9 +1531,14 @@ function renderBillReview(app){
     const slot = headerSlot.querySelector('#bhcMismatchSlot');
     if(!h || !slot) return;
     const itemsSum = state.billItems.filter(it=>!it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
-    const mismatch = h.subtotal && Math.abs(itemsSum - h.subtotal) > 1;
+    // เจอจริง 7 ก.ย. 69 (บิล PFP หลายใบ): บิลบางเจ้าพิมพ์ "ราคาต่อหน่วย" แบบรวม VAT ไว้แล้ว ทำให้ยอดรวม
+    // รายการที่คำนวณเองไปตรงกับ "ยอดหลังแวต" แทนที่จะเป็น "ยอดก่อนแวต" — เดิมเทียบกับก่อนแวตอย่างเดียว
+    // เลยเตือนหลอกทุกครั้งสำหรับบิลแบบนี้ทั้งที่ข้อมูลถูกต้องเป๊ะ เทียบกับทั้งสองแบบแทน ตรงอันใดอันหนึ่งถือว่าโอเค
+    const matchesSubtotal = h.subtotal && Math.abs(itemsSum - h.subtotal) <= 1;
+    const matchesTotal = h.total && Math.abs(itemsSum - h.total) <= 1;
+    const mismatch = h.subtotal && !matchesSubtotal && !matchesTotal;
     slot.innerHTML = mismatch
-      ? `<div class="bhc-mismatch"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ยอดรวมสินค้าที่จับคู่ได้ (${fmtMoney(itemsSum)}) ไม่ตรงกับยอดบนบิล (${fmtMoney(h.subtotal)}) — ลองเช็คว่ามีรายการตกหล่น/พิมพ์ยอดผิดไหม</div>`
+      ? `<div class="bhc-mismatch"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ยอดรวมสินค้าที่จับคู่ได้ (${fmtMoney(itemsSum)}) ไม่ตรงกับยอดบนบิลเลย (ทั้งก่อนแวต ${fmtMoney(h.subtotal)} และหลังแวต ${fmtMoney(h.total)}) — ลองเช็คว่ามีรายการตกหล่น/พิมพ์ยอดผิดไหม</div>`
       : '';
   }
   function renderBillHeaderCard(){
@@ -1745,6 +1773,7 @@ function drawBatchCards(c){
           <span class="status-pill ${g.reviewed?'done':'pending'}">${g.reviewed?'<i class="ti ti-check" aria-hidden="true"></i> ตรวจแล้ว':'รอตรวจ'}</span>
         </div>
         <div class="bc-figures"><span>${g.items.length} รายการ</span><span>ยอดรวม <b>${fmtMoneyBatch(total)}</b></span></div>
+        ${g.supplierMismatchWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--danger-bg); color:var(--danger); font-size:11px; font-weight:600; padding:6px 8px; border-radius:7px; margin-bottom:9px;"><i class="ti ti-alert-triangle" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจไม่ใช่บิลของซัพพลายเออร์นี้ — ตรวจสอบก่อนยืนยัน</div>` : ''}
         <div class="bc-actions">
           <button class="btn" data-regroup="${gi}"><i class="ti ti-photo-plus" aria-hidden="true"></i> แก้กลุ่มรูป</button>
           <button class="btn btn-primary" data-review="${gi}">${g.reviewed?'แก้ไขรายการ':'ตรวจสอบรายการ'}</button>
@@ -1800,6 +1829,14 @@ function renderBillBatchItemReview(app){
   app.appendChild(topbar('ตรวจสอบรายการ', { back: ()=> go('billBatchReview'), meta: sup.name }));
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
+    ${g.supplierMismatchWarning ? `
+    <div class="supplier-mismatch-warning">
+      <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
+        <p class="smw-body">${g.supplierMismatchWarning}</p>
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${groupPhotos[0] ? `<img class="rb-thumb" src="${groupPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${g.items.length} รายการ</b> จากรูปบิล ${groupPhotos.length} ใบ<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1831,9 +1868,14 @@ function renderBillBatchItemReview(app){
     const slot = headerSlot.querySelector('#bhcMismatchSlot');
     if(!h || !slot) return;
     const itemsSum = g.items.filter(it=>!it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
-    const mismatch = h.subtotal && Math.abs(itemsSum - h.subtotal) > 1;
+    // เจอจริง 7 ก.ย. 69 (บิล PFP หลายใบ): บิลบางเจ้าพิมพ์ "ราคาต่อหน่วย" แบบรวม VAT ไว้แล้ว ทำให้ยอดรวม
+    // รายการที่คำนวณเองไปตรงกับ "ยอดหลังแวต" แทนที่จะเป็น "ยอดก่อนแวต" — เดิมเทียบกับก่อนแวตอย่างเดียว
+    // เลยเตือนหลอกทุกครั้งสำหรับบิลแบบนี้ทั้งที่ข้อมูลถูกต้องเป๊ะ เทียบกับทั้งสองแบบแทน ตรงอันใดอันหนึ่งถือว่าโอเค
+    const matchesSubtotal = h.subtotal && Math.abs(itemsSum - h.subtotal) <= 1;
+    const matchesTotal = h.total && Math.abs(itemsSum - h.total) <= 1;
+    const mismatch = h.subtotal && !matchesSubtotal && !matchesTotal;
     slot.innerHTML = mismatch
-      ? `<div class="bhc-mismatch"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ยอดรวมสินค้าที่จับคู่ได้ (${fmtMoneyBatch(itemsSum)}) ไม่ตรงกับยอดบนบิล (${fmtMoneyBatch(h.subtotal)}) — ลองเช็คว่ามีรายการตกหล่น/พิมพ์ยอดผิดไหม</div>`
+      ? `<div class="bhc-mismatch"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ยอดรวมสินค้าที่จับคู่ได้ (${fmtMoneyBatch(itemsSum)}) ไม่ตรงกับยอดบนบิลเลย (ทั้งก่อนแวต ${fmtMoneyBatch(h.subtotal)} และหลังแวต ${fmtMoneyBatch(h.total)}) — ลองเช็คว่ามีรายการตกหล่น/พิมพ์ยอดผิดไหม</div>`
       : '';
   }
   function renderBillHeaderCard(){
@@ -2054,7 +2096,7 @@ function renderBillBatchRegroup(app){
         gr.photoIndices = gr.photoIndices.filter(i=> !selected.includes(i));
         return gr.photoIndices.length > 0;
       });
-      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, reviewed:false, submitted:false });
+      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, reviewed:false, submitted:false });
       go('billBatchReview');
     }catch(err){
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
@@ -2164,7 +2206,10 @@ async function renderBillPendingList(app){
       go('billReview', {
         billMode:'owner-resume', billResumeBatchId:b.batchId, billSupplierId:b.supplierId,
         billStaffName:b.staffName, billPhotos: String(b.photoUrl||'').split(',').filter(Boolean), billItems:b.items,
-        billHeader: b.billHeader || null
+        billHeader: b.billHeader || null,
+        // เคลียร์ให้ชัดเจน — คำเตือนนี้มาจาก analyzeBillPhoto ตอนวิเคราะห์สดเท่านั้น บิลค้างจาก
+        // PendingBillReceipts ไม่มีข้อมูลนี้เก็บไว้ (ยังไม่ได้ทำ) กันค่าเก่าจาก session ก่อนหน้าค้างโชว์ผิดบิล
+        billSupplierMismatchWarning: null
       });
     });
   }catch(err){
