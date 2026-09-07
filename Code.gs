@@ -1354,9 +1354,16 @@ function analyzeBillPhoto(body) {
 // จงใจแยก action ต่างหากจาก analyzeBillPhoto ข้างบน — ไม่แก้ analyzeBillPhoto แม้แต่บรรทัดเดียว กันไม่ให้
 // ฟีเจอร์ใหม่ที่ยังไม่ผ่านการใช้งานจริงกระทบเส้นทางที่พนักงานถ่ายบิลปกติทุกวันอยู่แล้ว (ดูสรุปเหตุผลใน
 // CLAUDE.md หัวข้อ "แยกบิลอัตโนมัติ") ใช้ตอนซัพพลายเออร์เอาบิลตกหล่นจากรอบก่อนมาพร้อมบิลวันนี้
-// สำคัญ: ฟังก์ชันนี้แค่ "เสนอ" การแบ่งกลุ่ม+รายการ ไม่เขียนอะไรลงชีตเลยเหมือน analyzeBillPhoto — ฝั่งเว็บ
+// สำคัญ: ฟังก์ชันนี้แค่ "เสนอ" การแบ่งกลุ่ม ไม่เขียนอะไรลงชีตเลยเหมือน analyzeBillPhoto — ฝั่งเว็บ
 // (renderBillBatchReview) ต้องให้คนตรวจ/แก้กลุ่มก่อนเสมอ แล้วค่อยเรียก submitBillForReview ทีละบิลปกติ
 // ทุกประการ ไม่มี action ใหม่ไหนเขียน PurchaseReceipts/PendingBillReceipts ตรงๆ จากฟังก์ชันนี้เลย
+//
+// อัปเดต 7 ก.ย. 69: เดิมฟังก์ชันนี้ให้ Gemini ทั้งแยกกลุ่ม + อ่านรายการสินค้าทุกบิลพร้อมกันในคำขอเดียว
+// พบจริงจาก Executions log ว่าคำขอแบบนั้นกินเวลาถึง ~104 วิ (เทียบกับ analyzeBillPhoto บิลเดี่ยวที่ 45-49 วิ
+// ผ่านทุกครั้ง) ทำให้หน้าเว็บเจอ "Load failed" ซ้ำๆ ทุกรอบที่ทดสอบจริง (การเชื่อมต่อทนคำขอยาวขนาดนั้นไม่ไหว)
+// แก้โดยตัดขอบเขตงานของฟังก์ชันนี้ให้เหลือแค่ "แยกกลุ่มรูป" อย่างเดียว (เร็วขึ้นมากเพราะไม่ต้องถอดรายการ
+// สินค้าทีละบรรทัดในทุกรูป) แล้วให้ฝั่งเว็บเรียก analyzeBillPhoto ตัวเดิม (ที่พิสูจน์แล้วว่าไหว) แยกทีละบิล
+// เป็นคำขอสั้นๆ หลายครั้งแทน ดู renderBillBatchAnalyzing ในฝั่งเว็บ
 function analyzeBillBatch(body) {
   if (!body.supplierId || !body.photos || body.photos.length < 2) {
     throw new Error('ข้อมูลไม่ครบ (supplierId หรือรูปน้อยกว่า 2 รูป — โหมดแยกหลายบิลใช้เมื่อมีตั้งแต่ 2 รูปขึ้นไปเท่านั้น)');
@@ -1367,23 +1374,16 @@ function analyzeBillBatch(body) {
 
   const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
   const n = body.photos.length;
-  const promptText = 'คุณกำลังอ่านรูปทั้งหมด ' + n + ' รูป (เรียงตามลำดับ index 0 ถึง ' + (n - 1) + ' ตามลำดับที่ให้มา) ที่ถ่ายจากใบส่งของ/ใบวางบิลของซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
+  const promptText = 'คุณกำลังดูรูปทั้งหมด ' + n + ' รูป (เรียงตามลำดับ index 0 ถึง ' + (n - 1) + ' ตามลำดับที่ให้มา) ที่ถ่ายจากใบส่งของ/ใบวางบิลของซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
     (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
     'รูปเหล่านี้อาจเป็น "เอกสารคนละใบ" ปนกันมา (เช่น ซัพพลายเออร์เอาบิลตกหล่นจากวันก่อนมาพร้อมบิลวันนี้) ' +
     'หรือบางรูปอาจเป็นแค่หน้าต่อของเอกสารเดียวกัน (บิลใบเดียวถ่ายหลายรูปเพราะรายการเยอะ) ' +
-    'งานของคุณคือแยกกลุ่มรูปตามเอกสารจริงก่อน โดยดูจากเลขที่เอกสาร/วันที่/ยอดรวมที่ปรากฏบนแต่ละรูป ' +
+    'งานของคุณคือแค่แยกกลุ่มรูปตามเอกสารจริงเท่านั้น — **ห้ามอ่าน/ถอดรายการสินค้าในรูปเลย** (มีขั้นตอนแยกอ่านรายการทีหลัง) ' +
+    'ดูจากเลขที่เอกสาร/วันที่/ยอดรวม/รูปแบบหัวกระดาษที่ปรากฏบนแต่ละรูปเพื่อตัดสินใจแยกกลุ่มพอ ' +
     '(รูปที่เป็นหน้าต่อกันของบิลเดียวกันมักไม่มีหัวบิล/เลขที่ซ้ำในหน้าถัดไป ส่วนบิลคนละใบมักมีเลขที่/วันที่ต่างกันชัดเจน) ' +
     'ถ้าไม่แน่ใจว่าควรแยกหรือรวม ให้เอนเอียงไปทาง "แยกเป็นคนละเอกสาร" ไว้ก่อนเสมอ เพราะฝั่งเว็บจะให้คนตรวจแก้ไขการแบ่งกลุ่มได้อยู่แล้ว\n' +
-    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"bills": [ {...}, {...} ]} — แต่ละสมาชิกใน "bills" คือเอกสาร 1 ใบ มีฟิลด์ดังนี้:\n' +
-    '"photoIndices": array ของเลข index (0-based ตรงกับลำดับรูปที่ให้มา) ของรูปทั้งหมดที่เป็นของเอกสารใบนี้ (number[]) — ทุกรูปต้องถูกจัดอยู่ในบิลใดบิลหนึ่งเสมอ ห้ามตกหล่นรูปไหนไป\n' +
-    '"items": อ่านทุกบรรทัดรายการที่เห็นในรูปของเอกสารใบนี้ (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แต่ละสมาชิกในรูปแบบ ' +
-    '{"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
-    '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
-    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ\n' +
-    '"billHeader": ใส่เฉพาะเมื่อบิลนี้เป็นเอกสารของบริษัทที่จดทะเบียนจริง (มีเลขประจำตัวผู้เสียภาษี/Tax ID พิมพ์ไว้ หรือเลขที่เอกสารรันเป็นชุดแบบพิมพ์ ไม่ใช่เขียนมือ) ' +
-    'รูปแบบ {"billDate": วันที่บนบิล เป็น string ตามที่เขียน (string), "billNumber": เลขที่เอกสาร/ใบกำกับภาษี (string), ' +
-    '"subtotal": ยอดรวมก่อนภาษี (number), "vat": ยอดภาษีมูลค่าเพิ่ม (number, ใส่ 0 ถ้าบิลนี้ไม่มี VAT แต่ยังเป็นเอกสารบริษัท), "total": ยอดรวมสุทธิ (number)}. ' +
-    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง';
+    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"groups": [ {"photoIndices": [...]}, {...} ] } — แต่ละสมาชิกใน "groups" คือเอกสาร 1 ใบ ' +
+    '"photoIndices" คือ array ของเลข index (0-based ตรงกับลำดับรูปที่ให้มา) ของรูปทั้งหมดที่เป็นของเอกสารใบนี้ (number[]) — ทุกรูปต้องถูกจัดอยู่ในกลุ่มใดกลุ่มหนึ่งเสมอ ห้ามตกหล่นรูปไหนไป';
 
   const parts = [{ text: promptText }];
   body.photos.forEach(dataUrl => {
@@ -1392,39 +1392,19 @@ function analyzeBillBatch(body) {
   });
 
   const result = callGemini(parts);
-  if (!result || !Array.isArray(result.bills) || !result.bills.length) throw new Error('แยกบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+  if (!result || !Array.isArray(result.groups) || !result.groups.length) throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
 
-  // จับคู่ ProductAlias เหมือน analyzeBillPhoto ทุกประการ (คัดลอก logic มาตรงๆ แทนที่จะแยกฟังก์ชันร่วม
-  // เพื่อไม่ต้องแก้ analyzeBillPhoto ไปเรียก helper ใหม่ — กันความเสี่ยงกับโค้ดที่ใช้งานจริงอยู่ทุกวัน)
-  const aliases = getProductAliasIndex(body.supplierId);
-  const bills = result.bills.map(bill => {
-    const items = Array.isArray(bill.items) ? bill.items : [];
-    const normalized = items.map(it => {
-      const billText = String(it.billText || '').trim();
-      const match = findAliasMatch(aliases, billText);
-      return {
-        billText, qty: Number(it.qty) || 0,
-        unit: String(it.unit || 'หน่วย').trim(),
-        unitPrice: Number(it.unitPrice) || 0,
-        likelyNonProduct: !!it.likelyNonProduct,
-        productId: match ? match.ProductID : null,
-        conversionFactor: match ? (Number(match.ConversionFactor) || 1) : null,
-        matchType: match ? match.matchType : null,
-        matchedAliasText: (match && match.matchType === 'fuzzy') ? match.BillText : null
-      };
-    });
-    const photoIndices = Array.isArray(bill.photoIndices)
-      ? bill.photoIndices.map(Number).filter(i => Number.isInteger(i) && i >= 0 && i < n)
-      : [];
-    return { photoIndices, items: normalized, billHeader: sanitizeBillHeader(bill.billHeader) };
-  });
+  const groups = result.groups.map(g => ({
+    photoIndices: Array.isArray(g.photoIndices)
+      ? g.photoIndices.map(Number).filter(i => Number.isInteger(i) && i >= 0 && i < n)
+      : []
+  }));
 
-  // กันรูปซ้ำ (Gemini อาจใส่ index เดียวกันไว้ในสองบิลพร้อมกันโดยไม่ได้ตั้งใจ) — ให้บิลแรกที่อ้างถึงรูปนั้น
-  // เป็นเจ้าของไปเลย ตัดออกจากบิลถัดๆ ไป กันรูปเดียวกันถูกอัปโหลด/ส่งซ้ำสองบิลตอน submitBillForReview
-  // (ไม่งั้นรูปจะไปโผล่ในหน้ารีวิวสองการ์ดพร้อมกันแบบไม่มีใครสังเกต แล้วถูกส่งจริงซ้ำสองรอบ)
+  // กันรูปซ้ำ (Gemini อาจใส่ index เดียวกันไว้ในสองกลุ่มพร้อมกันโดยไม่ได้ตั้งใจ) — ให้กลุ่มแรกที่อ้างถึง
+  // รูปนั้นเป็นเจ้าของไปเลย ตัดออกจากกลุ่มถัดๆ ไป กันรูปเดียวกันถูกอ่าน/ส่งซ้ำสองบิลทีหลัง
   const covered = {};
-  bills.forEach(b => {
-    b.photoIndices = b.photoIndices.filter(i => {
+  groups.forEach(g => {
+    g.photoIndices = g.photoIndices.filter(i => {
       if (covered[i]) return false;
       covered[i] = true;
       return true;
@@ -1435,9 +1415,9 @@ function analyzeBillBatch(body) {
   // ไม่มีกลุ่มไปรวมเป็นเอกสารเดี่ยวท้ายสุดแทนที่จะปล่อยหายไปเงียบๆ ให้คนตรวจที่หน้ารีวิวเห็น/จัดการเอง
   const missing = [];
   for (let i = 0; i < n; i++) if (!covered[i]) missing.push(i);
-  if (missing.length) bills.push({ photoIndices: missing, items: [], billHeader: null });
+  if (missing.length) groups.push({ photoIndices: missing });
 
-  return { bills };
+  return { groups };
 }
 
 // ทำความสะอาดผลลัพธ์ billHeader จาก Gemini ให้เป็น null หรือ object ที่มี field ครบเสมอ — กัน AI ส่งค่า

@@ -1344,47 +1344,69 @@ function renderBillAnalyzing(app){
 }
 
 /* ---- 4b) กำลังแยกหลายบิล (โหมดใหม่ 7 ก.ย. 69 — ดู analyzeBillBatch ใน Code.gs) ---- */
+// อัปเดต 7 ก.ย. 69: เดิมยิงคำขอเดียวให้ Gemini ทั้งแยกกลุ่ม+อ่านรายการทุกบิลพร้อมกัน พบจริงใน Executions
+// log ว่ากินเวลาถึง ~104 วิ (เทียบ analyzeBillPhoto บิลเดี่ยวที่ 45-49 วิผ่านทุกครั้ง) ทำให้เจอ "Load
+// failed" ซ้ำๆ ทุกรอบที่ทดสอบจริง (การเชื่อมต่อทนคำขอยาวขนาดนั้นไม่ไหว) — แก้เป็น 2 ขั้นตอน: (1)
+// analyzeBillBatch เร็วๆ แค่แยกกลุ่มรูปอย่างเดียว (2) วน analyzeBillPhoto ตัวเดิมที่พิสูจน์แล้วว่าไหว
+// ทีละกลุ่ม เป็นคำขอสั้นๆ หลายครั้งแทนคำขอยาวครั้งเดียว
 function renderBillBatchAnalyzing(app){
   app.appendChild(topbar('กำลังแยกเอกสาร', {}));
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `<div class="analyzing-wrap">
       <div class="spin-ring"></div>
-      <h2>กำลังตรวจสอบขอบเขตบิล...</h2>
-      <p>แยกว่ารูปไหนเป็นบิลใบเดียวกัน ก่อนอ่านรายการ/ราคาแยกทีละใบ อาจใช้เวลาสักครู่</p>
+      <h2 id="analyzeStage">กำลังตรวจสอบขอบเขตบิล...</h2>
+      <p id="analyzeMsg">แยกว่ารูปไหนเป็นบิลใบเดียวกันก่อน อาจใช้เวลาสักครู่</p>
     </div>`;
   app.appendChild(c);
 
-  // timeout เดียวกับ analyzeBillPhoto ปกติ (270 วิ ดูเหตุผลเต็มๆ ที่คอมเมนต์ renderBillAnalyzing ด้านบน) —
-  // งานหนักพอกัน (Gemini อ่านรูปชุดเดียวกัน แค่ต้องแยกกลุ่มเอกสารเพิ่มด้วย)
-  apiPost('analyzeBillBatch', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000)
-    .then(res=>{
-      const groups = (res.bills||[]).map((bill, gi)=>({
-        photoIndices: bill.photoIndices||[],
-        items: (bill.items||[]).map((it,i)=>({
-          _id: 'g'+gi+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
-          receivedQty: it.qty,
-          unitPrice: it.unitPrice,
-          likelyNonProduct: !!it.likelyNonProduct, skip: !!it.likelyNonProduct,
-          productId: it.productId || null, factor: it.conversionFactor || null,
-          matchType: it.matchType || null, matchedAliasText: it.matchedAliasText || null,
-          confirmed: it.matchType === 'exact',
-        })),
-        billHeader: bill.billHeader || null,
-        reviewed: false, submitted: false,
-      }));
-      if(!groups.length){ throw new Error('แยกบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
+  function showError(err){
+    c.querySelector('.analyzing-wrap').innerHTML = `
+      <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">แยกบิลไม่สำเร็จ</p>
+      <p style="margin-bottom:16px;">${err.message}</p>
+      <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
+      <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
+    `;
+    c.querySelector('#retryAnalyze').onclick = ()=> render();
+    c.querySelector('#backCapture').onclick = ()=> go('billCapture');
+  }
+
+  (async ()=>{
+    try{
+      // ขั้น 1: แยกกลุ่มรูปอย่างเดียว (เร็ว ไม่อ่านรายการสินค้าเลย)
+      const groupsRes = await apiPost('analyzeBillBatch', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000);
+      const rawGroups = groupsRes.groups || [];
+      if(!rawGroups.length){ throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
+
+      // ขั้น 2: อ่านรายการสินค้าทีละกลุ่มด้วย analyzeBillPhoto ตัวเดิมที่ใช้งานจริงทุกวัน (เร็ว/นิ่งกว่ามาก
+      // เพราะแต่ละคำขอมีแค่รูปของบิลใบเดียว) — วนทีละกลุ่มจริงตามลำดับ ไม่ยิงพร้อมกันหลายคำขอ
+      const groups = [];
+      for(let gi=0; gi<rawGroups.length; gi++){
+        const photoIndices = rawGroups[gi].photoIndices || [];
+        const stageEl = c.querySelector('#analyzeStage'), msgEl = c.querySelector('#analyzeMsg');
+        if(stageEl) stageEl.textContent = `กำลังอ่านบิลที่ ${gi+1}/${rawGroups.length}...`;
+        if(msgEl) msgEl.textContent = 'กำลังแยกรายการ จำนวน และราคาของบิลใบนี้ อาจใช้เวลาสักครู่';
+        const photos = photoIndices.map(i=> state.billPhotos[i]);
+        const res = await apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, false, 270000);
+        groups.push({
+          photoIndices,
+          items: (res.items||[]).map((it,i)=>({
+            _id: 'g'+gi+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
+            receivedQty: it.qty,
+            unitPrice: it.unitPrice,
+            likelyNonProduct: !!it.likelyNonProduct, skip: !!it.likelyNonProduct,
+            productId: it.productId || null, factor: it.conversionFactor || null,
+            matchType: it.matchType || null, matchedAliasText: it.matchedAliasText || null,
+            confirmed: it.matchType === 'exact',
+          })),
+          billHeader: res.billHeader || null,
+          reviewed: false, submitted: false,
+        });
+      }
       go('billBatchReview', {billBatchGroups: groups}, {replace:true});
-    })
-    .catch(err=>{
-      c.querySelector('.analyzing-wrap').innerHTML = `
-        <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">แยกบิลไม่สำเร็จ</p>
-        <p style="margin-bottom:16px;">${err.message}</p>
-        <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
-        <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
-      `;
-      c.querySelector('#retryAnalyze').onclick = ()=> render();
-      c.querySelector('#backCapture').onclick = ()=> go('billCapture');
-    });
+    }catch(err){
+      showError(err);
+    }
+  })();
 }
 
 /* ---- 5) ตรวจสอบ/จับคู่รายการ ---- */
