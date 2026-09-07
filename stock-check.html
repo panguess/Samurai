@@ -392,7 +392,7 @@
   .supplier-mismatch-warning .btn{padding:7px 12px; font-size:12px;}
   .bill-photo-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;}
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
-  .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block;}
+  .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block; transition:transform .15s ease; transform-origin:center top;}
   .bill-photo-lightbox .lb-close{position:absolute; top:20px; right:18px; color:#fff; font-size:26px; background:none; border:none; cursor:pointer; padding:6px;}
 
   /* ============ โหมดใหม่ 7 ก.ย. 69: แยกหลายบิลอัตโนมัติ ============ */
@@ -494,6 +494,29 @@ async function apiPost(action, payload, retryOnTimeout, timeoutMs){
 // ก็ไม่มีข้อมูลซ้ำซ้อน — คนละกรณีกับ retryOnTimeout ของ apiPost() ด้านบนที่สงวนไว้เฉพาะ action "set"
 // ค่าตรงๆ (retry แค่ 1 ครั้งตอน AbortError) ห้ามเอาฟังก์ชันนี้ไปใช้กับ action ที่สร้างแถวใหม่/อัปโหลดไฟล์
 // (submitBillForReview, finalizePurchaseReceipt ฯลฯ) เด็ดขาด เพราะจะยิงซ้ำแล้วสร้างข้อมูลซ้อนจริง
+// เปิดดูรูปบิลเต็มจอ — บนมือถือบีบนิ้วซูมได้เองอยู่แล้วจากเบราว์เซอร์ (viewport ไม่ได้ปิด user-scalable
+// ไว้) ไม่ต้องเขียนอะไรเพิ่ม แต่บนคอมพิวเตอร์ไม่มีนิ้วให้บีบ (เจอจริง 7 ก.ย. 69 — เจ้าของรีวิวบิลผ่านคอม
+// บางครั้ง) เลยเพิ่มดับเบิลคลิก/เมาส์สกอลล์ซูมให้ใช้ได้ทั้งสองทาง ใช้ร่วมกันทั้งหน้ารีวิวบิลปกติและโหมด
+// หลายบิล กันโค้ดซ้ำ 2 จุด
+function openBillPhotoLightbox(urls){
+  const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
+  lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
+    <div class="lb-scroll">${urls.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
+  lb.onclick = (e)=>{ if(e.target===lb) lb.remove(); };
+  lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+  lb.querySelectorAll('img').forEach(img=>{
+    let scale = 1;
+    const applyScale = ()=>{ img.style.transform = `scale(${scale})`; img.style.cursor = scale>1 ? 'zoom-out' : 'zoom-in'; };
+    img.ondblclick = (e)=>{ e.stopPropagation(); scale = scale>1 ? 1 : 2.2; applyScale(); };
+    img.addEventListener('wheel', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      scale = Math.min(4, Math.max(1, scale + (e.deltaY<0 ? 0.25 : -0.25)));
+      applyScale();
+    }, {passive:false});
+    applyScale();
+  });
+  document.body.appendChild(lb);
+}
 async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt){
   let lastErr;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
@@ -1377,9 +1400,13 @@ function renderBillAnalyzing(app){
       go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billMode:'staff'}, {replace:true});
     })
     .catch(err=>{
+      // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
+      // ยืนยันว่า backend สำเร็จทุกครั้ง (ไม่มี [analyzeBillPhoto] prefix แปลว่าพังฝั่ง client ตอนประมวลผล
+      // response ไม่ใช่ backend) โชว์ stack trace ชั่วคราวเพื่อไล่หาบรรทัดที่พังจริงจากอุปกรณ์จริง
       c.querySelector('.analyzing-wrap').innerHTML = `
         <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">อ่านบิลไม่สำเร็จ</p>
         <p style="margin-bottom:16px;">${err.message}</p>
+        ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
         <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
         <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
       `;
@@ -1408,6 +1435,7 @@ function renderBillBatchAnalyzing(app){
     c.querySelector('.analyzing-wrap').innerHTML = `
       <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">แยกบิลไม่สำเร็จ</p>
       <p style="margin-bottom:16px;">${err.message}</p>
+      ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
       <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
       <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
     `;
@@ -1505,14 +1533,7 @@ function renderBillReview(app){
   app.appendChild(c);
   const wrongSupplierBtn = c.querySelector('#wrongSupplierBtn');
   if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=> go('billSupplier');
-  c.querySelector('#viewPhoto').onclick = ()=>{
-    const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
-    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
-      <div class="lb-scroll">${state.billPhotos.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
-    document.body.appendChild(lb);
-  };
+  c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(state.billPhotos);
 
   const listEl = c.querySelector('#itemList');
 
@@ -1850,14 +1871,7 @@ function renderBillBatchItemReview(app){
     </div>
   `;
   app.appendChild(c);
-  c.querySelector('#viewPhoto').onclick = ()=>{
-    const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
-    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
-      <div class="lb-scroll">${groupPhotos.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
-    document.body.appendChild(lb);
-  };
+  c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(groupPhotos);
 
   const listEl = c.querySelector('#itemList');
   function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
@@ -2186,8 +2200,25 @@ async function renderBillPendingList(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
   app.appendChild(c);
-  try{
-    const { batches } = await apiGet('pendingBills');
+
+  // เจอจริง 7 ก.ย. 69: หน้านี้เคย apiGet('pendingBills') ครั้งเดียวจบ ไม่มี retry เลย (ต่างจาก
+  // bootstrap() ที่ retry เงียบๆ ให้อยู่แล้ว) พอเจอการเชื่อมต่อหลุดแวบเดียว (Executions log ยืนยันว่า
+  // backend สำเร็จเร็วทุกครั้ง <3 วิ) ก็ขึ้น "หมดเวลาเชื่อมต่อ" ทันทีโดยไม่มีแม้แต่ปุ่ม "ลองใหม่" ให้กด
+  // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — ใส่ retry แบบเดียวกับ bootstrap (สั้นก่อน แล้วเต็มอีกรอบ) +
+  // เพิ่มปุ่มลองใหม่ไว้เผื่อพังทั้งสองรอบจริงๆ
+  async function load(){
+    c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
+    let data;
+    try{
+      try{ data = await apiGet('pendingBills', null, 10000); }
+      catch(firstErr){ data = await apiGet('pendingBills'); }
+    }catch(err){
+      c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
+        <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
+      c.querySelector('#retryPending').onclick = load;
+      return;
+    }
+    const { batches } = data;
     if(!batches.length){ c.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
     c.innerHTML = batches.map(b=>{
       const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
@@ -2212,9 +2243,8 @@ async function renderBillPendingList(app){
         billSupplierMismatchWarning: null
       });
     });
-  }catch(err){
-    c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>`;
   }
+  load();
 }
 
 /* ============ STAFF: supplier list (all suppliers always shown) ============ */
