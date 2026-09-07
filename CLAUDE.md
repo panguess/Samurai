@@ -198,6 +198,55 @@ timeout ทั้ง auto-retry และการกดซ้ำของลู
 **Backlog ที่ยังไม่ทำ (ตั้งใจพักไว้)**: จำกัดช่วงข้อมูลย้อนหลังที่ `getAdminOrders()` ส่งกลับ (ตอนนี้ส่งออเดอร์ทั้งหมด
 ทุกปีทุกครั้ง ไม่มี limit) — ตอนคุยกันข้อมูลมีแค่ ~3 เดือนยังไม่กระทบมาก แต่จะเป็นปัญหาความเร็วเพิ่มขึ้นเรื่อยๆ ตามอายุร้าน
 ถ้าจะทำต้องคุยก่อนว่าฟีเจอร์ "ภาพรวม/กราฟยอดขาย" (`renderAdminOverview`) ต้องดูย้อนหลังกี่เดือน ไม่งั้นจะพังฟีเจอร์นั้น
+**(อัปเดต 7 ก.ย. 69: ทำเสร็จแล้ว ดูหัวข้อด้านล่าง — backlog นี้ปิดแล้ว)**
+
+### สถานะล่าสุด (อัปเดต 7 ก.ย. 69) — ตรวจสอบ performance/security ทั้งไฟล์ + แยก endpoint โหลดข้อมูลแอดมิน
+
+**Telegram ปิดเคสแล้ว** — ผู้ใช้ยืนยันว่าใช้งานได้ปกติแล้ว (ปัญหาเดิมจาก 4 ก.ย. ที่ค้างไว้)
+
+**ตรวจโค้ดทั้ง `index.html` (3,008 บรรทัด) และ `Code.gs` จริงที่ผู้ใช้อัปโหลดมา** ตามคำขอ "เช็คว่ามีจุดไหนทำให้แอปเร็วขึ้นได้อีก มีบั๊กไหม มีจุดเสี่ยงตรงไหนอีก" สรุปที่ยืนยันแล้วว่าเป็นเรื่องจริง (ไม่ใช่แค่สงสัย):
+
+⚠️ **[ยังไม่แก้] ช่องโหว่ความปลอดภัยสำคัญที่สุด**: `doGet`/`doPost` ใน `Code.gs` ไม่มีการเช็คสิทธิ์/key ใดๆ เลยแม้แต่จุดเดียว
+(`ADMIN_KEY='shop123'` ใน `index.html` เป็นแค่ตัวกรอง UI ฝั่ง browser เท่านั้น ไม่เคยถูกส่งไปเช็คที่ backend) — ใครก็ตามที่รู้ URL
+ของ `API` (เปิดเผยอยู่ใน `index.html` บน GitHub) ยิง `getAdminOrders`/`getAdminOrdersFull` ตรงๆ จะดึงชื่อ+ออเดอร์ลูกค้าทั้งร้าน
+ออกมาได้หมด และยิง `updateOrder`/`updateDelivery`/`cancelOrder`/`addBusinessNote`/`deleteBusinessNote` แก้ไขข้อมูลได้อิสระ
+โดยไม่ต้องผ่านหน้าเว็บเลย — pattern เดียวกับที่แอปเช็คสต๊อกเป็น แต่แอปนี้เก็บข้อมูลลูกค้าจริงจึงเสี่ยงกว่า
+
+⚠️ **[ยังไม่แก้] Stored XSS ผ่านช่องโน้ต**: `note` (ลูกค้าพิมพ์ตอนสั่งของ) และ `text` (โน้ตแอดมิน) ถูกเขียนลง Sheet ตรงๆ
+ไม่มีการ sanitize ทั้งฝั่ง frontend/backend แล้ว render ผ่าน `innerHTML` แบบไม่ escape ในหลายจุด (`buildHistoryCard`,
+`buildPendingAdminCard`, `buildDoneAdminCard`, `renderOverviewNotePanel`) — รวมกับข้อบนที่ backend ไม่เช็คสิทธิ์เลย
+ทำให้คนนอกยิง `createOrder`/`addBusinessNote` พร้อม payload สคริปต์ตรงๆ แล้วไปรันในเบราว์เซอร์แอดมินได้ทันที
+ไม่ต้องผ่านฟอร์มสั่งของด้วยซ้ำ
+
+⚠️ **[ยังไม่แก้] `total` ไม่ถูกคำนวณใหม่ที่ backend**: `createOrder`/`updateOrder` เชื่อค่า `data.total` จาก client 100%
+ไม่มีการ recompute จากราคาสินค้าจริงใน Sheet เลย
+
+⚠️ **[ยังไม่แก้] `parseItems` เปราะบาง**: เก็บรายการสินค้าเป็น string `"ชื่อ xจำนวน, ชื่อ xจำนวน"` แล้ว `split(', ')` กลับ
+— ถ้าตั้งชื่อสินค้าที่มี comma อยู่ในชื่อ การ parse จะพังแบบเงียบๆ (ยอด/รายการผิดโดยไม่มี error ให้เห็น)
+
+✅ **[ทำเสร็จแล้ว] แยก endpoint โหลดข้อมูลแอดมิน** (ปิด backlog เดิมจาก 4 ก.ย.) — ก่อนแก้ทำเดโม่เทียบ performance ด้วยข้อมูลจำลอง
+เป็น Claude Artifact ให้ดูก่อน (ตามที่ผู้ใช้ขอ "ต้องแก้เรื่องมีผลต่อความหน่วงของแอปก่อน") ได้รับ approve แล้วค่อย implement จริง:
+- `Code.gs`: เพิ่ม `filterAdminOrdersWindow()` + ค่าคงที่ `ADMIN_ORDERS_WINDOW_DAYS=60` — `getAdminOrders()` (เดิม) ตอนนี้ส่งแค่
+  pending/packing (ทุกอายุ) + done/cancelled ย้อนหลัง 60 วัน ใช้กับแท็บหลัก (รอจัด/กำลังจัด/เสร็จวันนี้) และ auto-refresh ทุก 30 วิ
+- `Code.gs`: เพิ่ม action ใหม่ `getAdminOrdersFull()` ส่งข้อมูลเต็มทุกปีแบบเดิม ใช้เฉพาะตอนแอดมินเปิดแท็บ "ภาพรวม"/แดชบอร์ดเท่านั้น
+- `index.html`: เพิ่มตัวแปร `allAdminOrdersFull` + ฟังก์ชัน `fetchFullAdminOrders()` — `switchAdminTab('overview')` และ auto-refresh
+  ตอนอยู่แท็บภาพรวม จะเรียก `getAdminOrdersFull` แยกต่างหาก ส่วนจุดที่ใช้ `allAdminOrders` (windowed) เดิมทั้งหมด
+  (`renderAdminOrders`, การหา order ด้วย id ในแท็บหลัก) ไม่ต้องแก้เพราะข้อมูลที่ต้องใช้อยู่ในหน้าต่าง 60 วันอยู่แล้วเสมอ
+  ส่วนที่ต้องดูย้อนหลังได้ไกลกว่านั้น (`getAvailableOverviewMonths`, `ov_doneOrdersInRange`, `renderAdminOverview`'s
+  `activeOrders`, `db_doneOrders`) เปลี่ยนไปอ่านจาก `allAdminOrdersFull` แทน
+- ทดสอบผ่าน Playwright E2E จริง (mock API ที่ `page.route()`) ยืนยันว่า: เปิดแอดมินครั้งแรกยิงแค่ `getAdminOrders` ไม่ยิง Full
+  โดยไม่จำเป็น, เปิดแท็บภาพรวมยิง `getAdminOrdersFull` แค่ 1 ครั้งและเห็นออเดอร์เก่ากว่า 60 วันได้ถูกต้องเมื่อเลือกฟิลเตอร์ "ทั้งหมด",
+  สลับกลับแท็บหลักใช้งานปกติไม่มี JS error
+- Push แล้ว (commit `17e7ef1` บน `main`) และผู้ใช้ deploy `Code.gs` ใหม่ผ่าน Apps Script Editor (Manage deployments → New version) แล้ว
+
+**Backlog ที่ยังไม่ทำ (เรียงตามความสำคัญ ตกลงกันไว้ว่าจะทำต่อ)**:
+1. เพิ่ม key check ที่ backend สำหรับ action ฝั่งแอดมินทั้งหมด (`getAdminOrders`, `getAdminOrdersFull`, `updateOrder`,
+   `updateDelivery`, `cancelOrder`, `addBusinessNote`, `deleteBusinessNote`) — เก็บ key ไว้ใน Script Properties เหมือน
+   `TELEGRAM_BOT_TOKEN`, ฝั่ง action ของลูกค้า (`getCustomer`/`getProducts`/`getOrders` เฉพาะ id ตัวเอง/`createOrder`) ปล่อยผ่านได้ตามเดิม
+2. Escape user input (`note`, business note `text`) ก่อน render ด้วย `innerHTML` ทุกจุดที่ระบุไว้ด้านบน
+3. คำนวณ `total` ใหม่ที่ backend จากราคาสินค้าจริงใน Sheet แทนเชื่อค่าจาก client
+4. กันชื่อสินค้ามี comma ปนใน `parseItems`/รูปแบบเก็บ `items`
+ข้อ 1-2 ควรทำพร้อมกันก่อนเป็นอันดับแรก เพราะเป็นช่องโหว่จริงที่ยืนยันแล้วทั้งสองฝั่ง
 
 ## Bill Templates by Supplier
 
