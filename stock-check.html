@@ -381,6 +381,39 @@
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block;}
   .bill-photo-lightbox .lb-close{position:absolute; top:20px; right:18px; color:#fff; font-size:26px; background:none; border:none; cursor:pointer; padding:6px;}
 
+  /* ============ โหมดใหม่ 7 ก.ย. 69: แยกหลายบิลอัตโนมัติ ============ */
+  .batch-toggle{border:1.5px solid var(--purple); background:var(--purple-bg); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:10px; align-items:flex-start; cursor:pointer;}
+  .batch-toggle input{margin-top:2px; accent-color:var(--purple); width:16px; height:16px; flex-shrink:0;}
+  .batch-toggle .bt-title{font-size:13px; font-weight:700; color:var(--purple); margin:0 0 2px; display:flex; align-items:center; gap:5px;}
+  .batch-toggle .bt-body{font-size:12px; color:var(--text-secondary); line-height:1.5; margin:0;}
+  .batch-toggle .bt-new{font-weight:700; background:var(--purple); color:#fff; font-size:9px; padding:1px 6px; border-radius:999px; margin-left:5px;}
+
+  .batch-progress{font-size:12.5px; color:var(--text-secondary); margin-bottom:12px; display:flex; justify-content:space-between; align-items:baseline;}
+  .batch-progress b{color:var(--text);}
+
+  .batch-card{border:1px solid var(--border); border-radius:var(--radius-lg); background:#fff; padding:13px; margin-bottom:11px;}
+  .batch-card .bc-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:9px;}
+  .batch-card .bc-thumbs{display:flex;}
+  .batch-card .bc-thumbs .bill-photo-chip{width:36px; height:48px; margin-left:-13px;}
+  .batch-card .bc-thumbs .bill-photo-chip:first-child{margin-left:0;}
+  .batch-card .bc-info{flex:1; min-width:0;}
+  .batch-card .bc-title{font-size:13.5px; font-weight:700; margin:0 0 2px;}
+  .batch-card .bc-sub{font-size:11.5px; color:var(--text-secondary); margin:0;}
+  .status-pill.pending{background:var(--brand-bg); color:var(--text-secondary);}
+  .status-pill.done{background:var(--green-bg); color:var(--green);}
+  .batch-card .bc-figures{display:flex; gap:14px; font-size:12px; color:var(--text-secondary); margin:8px 0 10px; padding-top:8px; border-top:1px dashed var(--border);}
+  .batch-card .bc-figures b{color:var(--text); font-variant-numeric:tabular-nums;}
+  .batch-card .bc-actions{display:flex; gap:8px;}
+  .batch-card .bc-actions .btn{flex:1; justify-content:center; text-align:center;}
+
+  .regroup-grid{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px;}
+  .regroup-chip{position:relative; cursor:pointer;}
+  .regroup-chip .bill-photo-chip{transition:box-shadow 0.15s;}
+  .regroup-chip.is-picked .bill-photo-chip{box-shadow:0 0 0 3px var(--purple);}
+  .regroup-chip .rg-badge{position:absolute; bottom:3px; left:3px; background:rgba(28,26,20,0.72); color:#fff; font-size:9px; font-weight:700; padding:1px 5px; border-radius:5px;}
+  .regroup-chip .rg-check{position:absolute; top:3px; right:3px; width:18px; height:18px; border-radius:50%; background:var(--purple); color:#fff; display:none; align-items:center; justify-content:center; font-size:10px;}
+  .regroup-chip.is-picked .rg-check{display:flex;}
+
   .pending-row{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:9px; cursor:pointer;}
   .pending-row .pr-body{flex:1; min-width:0;}
   .pending-row .pr-title{font-size:14px; font-weight:600;}
@@ -791,7 +824,12 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   billStaffName:'', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0,
   // ข้อมูลหัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — Gemini อ่านให้เฉพาะบิลบริษัทจดทะเบียนเท่านั้น
   // เป็น null เสมอสำหรับบิลเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ (ดู renderBillReview — ไม่แสดงการ์ดนี้เลยถ้า null)
-  billHeader:null };
+  billHeader:null,
+  // ============ โหมดใหม่ 7 ก.ย. 69: อัปโหลดรูปหลายบิลพร้อมกัน (ดู renderBillBatchReview) ============
+  // billBatchGroups: [{photoIndices:[int,...], items:[...], billHeader, reviewed:bool, submitted:bool}, ...]
+  // — แต่ละสมาชิกคือ 1 บิลที่ AI แยกให้ (หรือคนแก้กลุ่มเองผ่าน renderBillBatchRegroup) reviewed:true เมื่อ
+  // กด "ยืนยันบิลนี้" ที่ renderBillBatchItemReview, submitted:true เมื่อส่ง submitBillForReview สำเร็จแล้ว
+  billBatchGroups:[], billBatchActiveIndex:null, billBatchRegroupFrom:null, billBatchSubmittedCount:null };
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
@@ -944,6 +982,10 @@ function render(){
     billStaff: renderBillStaff, billSupplier: renderBillSupplier, billCapture: renderBillCapture,
     billAnalyzing: renderBillAnalyzing, billReview: renderBillReview, billSuccess: renderBillSuccess,
     billPendingList: renderBillPendingList,
+    // โหมดใหม่ 7 ก.ย. 69 — อัปโหลดรูปหลายบิลพร้อมกัน (ดูคอมเมนต์หัวบล็อกฟังก์ชันพวกนี้)
+    billBatchAnalyzing: renderBillBatchAnalyzing, billBatchReview: renderBillBatchReview,
+    billBatchItemReview: renderBillBatchItemReview, billBatchRegroup: renderBillBatchRegroup,
+    billBatchSuccess: renderBillBatchSuccess,
   };
   (map[state.screen] || renderHome)(app);
 }
@@ -993,7 +1035,7 @@ const c = document.createElement('div'); c.className='content';
   app.appendChild(c);
   c.querySelector('#goStaff').onclick = ()=>go('staffName');
   c.querySelector('#goOwner').onclick = ()=>go('ownerPin');
-  c.querySelector('#goBill').onclick = ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null});
+  c.querySelector('#goBill').onclick = ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null, billBatchGroups:[]});
 }
 
 /* ============ STAFF: choose name ============ */
@@ -1167,7 +1209,7 @@ function renderBillSupplier(app){
         <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
       </div>`;
     }).join('') || `<p class="empty-state">ไม่พบซัพพลายเออร์</p>`;
-    listEl.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[]}));
+    listEl.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[], billBatchGroups:[]}));
   }
   app.appendChild(c);
   draw('');
@@ -1181,6 +1223,13 @@ function renderBillCapture(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <p class="capture-hint">ถ่ายรูปใบส่งของ/ใบวางบิลจาก <b>${sup.name}</b> ให้เห็นชัดทุกรายการ ถ่ายได้หลายรูปถ้าบิลมีหลายหน้า</p>
+    <label class="batch-toggle">
+      <input type="checkbox" id="batchToggle">
+      <span>
+        <p class="bt-title"><i class="ti ti-sparkles" aria-hidden="true"></i> โหมดหลายบิลรวมกัน <span class="bt-new">ใหม่</span></p>
+        <p class="bt-body">เปิดไว้ถ้ารูปที่ถ่ายเป็น<b>บิลคนละใบ/คนละวัน</b> (เช่น ซัพพลายเออร์เอาบิลตกหล่นมาพร้อมบิลวันนี้) — AI จะแยกเอกสารให้เอง แล้วให้ตรวจก่อนส่งทุกใบ</p>
+      </span>
+    </label>
     <div class="bill-photo-strip" id="photoStrip"></div>
     <div class="capture-zone">
       <i class="ti ti-camera" aria-hidden="true"></i>
@@ -1193,6 +1242,7 @@ function renderBillCapture(app){
     <button class="btn btn-primary btn-block" id="analyzeBtn" disabled>วิเคราะห์บิลด้วย AI</button>
   `;
   app.appendChild(c);
+  const batchToggle = c.querySelector('#batchToggle');
 
   // 2 input แยกกัน — กดปุ่มไหนเปิดตัวเลือกนั้นตรงๆ ทันที ไม่ต้องผ่านเมนูเลือก "กล้อง/คลังภาพ" กลางของเบราว์เซอร์อีกที
   const cameraInput = document.createElement('input');
@@ -1215,8 +1265,21 @@ function renderBillCapture(app){
       <div class="bill-photo-chip"><img src="${url}" alt=""><button class="rm" data-i="${i}">✕</button></div>`).join('');
     strip.querySelectorAll('.rm').forEach(b=> b.onclick = ()=>{ state.billPhotos.splice(+b.dataset.i,1); drawPhotos(); });
     c.querySelector('#captureLabel').textContent = state.billPhotos.length ? `เลือกไว้ ${state.billPhotos.length} รูป` : 'ยังไม่มีรูปบิล';
-    c.querySelector('#analyzeBtn').disabled = state.billPhotos.length===0;
+    syncAnalyzeBtn();
   }
+  // โหมดหลายบิลรวมกันต้องมีอย่างน้อย 2 รูปถึงจะมีอะไรให้ AI แยก — สลับข้อความ/ปลายทางของปุ่มตาม toggle
+  function syncAnalyzeBtn(){
+    const btn = c.querySelector('#analyzeBtn');
+    const isBatch = batchToggle.checked;
+    if(isBatch){
+      btn.innerHTML = `<i class="ti ti-sparkles" aria-hidden="true"></i> แยกบิลด้วย AI (${state.billPhotos.length} รูป)`;
+      btn.disabled = state.billPhotos.length < 2;
+    } else {
+      btn.textContent = 'วิเคราะห์บิลด้วย AI';
+      btn.disabled = state.billPhotos.length === 0;
+    }
+  }
+  batchToggle.onchange = syncAnalyzeBtn;
   drawPhotos();
 
   async function onPicked(input){
@@ -1229,7 +1292,7 @@ function renderBillCapture(app){
   cameraInput.onchange = ()=> onPicked(cameraInput);
   galleryInput.onchange = ()=> onPicked(galleryInput);
 
-  c.querySelector('#analyzeBtn').onclick = ()=> go('billAnalyzing');
+  c.querySelector('#analyzeBtn').onclick = ()=> go(batchToggle.checked ? 'billBatchAnalyzing' : 'billAnalyzing');
 }
 
 /* ---- 4) กำลังวิเคราะห์ด้วย AI ---- */
@@ -1271,6 +1334,50 @@ function renderBillAnalyzing(app){
     .catch(err=>{
       c.querySelector('.analyzing-wrap').innerHTML = `
         <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">อ่านบิลไม่สำเร็จ</p>
+        <p style="margin-bottom:16px;">${err.message}</p>
+        <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
+        <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
+      `;
+      c.querySelector('#retryAnalyze').onclick = ()=> render();
+      c.querySelector('#backCapture').onclick = ()=> go('billCapture');
+    });
+}
+
+/* ---- 4b) กำลังแยกหลายบิล (โหมดใหม่ 7 ก.ย. 69 — ดู analyzeBillBatch ใน Code.gs) ---- */
+function renderBillBatchAnalyzing(app){
+  app.appendChild(topbar('กำลังแยกเอกสาร', {}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `<div class="analyzing-wrap">
+      <div class="spin-ring"></div>
+      <h2>กำลังตรวจสอบขอบเขตบิล...</h2>
+      <p>แยกว่ารูปไหนเป็นบิลใบเดียวกัน ก่อนอ่านรายการ/ราคาแยกทีละใบ อาจใช้เวลาสักครู่</p>
+    </div>`;
+  app.appendChild(c);
+
+  // timeout เดียวกับ analyzeBillPhoto ปกติ (270 วิ ดูเหตุผลเต็มๆ ที่คอมเมนต์ renderBillAnalyzing ด้านบน) —
+  // งานหนักพอกัน (Gemini อ่านรูปชุดเดียวกัน แค่ต้องแยกกลุ่มเอกสารเพิ่มด้วย)
+  apiPost('analyzeBillBatch', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000)
+    .then(res=>{
+      const groups = (res.bills||[]).map((bill, gi)=>({
+        photoIndices: bill.photoIndices||[],
+        items: (bill.items||[]).map((it,i)=>({
+          _id: 'g'+gi+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
+          receivedQty: it.qty,
+          unitPrice: it.unitPrice,
+          likelyNonProduct: !!it.likelyNonProduct, skip: !!it.likelyNonProduct,
+          productId: it.productId || null, factor: it.conversionFactor || null,
+          matchType: it.matchType || null, matchedAliasText: it.matchedAliasText || null,
+          confirmed: it.matchType === 'exact',
+        })),
+        billHeader: bill.billHeader || null,
+        reviewed: false, submitted: false,
+      }));
+      if(!groups.length){ throw new Error('แยกบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
+      go('billBatchReview', {billBatchGroups: groups}, {replace:true});
+    })
+    .catch(err=>{
+      c.querySelector('.analyzing-wrap').innerHTML = `
+        <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">แยกบิลไม่สำเร็จ</p>
         <p style="margin-bottom:16px;">${err.message}</p>
         <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
         <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
@@ -1528,6 +1635,386 @@ function renderBillReview(app){
       alert('บันทึกไม่สำเร็จ: ' + err.message);
     }
   };
+}
+
+/* ==================================================================================
+   โหมดใหม่ 7 ก.ย. 69: อัปโหลดรูปหลายบิลพร้อมกัน (ดู analyzeBillBatch ใน Code.gs)
+   จงใจแยกฟังก์ชันชุดนี้ทั้งหมดออกมาต่างหาก ไม่แก้ renderBillReview/renderBillSuccess ข้างบนแม้แต่บรรทัด
+   เดียว — กันฟีเจอร์ใหม่ที่ยังไม่ผ่านการใช้งานจริงกระทบ flow ถ่ายบิลปกติที่พนักงานใช้ทุกวันอยู่แล้ว
+   ทุกจุดที่เขียนข้อมูลจริง (submitBillForReview) เรียกโค้ดเดิมเป๊ะๆ — ไม่มี action ใหม่ที่เขียนชีตเลย
+   ================================================================================== */
+function fmtMoneyBatch(n){ return '฿'+(n||0).toLocaleString('th-TH',{maximumFractionDigits:2}); }
+
+/* ---- 5b) ตรวจสอบการแบ่งบิล — AI แค่ "เสนอ" การแบ่งกลุ่ม ต้องตรวจ/แก้ก่อนส่งเสมอ ---- */
+function renderBillBatchReview(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  app.appendChild(topbar('ตรวจสอบการแบ่งบิล', {back:()=>go('billCapture'), meta: sup.name}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <p class="batch-progress" id="batchProgress"></p>
+    <div id="batchCards"></div>
+    <button class="btn btn-primary btn-block" id="submitAllBtn">ส่งทั้งหมด</button>
+  `;
+  app.appendChild(c);
+  drawBatchCards(c);
+  c.querySelector('#submitAllBtn').onclick = ()=> submitAllBatch(c);
+}
+
+function drawBatchCards(c){
+  const groups = state.billBatchGroups;
+  const doneCount = groups.filter(g=>g.reviewed).length;
+  c.querySelector('#batchProgress').innerHTML = `AI แยกได้ <b>${groups.length} บิล</b> จาก ${state.billPhotos.length} รูป<span>ตรวจแล้ว <b>${doneCount}/${groups.length}</b></span>`;
+
+  const wrap = c.querySelector('#batchCards');
+  wrap.innerHTML = groups.map((g,gi)=>{
+    if(g.submitted) return ''; // ส่งไปแล้ว (เหลือจากกด "ส่งทั้งหมด" ที่พังกลางทาง) ไม่ต้องโชว์ซ้ำ
+    const thumbs = g.photoIndices.map(i=>`<div class="bill-photo-chip"><img src="${state.billPhotos[i]}" alt=""></div>`).join('');
+    const h = g.billHeader;
+    const title = h && h.billNumber ? `บิลที่ ${gi+1} · ${h.billNumber}` : `บิลที่ ${gi+1}`;
+    const sub = h && h.billDate ? `${h.billDate} · ${g.photoIndices.length} รูป` : `${g.photoIndices.length} รูป · ไม่พบข้อมูลหัวบิล`;
+    const total = g.items.filter(it=>!it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
+    return `
+      <div class="batch-card">
+        <div class="bc-head">
+          <div class="bc-thumbs">${thumbs}</div>
+          <div class="bc-info"><p class="bc-title">${title}</p><p class="bc-sub">${sub}</p></div>
+          <span class="status-pill ${g.reviewed?'done':'pending'}">${g.reviewed?'<i class="ti ti-check" aria-hidden="true"></i> ตรวจแล้ว':'รอตรวจ'}</span>
+        </div>
+        <div class="bc-figures"><span>${g.items.length} รายการ</span><span>ยอดรวม <b>${fmtMoneyBatch(total)}</b></span></div>
+        <div class="bc-actions">
+          <button class="btn" data-regroup="${gi}"><i class="ti ti-photo-plus" aria-hidden="true"></i> แก้กลุ่มรูป</button>
+          <button class="btn btn-primary" data-review="${gi}">${g.reviewed?'แก้ไขรายการ':'ตรวจสอบรายการ'}</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('[data-review]').forEach(b=> b.onclick = ()=>{ go('billBatchItemReview', {billBatchActiveIndex:+b.dataset.review}); });
+  wrap.querySelectorAll('[data-regroup]').forEach(b=> b.onclick = ()=>{ go('billBatchRegroup', {billBatchRegroupFrom:+b.dataset.regroup}); });
+
+  const remaining = groups.filter(g=>!g.submitted);
+  const submitBtn = c.querySelector('#submitAllBtn');
+  submitBtn.textContent = `ส่งทั้งหมด ${remaining.length} บิล เข้าคิวให้เจ้าของตรวจ`;
+  submitBtn.disabled = remaining.length===0 || remaining.some(g=>!g.reviewed);
+}
+
+async function submitAllBatch(c){
+  const btn = c.querySelector('#submitAllBtn');
+  const groups = state.billBatchGroups;
+  btn.disabled = true;
+  for(let gi=0; gi<groups.length; gi++){
+    const g = groups[gi];
+    if(g.submitted) continue;
+    btn.textContent = `กำลังส่งบิลที่ ${gi+1}...`;
+    try{
+      // ห้ามใส่ retryOnTimeout — submitBillForReview สร้างแถวใหม่/อัปโหลดรูปทุกครั้งที่เรียก ไม่ idempotent
+      // เหมือนโหมดปกติทุกประการ (ดูคอมเมนต์เดิมใน renderBillReview) วนเรียกทีละบิลจริงตามลำดับ ไม่ยิงพร้อมกัน
+      await apiPost('submitBillForReview', {
+        supplierId: state.billSupplierId, staffName: state.billStaffName,
+        photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader
+      });
+      g.submitted = true;
+    }catch(err){
+      btn.disabled = false;
+      drawBatchCards(c);
+      alert('ส่งบิลที่ ' + (gi+1) + ' ไม่สำเร็จ: ' + err.message + '\nบิลที่ส่งไปแล้วก่อนหน้าไม่ถูกส่งซ้ำ กด "ส่งทั้งหมด" อีกครั้งเพื่อลองบิลที่เหลือต่อได้');
+      return;
+    }
+  }
+  go('billBatchSuccess', {billBatchSubmittedCount: groups.filter(g=>g.submitted).length});
+}
+
+/* ---- 5c) ตรวจสอบรายการของบิลใดบิลหนึ่งในกลุ่ม — โครงเดียวกับ renderBillReview โหมด staff เป๊ะๆ
+   (คัดลอกมาแยกต่างหากแทนที่จะเรียก renderBillReview ร่วม กันความเสี่ยงกับโค้ดโหมดปกติที่ใช้งานจริงทุกวัน)
+   ต่างกันแค่: อ่าน/เขียนลง group object ที่ state.billBatchActiveIndex ชี้อยู่ (ไม่ใช่ state.billItems/
+   billHeader ตรงๆ) และปุ่มยืนยันแค่ mark ว่า group นี้ตรวจแล้ว ไม่เรียก API เลย (ไปเรียกรวมทีเดียวตอนกด
+   "ส่งทั้งหมด" ที่ renderBillBatchReview) ---- */
+function renderBillBatchItemReview(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
+  const g = state.billBatchGroups[state.billBatchActiveIndex];
+  const groupPhotos = g.photoIndices.map(i=> state.billPhotos[i]);
+  app.appendChild(topbar('ตรวจสอบรายการ', { back: ()=> go('billBatchReview'), meta: sup.name }));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <div class="review-bill-strip">
+      ${groupPhotos[0] ? `<img class="rb-thumb" src="${groupPhotos[0]}" alt="">` : ''}
+      <div class="rb-txt">อ่านได้ <b>${g.items.length} รายการ</b> จากรูปบิล ${groupPhotos.length} ใบ<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
+      <button class="btn" id="viewPhoto">ดูรูป</button>
+    </div>
+    <div id="billHeaderSlot"></div>
+    <div id="itemList"></div>
+    <div class="review-footer">
+      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      <button class="btn btn-primary btn-block" id="confirmBtn">ยืนยันบิลนี้</button>
+    </div>
+  `;
+  app.appendChild(c);
+  c.querySelector('#viewPhoto').onclick = ()=>{
+    const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
+    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
+      <div class="lb-scroll">${groupPhotos.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
+    lb.onclick = ()=> lb.remove();
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+    document.body.appendChild(lb);
+  };
+
+  const listEl = c.querySelector('#itemList');
+  function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
+
+  const headerSlot = c.querySelector('#billHeaderSlot');
+  function updateBillHeaderMismatch(){
+    const h = g.billHeader;
+    const slot = headerSlot.querySelector('#bhcMismatchSlot');
+    if(!h || !slot) return;
+    const itemsSum = g.items.filter(it=>!it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
+    const mismatch = h.subtotal && Math.abs(itemsSum - h.subtotal) > 1;
+    slot.innerHTML = mismatch
+      ? `<div class="bhc-mismatch"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ยอดรวมสินค้าที่จับคู่ได้ (${fmtMoneyBatch(itemsSum)}) ไม่ตรงกับยอดบนบิล (${fmtMoneyBatch(h.subtotal)}) — ลองเช็คว่ามีรายการตกหล่น/พิมพ์ยอดผิดไหม</div>`
+      : '';
+  }
+  function renderBillHeaderCard(){
+    const h = g.billHeader;
+    if(!h){ headerSlot.innerHTML = ''; return; }
+    headerSlot.innerHTML = `
+      <div class="bill-header-card">
+        <div class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></div>
+        <div class="bhc-row">
+          <div class="bhc-field"><label>วันที่บิล</label><input type="text" class="bhDate" value="${h.billDate||''}"></div>
+          <div class="bhc-field"><label>เลขที่บิล</label><input type="text" class="bhNumber" value="${h.billNumber||''}"></div>
+        </div>
+        <div class="bhc-row">
+          <div class="bhc-field"><label>ยอดรวมสินค้า (฿)</label><input type="number" step="0.01" class="bhSubtotal" value="${h.subtotal||0}"></div>
+          <div class="bhc-field"><label>ภาษีมูลค่าเพิ่ม (฿)</label><input type="number" step="0.01" class="bhVat" value="${h.vat||0}"></div>
+        </div>
+        <div class="bhc-row" style="margin-bottom:0;">
+          <div class="bhc-field total"><label>ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" class="bhTotal" value="${h.total||0}"></div>
+        </div>
+        <div id="bhcMismatchSlot"></div>
+      </div>`;
+    headerSlot.querySelector('.bhDate').oninput = (e)=>{ h.billDate = e.target.value; };
+    headerSlot.querySelector('.bhNumber').oninput = (e)=>{ h.billNumber = e.target.value; };
+    headerSlot.querySelector('.bhSubtotal').oninput = (e)=>{ h.subtotal = Number(e.target.value)||0; updateBillHeaderMismatch(); };
+    headerSlot.querySelector('.bhVat').oninput = (e)=>{ h.vat = Number(e.target.value)||0; };
+    headerSlot.querySelector('.bhTotal').oninput = (e)=>{ h.total = Number(e.target.value)||0; };
+    updateBillHeaderMismatch();
+  }
+  renderBillHeaderCard();
+
+  function itemCard(it){
+    const card = document.createElement('div');
+    const pendingFuzzy = it.productId && !it.confirmed;
+    card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    const total = (it.qty * it.unitPrice) || 0;
+    const product = products.find(p=>p.id===it.productId);
+    let pillHtml, bodyHtml = '';
+
+    if(it.skip) pillHtml = `<span class="status-pill skip"><i class="ti ti-eye-off" aria-hidden="true"></i> ไม่ใช่สินค้า</span>`;
+    else if(pendingFuzzy) pillHtml = `<span class="status-pill fuzzy"><i class="ti ti-sparkles" aria-hidden="true"></i> คล้ายรายการเดิม — ยืนยัน</span>`;
+    else if(it.productId) pillHtml = `<span class="status-pill matched"><i class="ti ti-check" aria-hidden="true"></i> ${it.matchType==='exact' ? 'จับคู่อัตโนมัติ' : 'จับคู่แล้ว'}</span>`;
+    else pillHtml = `<span class="status-pill unmatched"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ต้องจับคู่</span>`;
+
+    if(!it.skip){
+      if(pendingFuzzy){
+        bodyHtml += `
+          <div class="fuzzy-box">
+            <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
+            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
+            <div class="fz-actions">
+              <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
+              <button class="fz-reject" data-reject="1">ไม่ใช่ เลือกใหม่</button>
+            </div>
+          </div>`;
+      } else if(it.productId){
+        const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+          <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
+      } else {
+        bodyHtml += `<select class="matchSelect">
+            <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
+            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+          </select>`;
+      }
+      if(it.productId && it.needsFactor){
+        bodyHtml += `<div class="conversion-box">
+            <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
+          </div>`;
+      }
+      bodyHtml += `
+        <div class="item-field-row">
+          <div class="item-field"><label>ตามบิล (${it.unit})</label><input type="number" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
+          <div class="item-field received"><label>รับจริง (${it.unit})</label><input type="number" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
+        </div>
+        <div id="driftSlot-${it._id}"></div>
+        <div class="item-field-row">
+          <div class="item-field"><label>ราคา/หน่วย (฿)</label><input type="number" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
+        </div>
+        <div class="item-total"><span>รวมรายการนี้ (ตามบิล)</span><b>${fmtMoneyBatch(total)}</b></div>`;
+    }
+
+    card.innerHTML = `
+      <div class="item-head">
+        <div style="flex:1;min-width:0;">
+          <div class="item-bill-text">${it.billText}</div>
+          <div class="item-bill-raw">อ่านจากบิล: ${it.qty} ${it.unit} × ฿${it.unitPrice}</div>
+        </div>
+        ${pillHtml}
+      </div>
+      ${bodyHtml}
+      ${it.likelyNonProduct ? `<label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก)</label>` : ''}
+    `;
+
+    function renderDrift(){
+      const slot = card.querySelector(`#driftSlot-${it._id}`);
+      if(!slot) return;
+      const d = Number((it.receivedQty - it.qty).toFixed(2));
+      if(!d){ slot.innerHTML = ''; return; }
+      slot.innerHTML = d < 0
+        ? `<div class="drift-flag short"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ซัพพลายเออร์ส่งขาด ${Math.abs(d)} ${it.unit} (บิลระบุ ${it.qty} แต่รับจริง ${it.receivedQty})</div>`
+        : `<div class="drift-flag over"><i class="ti ti-alert-triangle" aria-hidden="true"></i> ได้รับเกินบิล ${d} ${it.unit} (บิลระบุ ${it.qty} แต่รับจริง ${it.receivedQty})</div>`;
+    }
+    renderDrift();
+
+    const sel = card.querySelector('.matchSelect');
+    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; drawAll(); };
+    const rematchBtn = card.querySelector('[data-rematch]');
+    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    const confirmBtn = card.querySelector('[data-confirm]');
+    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; drawAll(); };
+    const rejectBtn = card.querySelector('[data-reject]');
+    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    const fac = card.querySelector('.factorInput');
+    if(fac) fac.oninput = ()=>{ it.factor = fac.value ? Number(fac.value) : null; updateFooter(); };
+    const qtyI = card.querySelector('.qtyInput');
+    if(qtyI) qtyI.oninput = ()=>{ it.qty = Number(qtyI.value)||0; card.querySelector('.item-total b').textContent = fmtMoneyBatch(it.qty*it.unitPrice); updateFooter(); renderDrift(); };
+    const recI = card.querySelector('.receivedInput');
+    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); };
+    const priI = card.querySelector('.priceInput');
+    if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoneyBatch(it.qty*it.unitPrice); updateFooter(); };
+    const skipT = card.querySelector('.skipToggle');
+    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; drawAll(); };
+
+    return card;
+  }
+
+  function drawAll(){
+    listEl.innerHTML = '';
+    g.items.forEach(it=> listEl.appendChild(itemCard(it)));
+    updateFooter();
+  }
+  function updateFooter(){
+    const pending = g.items.filter(it=> !isResolved(it)).length;
+    const total = g.items.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
+    // เหมือนโหมดปกติฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการยืนยัน (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
+    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${g.items.length} รายการ)`;
+    c.querySelector('#rfTotal').textContent = fmtMoneyBatch(total);
+    updateBillHeaderMismatch();
+  }
+  drawAll();
+
+  // ปุ่มนี้แค่ mark ว่ากลุ่มนี้ "ตรวจแล้ว" ในเครื่อง ไม่เรียก API เลย — ข้อมูลถูกส่งจริงทีเดียวตอนกด
+  // "ส่งทั้งหมด" ที่ renderBillBatchReview (เรียก submitBillForReview วนทีละบิล)
+  c.querySelector('#confirmBtn').onclick = ()=>{ g.reviewed = true; go('billBatchReview'); };
+}
+
+/* ---- 5d) แก้กลุ่มรูป — ไม่พยายาม "หั่น" รายการที่ AI อ่านมาแล้วเอง (ไม่รู้ว่าแต่ละรายการมาจากรูปไหน)
+   เลือกรูปที่ต้องการแล้ววิเคราะห์ซ้ำผ่าน analyzeBillPhoto ตัวเดิมที่ใช้งานจริงทุกวันเสมอแทน รับประกันว่า
+   ไม่มีทางได้ผลลัพธ์ปนกันมั่วจากการพยายามแยกข้อมูลที่ผสมกันไปแล้ว ---- */
+function renderBillBatchRegroup(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  app.appendChild(topbar('แก้กลุ่มรูป', {back:()=>go('billBatchReview'), meta: sup.name}));
+  const c = document.createElement('div'); c.className='content';
+  c.innerHTML = `
+    <p class="hint">เลือกรูปที่ควรเป็น<b>บิลเดียวกัน</b> (ข้ามกลุ่มเดิมได้) แล้วให้ AI วิเคราะห์กลุ่มนี้ใหม่ — บิลที่ "ตรวจแล้ว" ถูกล็อกไว้ ไม่กระทบ</p>
+    <div class="regroup-grid" id="regroupGrid"></div>
+    <button class="btn btn-primary btn-block" id="regroupBtn" disabled>วิเคราะห์กลุ่มที่เลือกใหม่</button>
+  `;
+  app.appendChild(c);
+
+  // เผื่อเปิดมาจากปุ่ม "แก้กลุ่มรูปนี้" ของการ์ดใดการ์ดหนึ่ง — ติ๊กรูปของกลุ่มนั้นไว้ให้ก่อนเป็นจุดเริ่ม
+  const seedGroup = state.billBatchRegroupFrom != null ? state.billBatchGroups[state.billBatchRegroupFrom] : null;
+  const picked = new Set(seedGroup ? seedGroup.photoIndices : []);
+
+  // รูปของบิลที่ "ตรวจแล้ว"/ส่งแล้ว ล็อกไว้ไม่ให้แก้กลุ่มซ้ำที่นี่ — กันข้อมูลที่พึ่งยืนยันไปหายเงียบๆ
+  // ถ้าจะแก้บิลนั้นจริงๆ ให้กด "แก้ไขรายการ" ที่หน้าตรวจสอบการแบ่งบิลแทน
+  const lockedSet = new Set();
+  state.billBatchGroups.forEach(gr=>{ if(gr.reviewed || gr.submitted) gr.photoIndices.forEach(i=> lockedSet.add(i)); });
+
+  function draw(){
+    const grid = c.querySelector('#regroupGrid');
+    grid.innerHTML = state.billPhotos.map((url,i)=>{
+      if(lockedSet.has(i)) return '';
+      const isPicked = picked.has(i);
+      const ownerGroup = state.billBatchGroups.find(gr=>gr.photoIndices.includes(i));
+      const gi = state.billBatchGroups.indexOf(ownerGroup);
+      return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}">
+        <div class="bill-photo-chip"><img src="${url}" alt=""></div>
+        <span class="rg-badge">บิลที่ ${gi+1}</span>
+        <span class="rg-check"><i class="ti ti-check" aria-hidden="true"></i></span>
+      </div>`;
+    }).join('');
+    grid.querySelectorAll('[data-i]').forEach(el=> el.onclick = ()=>{
+      const i = +el.dataset.i;
+      if(picked.has(i)) picked.delete(i); else picked.add(i);
+      draw();
+    });
+    c.querySelector('#regroupBtn').disabled = picked.size===0;
+  }
+  draw();
+
+  c.querySelector('#regroupBtn').onclick = async ()=>{
+    const btn = c.querySelector('#regroupBtn');
+    btn.disabled = true; btn.textContent = 'กำลังวิเคราะห์...';
+    try{
+      const selected = [...picked].sort((a,b)=>a-b);
+      const photos = selected.map(i=> state.billPhotos[i]);
+      // เรียก analyzeBillPhoto ตัวเดิมตรงๆ (ไม่ใช่ analyzeBillBatch) — กลุ่มที่คนเลือกเองถือว่าเป็นเอกสาร
+      // เดียวแน่นอนแล้ว ใช้ path ที่ทดสอบมาดีที่สุดในการอ่านให้
+      const res = await apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, false, 270000);
+      const items = (res.items||[]).map((it,i)=>({
+        _id: 'rg'+Date.now()+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
+        receivedQty: it.qty, unitPrice: it.unitPrice,
+        likelyNonProduct: !!it.likelyNonProduct, skip: !!it.likelyNonProduct,
+        productId: it.productId || null, factor: it.conversionFactor || null,
+        matchType: it.matchType || null, matchedAliasText: it.matchedAliasText || null,
+        confirmed: it.matchType === 'exact',
+      }));
+      // ลบรูปที่เพิ่งเลือกออกจากกลุ่มเดิม (เฉพาะกลุ่มที่ยังไม่ตรวจ) — กลุ่มไหนว่างสนิทหลังลบให้ลบทิ้งไปด้วย
+      state.billBatchGroups = state.billBatchGroups.filter(gr=>{
+        if(gr.reviewed || gr.submitted) return true;
+        gr.photoIndices = gr.photoIndices.filter(i=> !selected.includes(i));
+        return gr.photoIndices.length > 0;
+      });
+      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, reviewed:false, submitted:false });
+      go('billBatchReview');
+    }catch(err){
+      btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
+      alert('วิเคราะห์ไม่สำเร็จ: ' + err.message);
+    }
+  };
+}
+
+/* ---- 5e) ส่งครบทุกบิลในกลุ่มแล้ว ---- */
+function renderBillBatchSuccess(app){
+  const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
+  app.appendChild(topbar('บันทึกสำเร็จ', {}));
+  const c = document.createElement('div'); c.className='content';
+  const n = state.billBatchSubmittedCount != null ? state.billBatchSubmittedCount : state.billBatchGroups.filter(g=>g.submitted).length;
+  c.innerHTML = `
+    <div class="success-wrap">
+      <div class="success-icon" style="background:var(--amber-bg); color:var(--amber);"><i class="ti ti-clock" aria-hidden="true"></i></div>
+      <h2>ส่ง ${n} บิลแล้ว</h2>
+      <p>${sup.name} · ถ่ายโดย ${state.billStaffName}</p>
+    </div>
+    <div class="recap-card" style="text-align:left;">
+      <p style="margin:0; font-size:13px; color:var(--text-secondary);">รูปบิลกับสิ่งที่จับคู่ไว้แล้วถูกเก็บไว้ให้ทุกใบ เจ้าของร้านจะเห็นในเมนู "บิลรอตรวจสอบ" แยกกัน ${n} รายการ ตรวจทานแล้วกดบันทึกต้นทุนจริงทีละใบเอง</p>
+    </div>
+    <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
+  `;
+  app.appendChild(c);
+  c.querySelector('#doneBtn').onclick = ()=> go('home');
 }
 
 /* ---- 6) บันทึกสำเร็จ ---- */

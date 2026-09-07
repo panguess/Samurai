@@ -146,6 +146,7 @@ function doPost(e) {
       case 'setUnitLabel':      result = setUnitLabel(body);      break;
       case 'setOrderUnitLabel': result = setOrderUnitLabel(body); break;
       case 'analyzeBillPhoto':  result = analyzeBillPhoto(body);  break;
+      case 'analyzeBillBatch':  result = analyzeBillBatch(body);  break;
       case 'submitBillForReview': result = submitBillForReview(body); break;
       case 'finalizePurchaseReceipt': result = finalizePurchaseReceipt(body); break;
       default:                 result = { error: 'unknown action: ' + body.action };
@@ -1349,6 +1350,96 @@ function analyzeBillPhoto(body) {
   return { items: normalized, billHeader };
 }
 
+// ============ โหมดใหม่: อัปโหลดรูปหลายบิลพร้อมกัน ให้ AI แยกขอบเขตเอกสารเอง (7 ก.ย. 69) ============
+// จงใจแยก action ต่างหากจาก analyzeBillPhoto ข้างบน — ไม่แก้ analyzeBillPhoto แม้แต่บรรทัดเดียว กันไม่ให้
+// ฟีเจอร์ใหม่ที่ยังไม่ผ่านการใช้งานจริงกระทบเส้นทางที่พนักงานถ่ายบิลปกติทุกวันอยู่แล้ว (ดูสรุปเหตุผลใน
+// CLAUDE.md หัวข้อ "แยกบิลอัตโนมัติ") ใช้ตอนซัพพลายเออร์เอาบิลตกหล่นจากรอบก่อนมาพร้อมบิลวันนี้
+// สำคัญ: ฟังก์ชันนี้แค่ "เสนอ" การแบ่งกลุ่ม+รายการ ไม่เขียนอะไรลงชีตเลยเหมือน analyzeBillPhoto — ฝั่งเว็บ
+// (renderBillBatchReview) ต้องให้คนตรวจ/แก้กลุ่มก่อนเสมอ แล้วค่อยเรียก submitBillForReview ทีละบิลปกติ
+// ทุกประการ ไม่มี action ใหม่ไหนเขียน PurchaseReceipts/PendingBillReceipts ตรงๆ จากฟังก์ชันนี้เลย
+function analyzeBillBatch(body) {
+  if (!body.supplierId || !body.photos || body.photos.length < 2) {
+    throw new Error('ข้อมูลไม่ครบ (supplierId หรือรูปน้อยกว่า 2 รูป — โหมดแยกหลายบิลใช้เมื่อมีตั้งแต่ 2 รูปขึ้นไปเท่านั้น)');
+  }
+  const suppliers = readTable('Suppliers');
+  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
+  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
+
+  const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
+  const n = body.photos.length;
+  const promptText = 'คุณกำลังอ่านรูปทั้งหมด ' + n + ' รูป (เรียงตามลำดับ index 0 ถึง ' + (n - 1) + ' ตามลำดับที่ให้มา) ที่ถ่ายจากใบส่งของ/ใบวางบิลของซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
+    (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
+    'รูปเหล่านี้อาจเป็น "เอกสารคนละใบ" ปนกันมา (เช่น ซัพพลายเออร์เอาบิลตกหล่นจากวันก่อนมาพร้อมบิลวันนี้) ' +
+    'หรือบางรูปอาจเป็นแค่หน้าต่อของเอกสารเดียวกัน (บิลใบเดียวถ่ายหลายรูปเพราะรายการเยอะ) ' +
+    'งานของคุณคือแยกกลุ่มรูปตามเอกสารจริงก่อน โดยดูจากเลขที่เอกสาร/วันที่/ยอดรวมที่ปรากฏบนแต่ละรูป ' +
+    '(รูปที่เป็นหน้าต่อกันของบิลเดียวกันมักไม่มีหัวบิล/เลขที่ซ้ำในหน้าถัดไป ส่วนบิลคนละใบมักมีเลขที่/วันที่ต่างกันชัดเจน) ' +
+    'ถ้าไม่แน่ใจว่าควรแยกหรือรวม ให้เอนเอียงไปทาง "แยกเป็นคนละเอกสาร" ไว้ก่อนเสมอ เพราะฝั่งเว็บจะให้คนตรวจแก้ไขการแบ่งกลุ่มได้อยู่แล้ว\n' +
+    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"bills": [ {...}, {...} ]} — แต่ละสมาชิกใน "bills" คือเอกสาร 1 ใบ มีฟิลด์ดังนี้:\n' +
+    '"photoIndices": array ของเลข index (0-based ตรงกับลำดับรูปที่ให้มา) ของรูปทั้งหมดที่เป็นของเอกสารใบนี้ (number[]) — ทุกรูปต้องถูกจัดอยู่ในบิลใดบิลหนึ่งเสมอ ห้ามตกหล่นรูปไหนไป\n' +
+    '"items": อ่านทุกบรรทัดรายการที่เห็นในรูปของเอกสารใบนี้ (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แต่ละสมาชิกในรูปแบบ ' +
+    '{"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
+    '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
+    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ\n' +
+    '"billHeader": ใส่เฉพาะเมื่อบิลนี้เป็นเอกสารของบริษัทที่จดทะเบียนจริง (มีเลขประจำตัวผู้เสียภาษี/Tax ID พิมพ์ไว้ หรือเลขที่เอกสารรันเป็นชุดแบบพิมพ์ ไม่ใช่เขียนมือ) ' +
+    'รูปแบบ {"billDate": วันที่บนบิล เป็น string ตามที่เขียน (string), "billNumber": เลขที่เอกสาร/ใบกำกับภาษี (string), ' +
+    '"subtotal": ยอดรวมก่อนภาษี (number), "vat": ยอดภาษีมูลค่าเพิ่ม (number, ใส่ 0 ถ้าบิลนี้ไม่มี VAT แต่ยังเป็นเอกสารบริษัท), "total": ยอดรวมสุทธิ (number)}. ' +
+    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง';
+
+  const parts = [{ text: promptText }];
+  body.photos.forEach(dataUrl => {
+    const base64 = String(dataUrl).split(',').pop();
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64 } });
+  });
+
+  const result = callGemini(parts);
+  if (!result || !Array.isArray(result.bills) || !result.bills.length) throw new Error('แยกบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+
+  // จับคู่ ProductAlias เหมือน analyzeBillPhoto ทุกประการ (คัดลอก logic มาตรงๆ แทนที่จะแยกฟังก์ชันร่วม
+  // เพื่อไม่ต้องแก้ analyzeBillPhoto ไปเรียก helper ใหม่ — กันความเสี่ยงกับโค้ดที่ใช้งานจริงอยู่ทุกวัน)
+  const aliases = getProductAliasIndex(body.supplierId);
+  const bills = result.bills.map(bill => {
+    const items = Array.isArray(bill.items) ? bill.items : [];
+    const normalized = items.map(it => {
+      const billText = String(it.billText || '').trim();
+      const match = findAliasMatch(aliases, billText);
+      return {
+        billText, qty: Number(it.qty) || 0,
+        unit: String(it.unit || 'หน่วย').trim(),
+        unitPrice: Number(it.unitPrice) || 0,
+        likelyNonProduct: !!it.likelyNonProduct,
+        productId: match ? match.ProductID : null,
+        conversionFactor: match ? (Number(match.ConversionFactor) || 1) : null,
+        matchType: match ? match.matchType : null,
+        matchedAliasText: (match && match.matchType === 'fuzzy') ? match.BillText : null
+      };
+    });
+    const photoIndices = Array.isArray(bill.photoIndices)
+      ? bill.photoIndices.map(Number).filter(i => Number.isInteger(i) && i >= 0 && i < n)
+      : [];
+    return { photoIndices, items: normalized, billHeader: sanitizeBillHeader(bill.billHeader) };
+  });
+
+  // กันรูปซ้ำ (Gemini อาจใส่ index เดียวกันไว้ในสองบิลพร้อมกันโดยไม่ได้ตั้งใจ) — ให้บิลแรกที่อ้างถึงรูปนั้น
+  // เป็นเจ้าของไปเลย ตัดออกจากบิลถัดๆ ไป กันรูปเดียวกันถูกอัปโหลด/ส่งซ้ำสองบิลตอน submitBillForReview
+  // (ไม่งั้นรูปจะไปโผล่ในหน้ารีวิวสองการ์ดพร้อมกันแบบไม่มีใครสังเกต แล้วถูกส่งจริงซ้ำสองรอบ)
+  const covered = {};
+  bills.forEach(b => {
+    b.photoIndices = b.photoIndices.filter(i => {
+      if (covered[i]) return false;
+      covered[i] = true;
+      return true;
+    });
+  });
+
+  // กันรูปตกหล่น (Gemini อาจลืมใส่ index บางรูปไว้ในกลุ่มไหนเลย ทั้งที่บอกไว้ในพรอมต์ว่าห้าม) — โยนรูปที่
+  // ไม่มีกลุ่มไปรวมเป็นเอกสารเดี่ยวท้ายสุดแทนที่จะปล่อยหายไปเงียบๆ ให้คนตรวจที่หน้ารีวิวเห็น/จัดการเอง
+  const missing = [];
+  for (let i = 0; i < n; i++) if (!covered[i]) missing.push(i);
+  if (missing.length) bills.push({ photoIndices: missing, items: [], billHeader: null });
+
+  return { bills };
+}
+
 // ทำความสะอาดผลลัพธ์ billHeader จาก Gemini ให้เป็น null หรือ object ที่มี field ครบเสมอ — กัน AI ส่งค่า
 // ประหลาด (string ว่าง, field ขาดหาย, ตัวเลขเป็น string ฯลฯ) มาปนแล้วโค้ดฝั่งเว็บ/การเขียนชีตพัง
 // คืน null ถ้าไม่มีข้อมูลอะไรเลย (บิลเขียนมือ) — renderBillReview ฝั่งเว็บจะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
@@ -1478,7 +1569,13 @@ function submitBillForReview(body) {
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) throw new Error('ไม่พบชีต ' + PENDING_BILL_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: BatchID, Date, SupplierID, StaffName, PhotoURL, ItemsJSON, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
 
-  const batchId = 'RB' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
+  // เดิม timestamp ละเอียดแค่ระดับวินาที (MMdd-HHmmss) — เพียงพอตอนออกแบบครั้งแรกเพราะแต่ละครั้งที่เรียก
+  // มาจากคนถ่ายบิลทีละใบ ห่างกันหลายวินาทีเสมอ แต่โหมด "หลายบิลรวมกัน" (renderBillBatchReview) เรียกฟังก์ชัน
+  // นี้วนหลายรอบติดกันเร็วๆ ให้ซัพพลายเออร์เดียวกัน เสี่ยง BatchID ชนกันถ้าสอง request จบภายในวินาทีเดียวกัน
+  // (ทำให้ finalizePurchaseReceipt จับคู่แถว PendingBillReceipts ผิดใบ + อีกใบค้างอยู่ในคิวตลอดไป) เพิ่ม
+  // มิลลิวินาที (SSS) ให้ละเอียดพอจะไม่ชนกันจริงในทางปฏิบัติ — BatchID ยังเป็นแค่ string key เทียบตรงๆ
+  // เหมือนเดิมทุกที่ที่ใช้ (PendingBillReceipts/PurchaseReceipts/ชื่อไฟล์รูป) ไม่มีที่ไหน parse รูปแบบนี้อยู่
+  const batchId = 'RB' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss-SSS');
   const photoUrl = (body.photos && body.photos.length) ? saveBillPhotosOrganized(body.photos, batchId, body.supplierId, sup.Name) : '';
   // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — มีเฉพาะบิลบริษัทจดทะเบียนที่ Gemini อ่านได้ (ดู analyzeBillPhoto)
   // เขียนเป็นค่าว่างไปเลยถ้าไม่มี ไม่ต้องเก็บ null/undefined ลงชีต
