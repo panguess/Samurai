@@ -471,6 +471,28 @@ async function apiPost(action, payload, retryOnTimeout, timeoutMs){
   }finally{ clearTimeout(t); }
 }
 
+// เจอจริง 7 ก.ย. 69: analyzeBillPhoto/analyzeBillBatch ใช้เวลานาน (40-100+ วิ กว่า Gemini จะอ่านจบ)
+// ทำให้การเชื่อมต่อฝั่งเว็บหลุดเป็นระยะระหว่างรอ ("Load failed" — error ระดับ fetch จริงๆ ไม่ใช่
+// AbortError ของเราเอง เพราะ timeout ตั้งไว้ 270 วิ ยังไม่ทันถึง) ยืนยันจาก Executions log ว่า
+// backend สำเร็จทุกครั้งไม่มีข้อยกเว้น ปัญหาคือแค่ผลลัพธ์ไม่ทันกลับมาถึงจอ — ฟังก์ชันนี้ลองซ้ำอัตโนมัติ
+// เงียบๆ ให้แทนที่จะบังคับให้คนกด "ลองใหม่" เอง ปลอดภัยเพราะ action ที่ใช้ฟังก์ชันนี้ต้องเป็นแค่
+// "อ่าน/วิเคราะห์" ล้วนๆ ไม่เขียนอะไรลงชีตเลย (analyzeBillPhoto/analyzeBillBatch เท่านั้น) ยิงซ้ำกี่ครั้ง
+// ก็ไม่มีข้อมูลซ้ำซ้อน — คนละกรณีกับ retryOnTimeout ของ apiPost() ด้านบนที่สงวนไว้เฉพาะ action "set"
+// ค่าตรงๆ (retry แค่ 1 ครั้งตอน AbortError) ห้ามเอาฟังก์ชันนี้ไปใช้กับ action ที่สร้างแถวใหม่/อัปโหลดไฟล์
+// (submitBillForReview, finalizePurchaseReceipt ฯลฯ) เด็ดขาด เพราะจะยิงซ้ำแล้วสร้างข้อมูลซ้อนจริง
+async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt){
+  let lastErr;
+  for(let attempt=1; attempt<=maxAttempts; attempt++){
+    if(onAttempt) onAttempt(attempt, maxAttempts);
+    try{ return await apiPost(action, payload, false, timeoutMs); }
+    catch(err){
+      lastErr = err;
+      if(attempt<maxAttempts) await new Promise(r=> setTimeout(r, 2000)); // เว้นจังหวะสั้นๆ ให้เน็ตนิ่งก่อนลองใหม่
+    }
+  }
+  throw lastErr;
+}
+
 /* ============ product photo match screen ============ */
 // เปิดหน้าจับคู่รูปที่เลือกจากเครื่อง (files) กับสินค้าของซัพพลายเออร์นี้ (products)
 // เมื่อบันทึกสำเร็จจะเรียก onDone() เพื่อให้หน้าเดิม re-render
@@ -1307,15 +1329,21 @@ function renderBillAnalyzing(app){
     </div>`;
   app.appendChild(c);
 
-  // ปิด retryOnTimeout เอง — ถ้าพัง ให้ผู้ใช้กดลองใหม่เอง ไม่ auto-retry เงียบๆ เพราะยิงซ้ำ = เรียก AI ซ้ำ
-  // (ไม่ได้เสียเงินก็จริง แต่ก็ไม่จำเป็นต้องยิงซ้ำโดยไม่รู้ตัว) ให้ timeout นานกว่าปกติเพราะ AI อ่านรูปช้ากว่า action ทั่วไป
-  // เดิมตั้ง 60 วิ แล้วขยับเป็น 90 วิ (เจอ 59.9 วิใน Executions log) แล้วขยับเป็น 150 วิ (เจอ 88.454/113.475
-  // วิ ใน Executions log — Completed สำเร็จฝั่ง backend แต่หน้าเว็บตัดก่อน) วันที่ 6 ก.ย. 69 เดียวกัน Code.gs
-  // เพิ่ม retry อัตโนมัติ 1 ครั้งใน callGemini() ตอนเจอ Gemini 503 "high demand" หรือตอบมาแบบ parse ไม่ได้
-  // (ดูคอมเมนต์ที่ callGemini() ใน Code.gs) ทำให้ doPost 1 ครั้งอาจกิน 2 เท่าของเวลาอ่านบิลปกติในกรณีแย่สุด
-  // ขยับ timeout ฝั่งนี้ตามเป็น 270 วิ (4.5 นาที) เผื่อไว้ — ถ้าเจอ error ค้างอีกใน Executions log ให้เช็ค
-  // คอลัมน์ Duration ก่อนเสมอว่าเกิน timeout ที่ตั้งไว้ตอนนั้นหรือเปล่า ก่อนจะสรุปว่าเป็นบั๊กโค้ด
-  apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000)
+  // timeout ต่อครั้งยาวกว่าปกติเพราะ AI อ่านรูปช้ากว่า action ทั่วไป เดิมตั้ง 60 วิ แล้วขยับเป็น 90 วิ
+  // (เจอ 59.9 วิใน Executions log) แล้วขยับเป็น 150 วิ (เจอ 88.454/113.475 วิ) แล้วขยับเป็น 270 วิ (4.5 นาที
+  // — เจอ callGemini() ต้อง retry เองตอน Gemini 503 ทำให้ doPost กินเวลาถึง 2 เท่าของปกติในกรณีแย่สุด)
+  //
+  // อัปเดต 7 ก.ย. 69: เดิมตรงนี้ปิด auto-retry ไว้ตั้งใจ (ให้คนกด "ลองใหม่" เอง) แต่พบจริงว่าคำขอที่ยาว
+  // 40-70+ วิแบบนี้ทำให้การเชื่อมต่อฝั่งเว็บหลุดเป็นระยะ ("Load failed" — ยืนยันจาก Executions log ว่า
+  // backend สำเร็จทุกครั้งไม่มีข้อยกเว้น ไม่ใช่ AbortError ของเราเองด้วยเพราะยังไม่ทันถึง 270 วิ) ผู้ใช้ต้อง
+  // กด "ลองใหม่" เองซ้ำๆ จนหงุดหงิด — เปลี่ยนมาใช้ apiPostSilentRetry() แทน (ดูคอมเมนต์เต็มที่นิยามฟังก์ชัน
+  // ด้านบน) ปลอดภัยเพราะ analyzeBillPhoto ไม่เขียนอะไรลงชีตเลย ยิงซ้ำได้ไม่จำกัดโดยไม่เสี่ยงข้อมูลซ้ำ
+  apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, 270000, 3, (attempt, max)=>{
+    const msgEl = c.querySelector('#analyzeMsg');
+    if(msgEl) msgEl.textContent = attempt===1
+      ? 'กำลังแยกรายการ จำนวน และราคาจากรูปที่ถ่ายไว้ อาจใช้เวลาสักครู่'
+      : `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
+  })
     .then(res=>{
       const items = (res.items||[]).map((it,i)=>({
         _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
@@ -1372,8 +1400,14 @@ function renderBillBatchAnalyzing(app){
 
   (async ()=>{
     try{
-      // ขั้น 1: แยกกลุ่มรูปอย่างเดียว (เร็ว ไม่อ่านรายการสินค้าเลย)
-      const groupsRes = await apiPost('analyzeBillBatch', { supplierId: state.billSupplierId, photos: state.billPhotos }, false, 270000);
+      // ขั้น 1: แยกกลุ่มรูปอย่างเดียว (เร็ว ไม่อ่านรายการสินค้าเลย) — ใช้ apiPostSilentRetry() แทน apiPost()
+      // ตรงๆ (7 ก.ย. 69) เพราะแม้แต่คำขอสั้นๆ ก็ยังมีโอกาสเจอการเชื่อมต่อหลุดได้ ปลอดภัยเพราะ analyzeBillBatch
+      // ไม่เขียนอะไรลงชีตเลย (ดูคอมเมนต์เต็มที่นิยาม apiPostSilentRetry ด้านบน)
+      const groupsRes = await apiPostSilentRetry('analyzeBillBatch', { supplierId: state.billSupplierId, photos: state.billPhotos }, 270000, 3, (attempt, max)=>{
+        const stageEl = c.querySelector('#analyzeStage'), msgEl = c.querySelector('#analyzeMsg');
+        if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
+        else if(msgEl) msgEl.textContent = 'แยกว่ารูปไหนเป็นบิลใบเดียวกันก่อน อาจใช้เวลาสักครู่';
+      });
       const rawGroups = groupsRes.groups || [];
       if(!rawGroups.length){ throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
 
@@ -1386,7 +1420,9 @@ function renderBillBatchAnalyzing(app){
         if(stageEl) stageEl.textContent = `กำลังอ่านบิลที่ ${gi+1}/${rawGroups.length}...`;
         if(msgEl) msgEl.textContent = 'กำลังแยกรายการ จำนวน และราคาของบิลใบนี้ อาจใช้เวลาสักครู่';
         const photos = photoIndices.map(i=> state.billPhotos[i]);
-        const res = await apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, false, 270000);
+        const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
+          if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่บิลที่ ${gi+1} (${attempt}/${max})...`;
+        });
         groups.push({
           photoIndices,
           items: (res.items||[]).map((it,i)=>({
@@ -1993,8 +2029,11 @@ function renderBillBatchRegroup(app){
       const selected = [...picked].sort((a,b)=>a-b);
       const photos = selected.map(i=> state.billPhotos[i]);
       // เรียก analyzeBillPhoto ตัวเดิมตรงๆ (ไม่ใช่ analyzeBillBatch) — กลุ่มที่คนเลือกเองถือว่าเป็นเอกสาร
-      // เดียวแน่นอนแล้ว ใช้ path ที่ทดสอบมาดีที่สุดในการอ่านให้
-      const res = await apiPost('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, false, 270000);
+      // เดียวแน่นอนแล้ว ใช้ path ที่ทดสอบมาดีที่สุดในการอ่านให้ — apiPostSilentRetry() กันการเชื่อมต่อหลุด
+      // ระหว่างรอเหมือนจุดอื่นๆ ที่เรียก analyzeBillPhoto/analyzeBillBatch (ดูคอมเมนต์เต็มที่นิยามฟังก์ชัน)
+      const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
+        if(attempt>1) btn.textContent = `การเชื่อมต่อหลุด กำลังลองใหม่ (${attempt}/${max})...`;
+      });
       const items = (res.items||[]).map((it,i)=>({
         _id: 'rg'+Date.now()+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
         receivedQty: it.qty, unitPrice: it.unitPrice,
