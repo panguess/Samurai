@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- เจอปัญหาจริง 7 ก.ย. 69: ไอคอนที่ปักหน้าจอโฮมมือถือแคชหน้านี้ค้างไว้ ทำให้ deploy โค้ดใหม่ไปแล้วแต่
+     มือถือยังเห็นโค้ดเก่าอยู่ (ต้องพิมพ์ URL พร้อม query string สุ่มถึงจะบังคับโหลดใหม่ได้) แก้หลักไว้ที่
+     vercel.json (Cache-Control header จริง ซึ่งเบราว์เซอร์/ไอคอนหน้าโฮมให้น้ำหนักมากกว่า) — meta tag นี้
+     เป็นการกันสำรองอีกชั้นเผื่อมี caching layer ไหนที่อ่าน meta tag แทน header จริง -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>ซามูไรไส้กรอก — เช็คสต๊อก & สั่งของ</title>
 <link rel="apple-touch-icon" href="/icon-192-black.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192-black.png">
