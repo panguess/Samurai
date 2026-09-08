@@ -323,69 +323,6 @@
       </div>
     </div>
   </div>
-  <!-- Feedback Section -->
-  <div id="feedbackSection" style="display:none">
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
-        <div class="header-name" style="font-size:20px">ให้คะแนนและติชม</div>
-      </div>
-    </div>
-    <div style="padding:16px">
-      <div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:4px">ความคิดเห็นของคุณสำคัญมากครับ</div>
-      <div style="font-size:14.5px;color:#888;margin-bottom:16px;line-height:1.5">เลือกว่าอยากให้คะแนนและแนะนำเรื่องอะไรครับ</div>
-      <div onclick="goSection('review_shop')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#fdf5f2;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🏪</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">ติชมร้าน</div><div style="font-size:13.5px;color:#888">คุณภาพสินค้า ความสะอาด บรรยากาศร้าน</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-      <div onclick="goSection('review_staff1')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🧑</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 1</div><div style="font-size:13.5px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-      <div onclick="goSection('review_staff2')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🧑</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 2</div><div style="font-size:13.5px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Review Screens -->
-  <div id="reviewSection" style="display:none">
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="goSection('feedback')" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
-        <div class="header-name" style="font-size:20px" id="reviewTitle">ติชม</div>
-      </div>
-    </div>
-    <div style="padding:16px">
-      <div style="text-align:center;padding:1.25rem 1rem">
-        <div id="reviewAvatar" style="width:70px;height:70px;border-radius:50%;background:#fdf5f2;border:2px solid #f5c4b3;display:flex;align-items:center;justify-content:center;margin:0 auto 10px"></div>
-        <div id="reviewName" style="font-size:20px;font-weight:700;color:#1a1a1a"></div>
-        <div id="reviewRole" style="font-size:14.5px;color:#888;margin-top:3px"></div>
-      </div>
-      <div style="font-size:14.5px;color:#888;font-weight:500;margin-bottom:8px">ให้คะแนน</div>
-      <div id="starRow" style="display:flex;gap:10px;justify-content:center;margin-bottom:16px">
-        <span class="rv-star" onclick="rateReview(1)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(2)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(3)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(4)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(5)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-      </div>
-      <div style="font-size:14.5px;color:#888;font-weight:500;margin-bottom:6px">แนะนำหรือให้กำลังใจ (ไม่บังคับ)</div>
-      <textarea id="reviewComment" placeholder="เช่น บริการดีมาก สินค้าสดใหม่..." style="width:100%;border:1px solid #e8e2dc;border-radius:10px;padding:10px 12px;font-size:14.5px;resize:none;height:90px;font-family:inherit;color:#1a1a1a"></textarea>
-      <button onclick="submitReview()" style="width:100%;padding:13px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px">ส่งความคิดเห็น</button>
-      <div id="thankBox" style="display:none;text-align:center;padding:2rem 1rem">
-        <div style="font-size:54px;margin-bottom:12px">🙏</div>
-        <div style="font-size:22.5px;font-weight:700;color:#D64109">ขอบคุณมากครับ!</div>
-        <div id="thankMsg" style="font-size:14.5px;color:#888;margin-top:6px;line-height:1.6"></div>
-        <button onclick="goHome()" style="margin-top:16px;padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;cursor:pointer">กลับหน้าหลัก</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Track Section -->
   <div id="trackSection" style="display:none">
     <div class="header">
@@ -600,25 +537,17 @@ function goHome(skipPush){
   document.getElementById('homeScreen').style.display='block';
   document.getElementById('shopSection').style.display='none';
   document.getElementById('trackSection').style.display='none';
-  document.getElementById('feedbackSection').style.display='none';
-  document.getElementById('reviewSection').style.display='none';
   document.getElementById('cartBar').classList.remove('show');
   if(typeof trackRefreshInterval!=='undefined'&&trackRefreshInterval){clearInterval(trackRefreshInterval);trackRefreshInterval=null;}
   if(!skipPush) history.pushState({section:'home'},'',location.href);
 }
 
-let currentRating=0;
 async function goSection(section,skipPush){
   document.getElementById('homeScreen').style.display='none';
   document.getElementById('shopSection').style.display=section==='shop'?'block':'none';
   document.getElementById('trackSection').style.display=section==='track'?'block':'none';
-  document.getElementById('feedbackSection').style.display=section==='feedback'?'block':'none';
-  document.getElementById('reviewSection').style.display=['review_shop','review_staff1','review_staff2'].includes(section)?'block':'none';
   if(section==='track') await loadTrackSection();
   if(section==='shop'){updateCart();}
-  if(section==='review_shop') setupReview('shop');
-  if(section==='review_staff1') setupReview('staff1');
-  if(section==='review_staff2') setupReview('staff2');
   if(!skipPush) history.pushState({section:section},'',location.href);
 }
 
@@ -629,52 +558,6 @@ window.addEventListener('popstate',(e)=>{
     goHome(true);
   }
 });
-
-function setupReview(type){
-  currentRating=0;
-  document.querySelectorAll('.rv-star').forEach(s=>{s.style.color='';s.style.opacity='0.3';});
-  document.getElementById('reviewComment').value='';
-  document.getElementById('thankBox').style.display='none';
-  document.querySelector('#reviewSection button[onclick="submitReview()"]').style.display='block';
-  document.getElementById('reviewComment').style.display='block';
-  if(type==='shop'){
-    document.getElementById('reviewTitle').textContent='ติชมร้าน';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🏪</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#fdf5f2;border:2px solid #f5c4b3;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='ซามูไรไส้กรอก';
-    document.getElementById('reviewRole').textContent='ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา';
-    document.getElementById('thankMsg').textContent='ความคิดเห็นของคุณช่วยให้เราพัฒนาร้านได้ดียิ่งขึ้นครับ';
-  } else if(type==='staff1'){
-    document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 1';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🧑</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#E6F1FB;border:2px solid #B5D4F4;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='พนักงานคนที่ 1';
-    document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
-    document.getElementById('thankMsg').textContent='จะส่งต่อให้พนักงานรับทราบครับ เป็นกำลังใจให้ทีมงานมากๆ';
-  } else {
-    document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 2';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🧑</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#EAF3DE;border:2px solid #C0DD97;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='พนักงานคนที่ 2';
-    document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
-    document.getElementById('thankMsg').textContent='จะส่งต่อให้พนักงานรับทราบครับ เป็นกำลังใจให้ทีมงานมากๆ';
-  }
-}
-
-function rateReview(n){
-  currentRating=n;
-  document.querySelectorAll('.rv-star').forEach((s,i)=>{
-    s.style.color=i<n?'#f5a623':'';
-    s.style.opacity=i<n?'1':'0.3';
-  });
-}
-
-function submitReview(){
-  if(!currentRating){showToast('กรุณาให้คะแนนก่อนครับ');return;}
-  document.querySelector('#reviewSection button[onclick="submitReview()"]').style.display='none';
-  document.getElementById('reviewComment').style.display='none';
-  document.getElementById('thankBox').style.display='block';
-}
 
 let trackRefreshInterval=null;
 let trackRefreshFailCount=0;
@@ -694,7 +577,7 @@ async function loadTrackSection(){
     return[...active,...doneOrders,...cancelledOrders].sort(byTimeDesc);
   };
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
     lastTrackOrdersHash=JSON.stringify(orders);
     lastTrackOrders=orders;
@@ -709,7 +592,7 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
+      const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
       if(orders===null){
         trackRefreshFailCount++;
         if(trackRefreshFailCount>=3){
@@ -830,7 +713,7 @@ function startNewOrder(){cart={};goSection('shop');renderProducts();}
  */
 async function findRecentMatchingOrder(itemsText,total){
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
     if(!orders||!orders.length) return null;
     const cutoff=Date.now()-3*60*1000;
     return orders.find(o=>{
@@ -882,13 +765,10 @@ async function placeOrder(){
       btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
       return;
     }
-    // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
-    let realOid=pendingOid;
-    try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',15000,1);
-      if(orders&&orders.length) realOid=orders[0].order_id;
-    }catch(e2){}
-    showOrderSuccessScreen(realOid,items);
+    // createOrder สำเร็จ (result.success!==false) คืน order_id จริงมาให้ในตัวอยู่แล้ว ไม่ต้องเดาจาก genOid()
+    // หรือยิง getOrders ซ้ำไปเดาเอาจากรายการล่าสุดอีกต่อไป (เดิมทำแบบนั้น เสี่ยงได้ order_id ผิดถ้ามีออเดอร์อื่น
+    // แทรกมาในช่วงเวลาไล่เลี่ยกัน แถมเปลืองคำขอโดยไม่จำเป็นในจุดที่ลูกค้าใช้บ่อยที่สุดของแอป)
+    showOrderSuccessScreen(result.order_id||pendingOid,items);
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
 }
@@ -2825,7 +2705,7 @@ async function openReorderModal(){
   const body=document.getElementById('reorderModalBody');
   body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
     const completed=orders.filter(o=>{
       const ds=o.delivery_status||o.status||'';

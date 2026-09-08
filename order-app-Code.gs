@@ -176,6 +176,7 @@ function doGet(e) {
   if (action === 'getCustomer') return getCustomer(e.parameter.id);
   if (action === 'getProducts') return getProducts(e.parameter.group);
   if (action === 'getOrders') return getOrders(e.parameter.customer_id);
+  if (action === 'getTrackOrders') return getTrackOrders(e.parameter.customer_id);
   if (action === 'getAdminOrders') return getAdminOrders(e.parameter.key);
   if (action === 'getAdminOrdersFull') return getAdminOrdersFull(e.parameter.key);
   if (action === 'getBusinessNotes') return getBusinessNotes();
@@ -484,8 +485,32 @@ function computeOrderTotal(itemsText, customerGroup) {
 
 function getOrders(customer_id) {
   // ประวัติลูกค้าอาจมี order ข้ามปี (คนละ sheet) -> ต้อง merge ทุก sheet เสมอ
+  // ใช้เฉพาะหน้า "ประวัติทั้งหมด" (loadHistory ฝั่ง index.html) ที่ตั้งใจให้เห็นทุกออเดอร์จริงๆ เท่านั้น —
+  // จุดอื่นที่ไม่ต้องการข้อมูลทั้งหมด (หน้า track/auto-refresh/เช็คออเดอร์ซ้ำ/สั่งซ้ำ) ให้ใช้ getTrackOrders() แทน
   const orders = getAllOrderRows().filter(obj => obj['customer_id'] === customer_id);
   return response(orders.reverse());
+}
+
+/**
+ * ===== ข้อมูลออเดอร์แบบย่อสำหรับหน้า track/dedup-check/สั่งซ้ำ (เพิ่ม 8 ก.ย. 69) =====
+ * เดิม 4 จุดนี้เรียก getOrders() (ประวัติทั้งหมดตลอดชีพของลูกค้า) ทั้งที่ใช้จริงแค่: ออเดอร์ที่ยัง active
+ * (pending/packing) ทุกอัน + ออเดอร์ที่เสร็จ/ยกเลิกล่าสุดอย่างละไม่กี่อัน (ฝั่ง frontend เดิมก็กรองทิ้งเหลือแค่นี้
+ * อยู่แล้วหลังได้ข้อมูลมา — แค่ backend ส่งมาเกินความจำเป็นทุกครั้ง) ยิ่งลูกค้าสั่งสะสมมานาน payload ยิ่งโตขึ้น
+ * เรื่อยๆ โดยเฉพาะหน้า track ที่ auto-refresh ทุก 10 วิ — ย้าย logic กรองนี้มาทำที่ backend แทน ผลลัพธ์ที่ลูกค้า
+ * เห็นเหมือนเดิมทุกอย่าง แค่ส่งข้อมูลน้อยลง
+ */
+const TRACK_ORDERS_RECENT_LIMIT = 5;
+function getTrackOrders(customer_id) {
+  const orders = getAllOrderRows().filter(obj => obj['customer_id'] === customer_id);
+  const isDone = o => String(o['delivery_status'] || o['status'] || '').toLowerCase().trim() === 'done';
+  const isCancelled = o => String(o['delivery_status'] || o['status'] || '').toLowerCase().trim() === 'cancelled';
+  const byTimeDesc = (a, b) => new Date(b.timestamp) - new Date(a.timestamp);
+
+  const active = orders.filter(o => !isDone(o) && !isCancelled(o));
+  const doneRecent = orders.filter(isDone).sort(byTimeDesc).slice(0, TRACK_ORDERS_RECENT_LIMIT);
+  const cancelledRecent = orders.filter(isCancelled).sort(byTimeDesc).slice(0, TRACK_ORDERS_RECENT_LIMIT);
+
+  return response([...active, ...doneRecent, ...cancelledRecent]);
 }
 
 /**
