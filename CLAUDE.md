@@ -5,7 +5,7 @@
 | | แอปเช็คสต๊อก | แอปสั่งของ (order web app) |
 |---|---|---|
 | ไฟล์หน้าเว็บ | `stock-check.html` | `index.html` |
-| ไฟล์ backend | `Code.gs` | (คนละไฟล์ ไม่อยู่ใน repo นี้ — ผู้ใช้อัปโหลดแยกเวลาต้องแก้) |
+| ไฟล์ backend | `Code.gs` | `order-app-Code.gs` (เก็บใน repo ตั้งแต่ 8 ก.ย. 69 — ดูคำเตือนเรื่อง sync ด้านล่าง) |
 | ใช้โดย | ลูกจ้างเช็คสต๊อก + เจ้าของสั่งของกับซัพพลายเออร์ | ลูกค้าสั่งซื้อสินค้า + แอดมินจัดการออเดอร์/จัดส่ง/ชำระเงิน |
 | Google Sheet | คนละไฟล์สเปรดชีตกับแอปสั่งของ | คนละไฟล์สเปรดชีตกับแอปเช็คสต๊อก |
 
@@ -61,8 +61,15 @@
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
-backend Google Apps Script คนละไฟล์ที่ไม่อยู่ใน repo — ผู้ใช้อัปโหลด `.gs` มาให้แยกทุกครั้งที่ต้องแก้ backend
-(ห้ามสมมุติเนื้อหาไฟล์ backend เอง ต้องขอไฟล์จริงก่อนเสมอ)
+backend Google Apps Script — โค้ดเก็บไว้ใน repo นี้แล้วที่ `order-app-Code.gs` (ตั้งแต่ 8 ก.ย. 69 อย่าสับสนกับ
+`Code.gs` ที่ root ซึ่งเป็นของแอปเช็คสต๊อกคนละแอป)
+
+⚠️ **`order-app-Code.gs` ใน repo อาจไม่ตรงกับตัวจริงที่ deploy อยู่เสมอ** — `git push` **ไม่มีทาง** deploy ให้
+(เหมือนกับ `Code.gs` ของแอปเช็คสต๊อกทุกประการ) ผู้ใช้ต้องแก้ผ่าน Apps Script Editor เองแล้วก็อปกลับมาเขียนทับไฟล์นี้ใน
+repo (หรือขอให้ผมช่วยแก้แล้ว SendUserFile ให้เอาไปแปะ + อัปเดตไฟล์ใน repo ให้ตรงกันในคราวเดียว) — **ถ้าผู้ใช้บอกว่าแก้
+backend เองนอกเซสชั่นแล้ว ห้ามเชื่อว่าไฟล์ใน repo ตรงกับของจริงโดยอัตโนมัติ ให้ถามหรือขอไฟล์ล่าสุดมาเทียบก่อนเสมอ**
+ก่อนแก้ backend action ไหนต่อ ให้เปิด `order-app-Code.gs` ในนี้ดูก่อนเป็นจุดเริ่ม แต่ถ้าเนื้อหาดูไม่สอดคล้องกับที่ผู้ใช้
+อธิบายพฤติกรรมจริง ให้สงสัยว่าไฟล์เก่ากว่าของจริง แล้วขอไฟล์ปัจจุบันมาเทียบ
 
 ### Routing (query params บน `index.html`)
 - `?admin=true&key=shop123` → เปิดหน้าแอดมิน (ADMIN_KEY ฝังในโค้ดตรงๆ ที่ตัวแปร `ADMIN_KEY`)
@@ -80,9 +87,13 @@ backend Google Apps Script คนละไฟล์ที่ไม่อยู�
 - `BusinessNote`: `note_id, date, text` — โน้ตอิสระของแอดมิน ไม่ผูกกับเดือน
 - `Link for Customers`: `customer_id, name, link` — ลิงก์สั่งของเฉพาะตัว (`?ref=...`) ของลูกค้าแต่ละคน
 
-### Backend actions ปัจจุบัน (คลีนแล้ว 31 ส.ค. 69 — ดูรายละเอียดการลบด้านล่าง)
-- `doGet`: `getCustomer, getProducts, getOrders, getAdminOrders, getBusinessNotes, getThaiHolidays`
+### Backend actions ปัจจุบัน (ยืนยันตรงกับ `order-app-Code.gs` ที่ผู้ใช้ส่งมา 8 ก.ย. 69)
+- `doGet`: `getCustomer, getProducts, getOrders, getAdminOrders, getAdminOrdersFull, getBusinessNotes, getThaiHolidays`
+  - `getAdminOrders` ตอนนี้กรองช่วงย้อนหลังแล้ว (ดูหัวข้อ `ADMIN_ORDERS_WINDOW_DAYS` ด้านล่าง) — `getAdminOrdersFull`
+    คือตัวที่ไม่กรอง ใช้เฉพาะหน้า "ภาพรวม/แดชบอร์ด" (`renderAdminOverview`)
 - `doPost`: `createOrder, updateOrder, updateDelivery, cancelOrder, addBusinessNote, deleteBusinessNote`
+  - `updateDelivery` มี guard กันเรียกซ้ำอยู่แล้ว: ถ้า `delivery_status` ที่ส่งมาตรงกับค่าปัจจุบันในชีต จะ skip ทั้งหมด
+    (ไม่เขียนซ้ำ ไม่ยิง Telegram ซ้ำ) — ดูหัวข้อ "บั๊กแจ้งเตือนซ้ำ" ด้านล่างเรื่องช่องโหว่ race condition ที่ guard นี้ยังกันไม่หมด
 - **ลบไปแล้ว** เพราะไม่มี frontend เรียกใช้: `getOwnerOrders, updateStatus, updatePayment, uploadSlip, verifyPayment`
   (ตัวหลังสุดเคยเรียก Claude API ตรวจสลิปโอนเงิน มีค่าใช้จ่ายต่อครั้ง) พร้อม helper ที่กลายเป็นขยะไปด้วย
   (`checkNameMatch`, ตัวแปร `CLAUDE_API_KEY`) — **ถ้าเจอโค้ดพวกนี้ในไฟล์ `.gs` ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่ายังไม่ได้อัปเดตเป็นเวอร์ชันล่าสุด ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ**
@@ -110,10 +121,8 @@ backend Google Apps Script คนละไฟล์ที่ไม่อยู�
 `TELEGRAM_CHAT_ID` (ไม่มี fallback ไป LINE แล้ว ถ้าเจอโค้ด `sendLineNotify`/`LINE_CHANNEL_ACCESS_TOKEN` ในไฟล์ `.gs`
 ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่าเป็นเวอร์ชันเก่าก่อนย้าย ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ)
 
-⚠️ **ปัญหาที่ยังไม่จบ**: ผู้ใช้เคยแจ้งว่า "Telegram มันไม่ดัง" แล้วขอให้ลบทิ้ง ก่อนจะพูดกลับว่าพูดผิด (จริงๆ อยากลบแค่
-ฟีเจอร์เสียงในแอปเว็บ ไม่ใช่ Telegram) — โค้ด `sendTelegramNotify` ถูก restore กลับมาแล้ว แต่ **สาเหตุที่ไม่มีเสียง/แจ้งเตือน
-ยังไม่ได้ไล่หาจริงจัง** (เป็นไปได้ทั้งเรื่อง mute แชท/ตั้งค่าเครื่อง หรือบั๊กจริงใน backend) ถ้าคุยเรื่องนี้ต่อให้ไล่เช็คจาก
-Apps Script Editor > Executions ว่ามี error log ตอนยิง Telegram ไหมก่อน
+✅ **เรื่อง Telegram ปิดถาวรแล้ว (อัปเดต 7 ก.ย. 69)** — ผู้ใช้ยืนยันว่าใช้งานได้ปกติ **ห้ามหยิบเรื่องนี้ขึ้นมาพูดอีกโดยไม่ถูกถาม**
+(เคยมีช่วงสับสนว่า "ไม่ดัง" แต่ที่จริงหมายถึงฟีเจอร์เสียงในแอปเว็บที่ถูกลบไปแล้ว ไม่เกี่ยวกับ Telegram — ดูหัวข้อถัดไป)
 
 **เสียงแจ้งเตือนในแอปเว็บ (`index.html`) ถูกลบทิ้งไปแล้วตามคำขอ** — เคยมีฟีเจอร์ `playNewOrderChime()`/`orderChimeCtx`
 (สร้างเสียงด้วย Web Audio API ตอนหน้าแอดมิน auto-refresh เจอ order_id ใหม่) ถูก revert ออกทั้งหมด **อย่าเพิ่มกลับเข้าไป
@@ -134,9 +143,25 @@ timeout ทั้ง auto-retry และการกดซ้ำของลู
 - `Code.gs`: `findOrderLocation()` เรียง sheet ปีปัจจุบันไว้ค้นหาก่อนเสมอ (ใช้ `getOrderSheetByYear()`) ลด scan cost
   ที่โตขึ้นเรื่อยๆ ตามอายุร้าน — ใช้กับทุก action ที่แก้ไข order ที่มีอยู่ (`updateOrder`/`updateDelivery`/`cancelOrder`)
 
-**Backlog ที่ยังไม่ทำ (ตั้งใจพักไว้)**: จำกัดช่วงข้อมูลย้อนหลังที่ `getAdminOrders()` ส่งกลับ (ตอนนี้ส่งออเดอร์ทั้งหมด
-ทุกปีทุกครั้ง ไม่มี limit) — ตอนคุยกันข้อมูลมีแค่ ~3 เดือนยังไม่กระทบมาก แต่จะเป็นปัญหาความเร็วเพิ่มขึ้นเรื่อยๆ ตามอายุร้าน
-ถ้าจะทำต้องคุยก่อนว่าฟีเจอร์ "ภาพรวม/กราฟยอดขาย" (`renderAdminOverview`) ต้องดูย้อนหลังกี่เดือน ไม่งั้นจะพังฟีเจอร์นั้น
+✅ **จำกัดช่วงข้อมูลย้อนหลังที่ `getAdminOrders()` ส่งกลับ — ทำเสร็จแล้ว (ยืนยันโค้ดจริง 8 ก.ย. 69)** อยู่ใน
+`order-app-Code.gs`: `filterAdminOrdersWindow()` + ค่าคงที่ `ADMIN_ORDERS_WINDOW_DAYS = 60` — กรองเฉพาะออเดอร์ที่
+`delivery_status` เป็น `done`/`cancelled` และเก่ากว่า 60 วัน (`pending`/`packing` ไม่ถูกกรองไม่ว่าจะเก่าแค่ไหน) ทิ้ง
+เพิ่ม action ใหม่ `getAdminOrdersFull()` (ไม่กรอง) สำหรับหน้า "ภาพรวม/แดชบอร์ด" โดยเฉพาะ ตามที่ตกลงกันไว้ว่าต้องแยก
+เพื่อไม่พังฟีเจอร์กราฟ
+
+✅ **บั๊กแจ้งเตือน Telegram ซ้ำตอน "จัดเสร็จ" — แก้ในโค้ดแล้ว (8 ก.ย. 69) รอผู้ใช้แปะ deploy + ทดสอบจริง**:
+พบจากภาพแชท (ออเดอร์เดียวกัน แจ้ง "จัดเสร็จแล้ว" 2 ครั้งเวลาเดียวกัน) ต้นตอคือ `updateDelivery` มี guard กันเรียกซ้ำ
+อยู่แล้ว (skip ถ้า `delivery_status` ที่ส่งมาตรงกับค่าปัจจุบันในชีต) แต่ guard เช็คก่อนเขียนเท่านั้น ไม่ได้ล็อกอะไรเลย
+(ไฟล์ไม่เคยมี `LockService`) — ถ้า 2 request มาถึงพร้อมกัน (เช่น `postAction` auto-retry ยิงซ้ำตอน execution แรกยัง
+เขียนไม่เสร็จ หรือแตะปุ่มรัว) ทั้งคู่อ่าน `currentStatus` เดิมพร้อมกันได้ก่อนฝ่ายใดเขียนทัน → ผ่าน guard ได้ทั้งคู่ →
+เขียน `done` ซ้ำ + ยิง Telegram ซ้ำ
+
+**แก้แล้ว**: ห่อทั้งฟังก์ชัน `updateDelivery` ด้วย `LockService.getScriptLock()` (`lock.waitLock(10000)` ก่อนเริ่ม,
+`lock.releaseLock()` ใน `finally`) ทำให้ทุกคำขอ `updateDelivery` ประมวลผลทีละคำขอเท่านั้น ปิด race นี้ที่ต้นตอ —
+syntax check ผ่านแล้ว (`node --check`) ส่งไฟล์เต็มให้ผู้ใช้แปะ Apps Script Editor แล้ว **ยังไม่ยืนยันด้วยการใช้งานจริง
+ว่าหายขาด** — ถ้าคุยเรื่องนี้ต่อให้ถามผลหลัง deploy ก่อน
+⚠️ หมายเหตุ: fix นี้ยังไม่ได้ทำกับ `cancelOrder` (มี pattern คล้ายกันแต่ยังไม่มีรายงานบั๊กจริงที่จุดนั้น — ตั้งใจพักไว้
+ตามที่ผู้ใช้ขอให้ไล่แก้ทีละเรื่อง)
 
 ## Bill Templates by Supplier
 
