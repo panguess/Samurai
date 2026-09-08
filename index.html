@@ -514,7 +514,22 @@ async function postAction(payload,label,timeoutMs,retries){
   return null;
 }
 
-window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
+window.onload=()=>{
+  if(isAdmin)initAdmin();
+  else if(customerRef)initCustomer();
+  else if(params.toString())showError();
+  else{
+    // เข้ามาแบบไม่มี query string เลย (พบจริง: PWA ที่ลูกค้ากด "ติดตั้งแอป"/"เพิ่มหน้าจอโฮม" จะเปิดด้วย
+    // manifest.json's start_url="/" เสมอ ไม่ใช่ลิงก์ ?ref=... ที่ลูกค้าใช้ตอนติดตั้ง เพราะ manifest เป็นไฟล์เดียว
+    // ใช้ร่วมกันทุกคน ใส่ ref เฉพาะคนลงไปไม่ได้) เดิมปล่อยให้ไปเจอหน้า home ที่ดูใช้งานได้ปกติแต่ customer เป็น
+    // null อยู่เบื้องหลัง กดปุ่ม "ติดตามสถานะ" แล้วพังทันที — แก้โดยลองเด้งกลับไปที่ ref เดิมที่เคยเข้าสำเร็จก่อน
+    let savedRef=null;
+    try{savedRef=localStorage.getItem('samurai_customer_ref');}catch(e){}
+    if(savedRef){ location.replace(location.pathname+'?ref='+encodeURIComponent(savedRef)); return; }
+    document.getElementById('loading').style.display='none';
+    showError(false);
+  }
+};
 async function initCustomer(){
   try{
     const custCacheKey='customer_'+customerRef;
@@ -526,6 +541,8 @@ async function initCustomer(){
     if(data===null){showError(true);return;}
     if(data.error){showError(false);return;}
     customer=data;
+    // จำ ref ที่เพิ่งเข้าสำเร็จไว้ ใช้กู้กลับตอนเข้ามาแบบไม่มี query string เลย (ดู window.onload ด้านบน)
+    try{localStorage.setItem('samurai_customer_ref',customerRef);}catch(e){}
     document.getElementById('customerName').textContent='สวัสดีครับ '+customer.name;
     document.title='ซามูไรไส้กรอก - '+customer.name;
     show('app');
