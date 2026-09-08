@@ -2055,6 +2055,13 @@ function renderOwnerDashboard(){
 }
 
 // ---------------- แท็บยอดขาย ----------------
+// เดือนที่ยังไม่จบ (เดือนปัจจุบันจริงๆ) เทียบกับเดือนก่อนแบบตรงๆ ไม่ได้ เพราะเดือนนี้มีข้อมูลแค่ไม่กี่วัน
+// แต่เดือนก่อนมีข้อมูลเต็มเดือน ทำให้ % ที่ได้ดูแย่เกินจริงเสมอ (เทียบกันคนละปริมาณวัน)
+function isInProgressMonth(y,m){
+  const now=new Date();
+  return y===now.getFullYear()&&m===now.getMonth();
+}
+
 function renderDashboardSales(){
   const[y,m]=dbSalesMonth.split('-').map(Number);
   const allDone=db_doneOrders();
@@ -2065,6 +2072,20 @@ function renderDashboardSales(){
   if(dbCompareMode==='yoy'){prevY=y-1;prevM=m;}
   else{const pv=db_prevMonthKey(y,m);prevY=pv.y;prevM=pv.m;}
   [prevS,prevE]=monthRange(prevY,prevM);
+
+  // เดือนที่ดูอยู่ยังไม่จบ -> ตัดช่วงเดือนที่เทียบให้เหลือแค่ "วันที่ 1 ถึงวันเดียวกับวันนี้" เท่านั้น
+  // (cap ไม่ให้เกินจำนวนวันจริงของเดือนที่เทียบ เช่นเทียบกับ ก.พ.) แทนที่จะเอาทั้งเดือนมาเทียบ
+  const inProgress=isInProgressMonth(y,m);
+  let periodNote='';
+  if(inProgress){
+    const todayDay=new Date().getDate();
+    const daysInPrevMonth=new Date(prevY,prevM+1,0).getDate();
+    const cappedDay=Math.min(todayDay,daysInPrevMonth);
+    const cappedEnd=new Date(prevY,prevM,cappedDay);cappedEnd.setHours(23,59,59,999);
+    prevE=cappedEnd;
+    periodNote=` (เทียบเฉพาะวันที่ 1-${cappedDay} เท่ากันทั้งสองช่วง เพราะเดือนนี้ยังไม่จบ)`;
+  }
+
   const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
 
   const currTotal=currOrders.reduce((s,o)=>s+Number(o.total),0);
@@ -2087,7 +2108,7 @@ function renderDashboardSales(){
   </div>`:'';
 
   const insightHtml=`<div style="padding:10px 12px;background:#fdf1ea;border-radius:10px;font-size:12.5px;color:#333;line-height:1.7;margin-bottom:12px">
-    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})<br>
+    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})${periodNote}<br>
     · ลูกค้าเดิมซื้อ${decomp.continuingDelta>=0?'เพิ่ม':'ลด'} ฿${fmtMoney(Math.abs(decomp.continuingDelta))}
     <div style="margin-top:8px">🆕 ลูกค้าใหม่ ${decomp.newNames.length} เจ้า (รวม฿${fmtMoney(decomp.newTotal)}) ${nameChips(decomp.newNames,'#3B6D11')}</div>
     <div style="margin-top:8px">📉 ลูกค้าที่หายไปเดือนนี้ ${decomp.churnedNames.length} เจ้า (รวม-฿${fmtMoney(decomp.churnedTotal)}) ${nameChips(decomp.churnedNames,'#A32D2D')}</div>
