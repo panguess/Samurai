@@ -159,13 +159,25 @@ function findOrderLocation(order_id) {
   return null;
 }
 
+/**
+ * ===== เช็คสิทธิ์แอดมิน (เพิ่ม 8 ก.ย. 69) =====
+ * ก่อนหน้านี้ backend ไม่เช็คสิทธิ์อะไรเลยสักจุด — ใครก็ตามที่รู้ URL ของ API ยิง action ฝั่งแอดมินตรงๆ ได้อิสระ
+ * (เปิดเผยอยู่ใน index.html บน GitHub) เก็บ ADMIN_KEY ไว้ใน Script Properties (Project Settings > Script Properties)
+ * ไม่ hardcode ในไฟล์นี้ — ต้องตั้งค่าก่อนใช้งาน ไม่งั้น action ฝั่งแอดมินทุกตัวจะถูกปฏิเสธหมด (ไม่มี default/fallback
+ * ให้ผ่านง่ายๆ ตั้งใจให้เป็นแบบนั้น)
+ */
+function isValidAdminKey(key) {
+  const expected = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
+  return !!expected && key === expected;
+}
+
 function doGet(e) {
   const action = e.parameter.action;
   if (action === 'getCustomer') return getCustomer(e.parameter.id);
   if (action === 'getProducts') return getProducts(e.parameter.group);
   if (action === 'getOrders') return getOrders(e.parameter.customer_id);
-  if (action === 'getAdminOrders') return getAdminOrders();
-  if (action === 'getAdminOrdersFull') return getAdminOrdersFull();
+  if (action === 'getAdminOrders') return getAdminOrders(e.parameter.key);
+  if (action === 'getAdminOrdersFull') return getAdminOrdersFull(e.parameter.key);
   if (action === 'getBusinessNotes') return getBusinessNotes();
   if (action === 'getThaiHolidays') return getThaiHolidays(e.parameter.year);
   return response({ error: 'invalid action' });
@@ -209,6 +221,7 @@ function getBusinessNotes() {
 
 function addBusinessNote(data) {
   try {
+    if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
     const sheet = getSheet('BusinessNote');
     if (!sheet) return response({ error: 'ไม่พบ sheet ชื่อ "BusinessNote" ในไฟล์ Google Sheet (ต้องสร้างก่อน พร้อมหัวคอลัมน์ note_id, date, text)' });
     if (!data.text || !String(data.text).trim()) return response({ error: 'ไม่มีข้อความที่จะบันทึก' });
@@ -239,6 +252,7 @@ function addBusinessNote(data) {
 
 function deleteBusinessNote(data) {
   try {
+    if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
     const sheet = getSheet('BusinessNote');
     if (!sheet) return response({ error: 'ไม่พบ sheet ชื่อ "BusinessNote" ในไฟล์ Google Sheet' });
     const rows = sheet.getDataRange().getValues();
@@ -453,12 +467,14 @@ function filterAdminOrdersWindow(rows) {
   });
 }
 
-function getAdminOrders() {
+function getAdminOrders(key) {
+  if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
   return response(filterAdminOrdersWindow(getAllOrderRows()).reverse());
 }
 
 // ข้อมูลเต็มทุกปี ไม่กรองช่วงวันที่ -> ใช้เฉพาะตอนแอดมินเปิดแท็บ "ภาพรวม" เท่านั้น ไม่ใช่ทุก auto-refresh
-function getAdminOrdersFull() {
+function getAdminOrdersFull(key) {
+  if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
   return response(getAllOrderRows().reverse());
 }
 
@@ -505,10 +521,17 @@ function createOrder(data) {
   }
 }
 
+// เรียกได้ทั้งแอดมิน (แก้ไขจากหน้าจัดการ) และลูกค้า (แก้ไขออเดอร์ตัวเองก่อนถูกจัดที่หน้า track) —
+// ยอมให้ผ่านถ้ามี ADMIN_KEY ถูกต้อง หรือ customer_id ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (กันลูกค้าคนหนึ่ง
+// แก้ไขออเดอร์ของลูกค้าอีกคนโดยเดา/ยิง order_id ตรงๆ)
 function updateOrder(data) {
   const loc = findOrderLocation(data.order_id);
   if (!loc) return response({ error: 'not found' });
-  const { sheet, headers, rowIndex } = loc;
+  const { sheet, headers, rowIndex, row } = loc;
+  const ownerCustomerId = row[headers.indexOf('customer_id')];
+  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+    return response({ error: 'unauthorized' });
+  }
   sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
   sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(data.total);
   sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
@@ -525,6 +548,7 @@ function updateOrder(data) {
  * ยอมรับได้เพราะปริมาณคำขอของร้านนี้ต่ำ ไม่ถึงระดับที่การรอคิวจะกระทบผู้ใช้จริง
  */
 function updateDelivery(data) {
+  if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
@@ -581,10 +605,15 @@ function testUpdateDelivery() {
   Logger.log(result.getContent());
 }
 
+// เรียกได้ทั้งแอดมินและลูกค้า (ยกเลิกออเดอร์ตัวเองที่หน้า track) — pattern สิทธิ์เดียวกับ updateOrder ด้านบน
 function cancelOrder(data) {
   const loc = findOrderLocation(data.order_id);
   if (!loc) return response({ error: 'not found' });
   const { sheet, headers, rowIndex, row } = loc;
+  const ownerCustomerId = row[headers.indexOf('customer_id')];
+  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+    return response({ error: 'unauthorized' });
+  }
   const customerName = row[headers.indexOf('customer_name')];
   const total = row[headers.indexOf('total')];
 

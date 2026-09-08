@@ -453,6 +453,9 @@ function fmtOrderDateTime(ts){
   return`${dateStr} ${timeStr} น.`;
 }
 function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').trim();}
+// กัน stored XSS — note/business note เป็น free text ที่ผู้ใช้พิมพ์เอง เขียนลง Sheet ตรงๆ ไม่ sanitize
+// ต้อง escape ก่อน render ทุกจุดที่ใส่ผ่าน innerHTML (ไม่ escape ตอนเก็บ เพื่อให้ข้อมูลดิบใน Sheet ไม่ถูกบิดเบือน)
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
 var adminQtys={};
@@ -535,6 +538,9 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
 async function postAction(payload,label,timeoutMs,retries){
   timeoutMs=timeoutMs||15000;
   retries=retries==null?1:retries;
+  // แนบ ADMIN_KEY ให้ทุกคำขอที่ยิงจากหน้าแอดมินอัตโนมัติ (การ์ดกันสิทธิ์ฝั่ง backend เพิ่งเพิ่ม — ก่อนหน้านี้ backend
+  // ไม่เช็คอะไรเลย) จุดเรียกที่ต้องส่ง customer_id แทน (แก้ไข/ยกเลิกออเดอร์ตัวเองของลูกค้า) ยังคงส่งเองตรงจุดเรียกตามเดิม
+  if(isAdmin&&payload.key===undefined) payload={...payload,key:ADMIN_KEY};
   for(let attempt=0;attempt<=retries;attempt++){
     const controller=new AbortController();
     const t=setTimeout(()=>controller.abort(),timeoutMs);
@@ -986,7 +992,7 @@ function buildHistoryCard(o){
     <div class="hcard-detail" id="detail${o.order_id}">
       <div class="hcard-divider">
         <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-        ${cleanNote(o.note)?`<div class="order-note">📝 ${cleanNote(o.note)}</div>`:''}
+        ${cleanNote(o.note)?`<div class="order-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
         <div class="tl">${tl1}${tl2}${tl3}</div>
         <div class="order-footer">
           <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${billBtn}${reorderBtn}${cancelBtn}${editBtn}</div>
@@ -1032,7 +1038,7 @@ function renderEditModal(items,note){
       :`<div class="edit-img-placeholder">🛍️</div>`;
     return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
-  html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${note}</textarea></div>`;
+  html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${escapeHtml(note)}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${fmtMoney(calcEditTotal())}</span></div>`;
   document.getElementById('editModalBody').innerHTML=html;
 }
@@ -1066,7 +1072,7 @@ async function saveEdit(){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
+    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,customer_id:customer.customer_id,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
       btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
@@ -1091,7 +1097,7 @@ let adminRefreshFailCount=0;
 // (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
 // เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
 async function fetchFullAdminOrders(silent){
-  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull`,null,'getAdminOrdersFull',20000,1,silent);
+  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',20000,1,silent);
   if(data===null) return false;
   const text=JSON.stringify(data);
   if(text===lastAdminOrdersFullHash) return false;
@@ -1134,7 +1140,7 @@ async function initAdmin(){
   const productsPromise=adminProdCached
     ? Promise.resolve(adminProdCached)
     : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
-  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders`,null,'initAdmin:getAdminOrders',15000,1);
+  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'initAdmin:getAdminOrders',15000,1);
 
   const[productsResult,ordersData]=await Promise.all([productsPromise,ordersPromise]);
 
@@ -1156,7 +1162,7 @@ async function initAdmin(){
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',15000,1,true);
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
     if(data===null){
       adminRefreshFailCount++;
       if(adminRefreshFailCount>=3){
@@ -1181,7 +1187,7 @@ async function initAdmin(){
 
 async function loadAdminOrders(){
   document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'loadAdminOrders',15000,1);
+  const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
   if(data===null){
     document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
     return;
@@ -1264,7 +1270,7 @@ function buildPendingAdminCard(o){
     <div class="hcard-detail ${isOpen?'open':''}">
       <div class="hcard-divider">
         <div class="admin-items-list" style="padding:0 0 8px">${itemsHtml}</div>
-        ${note?`<div class="order-note">📝 ${note}</div>`:''}
+        ${note?`<div class="order-note">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
           <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="event.stopPropagation();markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>
@@ -1361,7 +1367,7 @@ function renderAdminOrders(){
         ${topBadge}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
-      ${cleanNote(o.note)?`<div class="admin-note">📝 ${cleanNote(o.note)}</div>`:''}
+      ${cleanNote(o.note)?`<div class="admin-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
       <div class="admin-order-footer">
         <div><div class="admin-total" id="atotal${o.order_id}">฿${fmtMoney(o.total)}</div><div style="font-size:12.5px;color:#888;margin-top:2px">${items.length} รายการ</div></div>
         ${footerBtns}
@@ -1417,7 +1423,7 @@ function buildDoneAdminCard(o){
           <span style="flex:0.85;text-align:right">รวม</span>
         </div>
         ${itemsHtml}
-        ${note?`<div class="order-note" style="margin-top:8px">📝 ${note}</div>`:''}
+        ${note?`<div class="order-note" style="margin-top:8px">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
           <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="event.stopPropagation();showOrderSummary('${o.order_id}')">🧾 ใบวางบิล</button>
@@ -1729,7 +1735,7 @@ function renderOverviewNotePanel(monthKey){
         <div style="background:#fff;border:1px solid #f0eae4;border-radius:8px;padding:9px 11px;position:relative">
           <button onclick="deleteOverviewNote('${n.note_id}')" style="position:absolute;top:8px;right:9px;font-size:11px;color:#c99;background:none;border:none;cursor:pointer">ลบ</button>
           <div style="font-size:10.5px;color:#b5a89a;font-weight:600;margin-bottom:3px">${formatNoteDateTh(n.date)}</div>
-          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${n.text}</div>
+          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${escapeHtml(n.text)}</div>
         </div>`).join('')}</div>`
     : `<div style="font-size:12.5px;color:#bbb;font-style:italic;text-align:center;padding:8px 0">ยังไม่มีบันทึกสำหรับเดือนนี้</div>`;
   return`<div style="background:#faf8f5;border-radius:8px;padding:12px;margin-bottom:12px">
@@ -2778,7 +2784,7 @@ function cancelOrder(orderId){
   overlay.querySelector('#cancelYes').onclick=async()=>{
     overlay.remove();
     try{
-      const result=await postAction({action:'cancelOrder',order_id:orderId},'cancelOrder');
+      const result=await postAction({action:'cancelOrder',order_id:orderId,customer_id:customer.customer_id},'cancelOrder');
       if(!result||result.success===false){
         alert('ยกเลิกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
         return;

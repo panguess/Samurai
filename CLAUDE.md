@@ -272,7 +272,49 @@ request มาถึงพร้อมกัน (เช่น `postAction` auto-
 `lock.releaseLock()` ใน `finally`) ทำให้ทุกคำขอ `updateDelivery` ประมวลผลทีละคำขอเท่านั้น ปิด race นี้ที่ต้นตอ — syntax
 check ผ่านแล้ว (`node --check`), ส่งไฟล์เต็มให้ผู้ใช้แปะ Apps Script Editor แล้ว และผู้ใช้ยืนยันว่า deploy แล้ว
 ⚠️ หมายเหตุ: fix นี้ยังไม่ได้ทำกับ `cancelOrder` (มี pattern คล้ายกันแต่ยังไม่มีรายงานบั๊กจริงที่จุดนั้น — ตั้งใจพักไว้
-ตามที่ผู้ใช้ขอให้ไล่แก้ทีละเรื่อง) และยังไม่ได้เริ่มแก้ backlog 4 ข้อด้านบน (auth check/XSS/total recompute/comma parsing)
+ตามที่ผู้ใช้ขอให้ไล่แก้ทีละเรื่อง)
+
+✅ **[ทำเสร็จแล้ว] ข้อ 1+2 ของ backlog — auth check ฝั่งแอดมิน + escape note กัน stored XSS (8 ก.ย. 69)**:
+
+**ออกแบบ** (คุยผ่าน `AskUserQuestion` ก่อน implement เพราะพบว่า backlog เดิมสโคปผิด — `updateOrder`/`cancelOrder`
+ไม่ใช่ action ฝั่งแอดมินล้วนอย่างที่บันทึกไว้ แต่ถูกเรียกจากฝั่งลูกค้าด้วย เช่น หน้า track order ของลูกค้ามีปุ่ม
+"แก้ไข"/"ยกเลิก" ออเดอร์ตัวเอง — ถ้าบังคับ `ADMIN_KEY` ตรงๆ ตาม list เดิมจะพังฟีเจอร์ลูกค้า และเจอเพิ่มว่าเดิมทั้งคู่
+ไม่เช็ค ownership เลยด้วยซ้ำ ไม่ใช่แค่ไม่มี key):
+- **Action แอดมินล้วน** (`getAdminOrders`, `getAdminOrdersFull`, `updateDelivery`, `addBusinessNote`,
+  `deleteBusinessNote`) — ต้องมี `ADMIN_KEY` ที่ถูกต้องเท่านั้น เก็บ key ไว้ใน Script Properties (ฟังก์ชันใหม่
+  `isValidAdminKey(key)` อ่านจาก `PropertiesService`) ไม่ hardcode ในไฟล์
+- **`updateOrder`/`cancelOrder`** (ใช้ร่วมกันทั้งแอดมินและลูกค้า) — ยอมผ่านถ้ามี `ADMIN_KEY` ถูกต้อง **หรือ**
+  `customer_id` ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (เทียบจาก `findOrderLocation` ที่อ่านมาแล้ว) — ปิดทั้ง 2 ช่องโหว่
+  พร้อมกัน (ไม่มี key เลย + ไม่เช็ค ownership เลย)
+
+**Backend (`order-app-Code.gs`)**: เพิ่ม `isValidAdminKey(key)`, `doGet` ส่ง `e.parameter.key` ให้
+`getAdminOrders`/`getAdminOrdersFull`, ทั้ง 7 ฟังก์ชันข้างต้นเช็คสิทธิ์ก่อนทำงานจริงทุกตัว
+
+**Frontend (`index.html`)**:
+- `postAction()` แนบ `key:ADMIN_KEY` อัตโนมัติให้ทุกคำขอที่ยิงตอน `isAdmin===true` (ครอบคลุม `updateDelivery`,
+  `addBusinessNote`, `deleteBusinessNote`, และ `updateOrder` ที่แอดมินเรียก — ไม่ต้องแก้ทีละจุดเรียก)
+- 4 จุดเรียก GET (`getAdminOrders`×3, `getAdminOrdersFull`×1) เติม `&key=${ADMIN_KEY}` ในสตริง URL ตรงๆ
+- 2 จุดเรียกฝั่งลูกค้า (`saveEdit`→`updateOrder`, `cancelOrder()`) เพิ่ม `customer_id:customer.customer_id`
+- เพิ่ม `escapeHtml()` helper แล้ว escape ทุกจุดที่ render `note`/business-note `text` ผ่าน `innerHTML` — **จริงๆ มี
+  5 จุด ไม่ใช่ 4 จุดตามที่ backlog เดิมระบุ** (`buildHistoryCard`, `buildPendingAdminCard` ที่ backlog เดิมไม่ได้แยก
+  จากจุดเรียกใน `renderAdminOrders` ที่ใช้กับแท็บ packing ให้ถูก, `buildDoneAdminCard`, `renderOverviewNotePanel`,
+  และจุดที่ backlog เดิมไม่เคยพูดถึงเลยคือ textarea `editNote` ใน `renderEditModal` ที่ pre-fill note เดิมของลูกค้า
+  ตอนเปิดหน้าแก้ไข) — **เจอจุดที่ 5 (`buildPendingAdminCard`) จากการรัน Playwright test จริงเท่านั้น** ตอนแรกไล่ด้วยตาเปล่า
+  แล้วคิดว่าครบ 4 จุดตาม backlog แต่เทสจริงจับได้ว่า XSS payload ยังทำงานได้จากแท็บ "รอจัด" (default tab ของแอดมิน)
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่านทั้ง 2 ไฟล์
+- ทดสอบ logic `isValidAdminKey`/authorization ของ `updateOrder`/`cancelOrder` แยกใน Node (mock `PropertiesService`)
+  ครบ 10 เคส ผ่านหมด
+- Playwright E2E จริง (mock `page.route()`): ยืนยันว่า GET แอดมินแนบ `key=` ใน URL, POST แอดมินแนบ `key` ใน body,
+  POST ลูกค้าแนบ `customer_id` ไม่มี `key`, และ XSS payload (`<img onerror>`) ไม่ทำงานในการ์ดแอดมิน render เป็น
+  escaped text แทน — **เจอบั๊กจริงระหว่างเทส (จุดที่ 5 ด้านบน) แก้แล้วรันซ้ำผ่านหมด**
+
+**ยังไม่ทำ**: backlog ข้อ 3 (คำนวณ `total` ใหม่ที่ backend), ข้อ 4 (กัน comma ใน `parseItems`)
+
+⚠️ **ก่อนใช้งานได้จริงต้องตั้งค่า Script Property `ADMIN_KEY`** (Project Settings → Script Properties) ให้ตรงกับค่า
+ที่ `index.html` ใช้ (ปัจจุบัน `shop123`) ก่อน ไม่งั้น action ฝั่งแอดมินทั้งหมดจะถูกปฏิเสธหมดทันทีหลัง deploy — ผู้ใช้
+ยังไม่ได้ยืนยันว่าตั้งค่า/deploy/ทดสอบแล้ว ถ้าคุยเรื่องนี้ต่อให้ถามผลก่อน
 
 ## Bill Templates by Supplier
 
