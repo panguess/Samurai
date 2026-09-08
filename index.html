@@ -454,7 +454,7 @@ function fmtOrderDateTime(ts){
 }
 function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').trim();}
 var ADMIN_KEY='shop123';
-let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
+let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
 var adminQtys={};
 var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
 let pickedItems=new Set();
@@ -1084,7 +1084,21 @@ function closeEditModal(){document.getElementById('editModal').style.display='no
 
 let adminRefreshInterval=null;
 let lastAdminOrdersHash='';
+let lastAdminOrdersFullHash='';
 let adminRefreshFailCount=0;
+
+// โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
+// (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
+// เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
+async function fetchFullAdminOrders(silent){
+  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull`,null,'getAdminOrdersFull',20000,1,silent);
+  if(data===null) return false;
+  const text=JSON.stringify(data);
+  if(text===lastAdminOrdersFullHash) return false;
+  lastAdminOrdersFullHash=text;
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+  return true;
+}
 
 // ---- บันทึกเหตุการณ์สำคัญ (BusinessNote) — log อิสระ ไม่ผูกกับเดือน ----
 let businessNotes=[];
@@ -1152,11 +1166,16 @@ async function initAdmin(){
     }
     adminRefreshFailCount=0;
     const text=JSON.stringify(data);
-    if(text===lastAdminOrdersHash) return;
-    lastAdminOrdersHash=text;
-    allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
-    if(adminCurrentTab==='overview') renderAdminOverview();
-    else renderAdminOrders();
+    if(text!==lastAdminOrdersHash){
+      lastAdminOrdersHash=text;
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      if(adminCurrentTab!=='overview') renderAdminOrders();
+    }
+    // แท็บภาพรวมต้องดูข้อมูลเต็มทุกปี (allAdminOrders ด้านบนถูกจำกัดแค่ 60 วันแล้ว) รีเฟรชแยกเฉพาะตอนเปิดแท็บนี้อยู่
+    if(adminCurrentTab==='overview'){
+      const changed=await fetchFullAdminOrders(true);
+      if(changed) renderAdminOverview();
+    }
   },30000);
 }
 
@@ -1172,7 +1191,7 @@ async function loadAdminOrders(){
   renderAdminOrders();
 }
 
-function switchAdminTab(tab){
+async function switchAdminTab(tab){
   adminCurrentTab=tab;
   document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
   document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
@@ -1182,8 +1201,18 @@ function switchAdminTab(tab){
   document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
   document.getElementById('overviewFilterBar').style.display=tab==='overview'?'block':'none';
   document.getElementById('ownerDashboard').style.display='none';
-  if(tab==='overview') renderAdminOverview();
-  else renderAdminOrders();
+  if(tab==='overview'){
+    // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
+    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+    await fetchFullAdminOrders();
+    if(!allAdminOrdersFull){
+      document.getElementById('adminOverview').innerHTML='<div class="empty-state">โหลดข้อมูลภาพรวมไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="switchAdminTab(\'overview\')">↻ ลองใหม่</button></div>';
+      return;
+    }
+    renderAdminOverview();
+  } else {
+    renderAdminOrders();
+  }
 }
 
 function buildAdminItemsHtml(o,canAdjustQty){
@@ -1416,7 +1445,7 @@ function currentMonthKey(){
 // เรียงล่าสุดก่อน ใช้ generate month picker ให้ตรงกับข้อมูลจริงเท่านั้น (ไม่โชว์เดือนว่าง)
 function getAvailableOverviewMonths(){
   const set=new Set();
-  (allAdminOrders||[]).forEach(o=>{
+  (allAdminOrdersFull||[]).forEach(o=>{
     const t=o.timestamp;
     if(!t)return;
     const d=new Date(t);
@@ -1494,7 +1523,7 @@ function ov_isDone(o){return o.delivery_status==='done'||String(o.delivery_statu
 
 // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่กำหนด (ใช้เป็น scope เดียวกับ stat cards หลัก)
 function ov_doneOrdersInRange(start,end){
-  return allAdminOrders.filter(o=>{
+  return (allAdminOrdersFull||[]).filter(o=>{
     if(ov_isCancelled(o)||!ov_isDone(o))return false;
     const tStamp=o.done_at||o.timestamp;
     if(!tStamp)return false;
@@ -1782,7 +1811,7 @@ function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
   const ds_cancelled=ov_isCancelled;
   const ds_done=ov_isDone;
-  const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
+  const activeOrders=(allAdminOrdersFull||[]).filter(o=>!ds_cancelled(o));
 
   const[rangeStart,rangeEnd]=getOverviewRange();
   // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards และ ranking
@@ -1951,7 +1980,7 @@ function dbOnMonthChange(val){
 
 // ---- helper ข้อมูลร่วม ----
 function db_doneOrders(){
-  return allAdminOrders.filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
+  return (allAdminOrdersFull||[]).filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
 }
 
 // จำนวน "วันขายจริง" ในช่วง = จำนวนวันปฏิทินที่มีออเดอร์จัดเสร็จเกิดขึ้นอย่างน้อย 1 ออเดอร์ (ดูหมายเหตุด้านบน)
