@@ -384,15 +384,24 @@ function rowToObj(headers, row) {
   return obj;
 }
 
-function getCustomer(id) {
+// อ่านแถวลูกค้าดิบจาก Sheet "Customer" ตาม customer_id — คืน object หรือ null ถ้าไม่พบ
+// ใช้จุดเดียวทั้งโดย getCustomer() (ตอบ frontend) และ createOrder() (หา product_group จริงมาคำนวณราคา
+// แทนที่จะเชื่อ customer_group ที่ client ส่งมา กันคนอ้างว่าตัวเองอยู่กลุ่มราคาถูกกว่าความจริง)
+function findCustomerRow(id) {
   const sheet = getSheet('Customer');
+  if (!sheet) return null;
   const rows = sheet.getDataRange().getValues();
   const headers = rows[0];
   for (let i = 1; i < rows.length; i++) {
     const obj = rowToObj(headers, rows[i]);
-    if (obj['customer_id'] === id) return response(obj);
+    if (obj['customer_id'] === id) return obj;
   }
-  return response({ error: 'not found' });
+  return null;
+}
+
+function getCustomer(id) {
+  const found = findCustomerRow(id);
+  return found ? response(found) : response({ error: 'not found' });
 }
 
 /**
@@ -437,6 +446,40 @@ function getProducts(group) {
   const all = getAllProductRows();
   if (group === 'ALL') return response(all);
   return response(all.filter(p => p['group'] === group));
+}
+
+/**
+ * ===== คำนวณ total จริงที่ backend (เพิ่ม 8 ก.ย. 69) — เดิมเชื่อค่า data.total จาก client 100% =====
+ * แยกรายการจาก items string รูปแบบ "ชื่อ xจำนวน, ชื่อ xจำนวน" — เหมือน parseItems() ฝั่ง index.html เป๊ะ
+ * (มีข้อจำกัดเดียวกัน: ถ้าชื่อสินค้ามี comma ปนจะ parse ผิดตำแหน่ง — เป็น backlog แยกต่างหาก ยังไม่แก้ในนี้)
+ */
+function parseItemsServer(itemsText) {
+  if (!itemsText) return [];
+  return String(itemsText).split(', ').map(item => {
+    const lastX = item.lastIndexOf(' x');
+    if (lastX === -1) return { name: item, qty: 1 };
+    const parsed = parseInt(item.substring(lastX + 2), 10);
+    return { name: item.substring(0, lastX), qty: isNaN(parsed) ? 1 : parsed };
+  }).filter(i => i.qty > 0);
+}
+
+/**
+ * คำนวณ total จากราคาสินค้าจริงใน Sheet ตาม customerGroup ที่ส่งเข้ามา — ต้อง group-aware เหมือน
+ * getOrderProdMap() ฝั่ง index.html เป๊ะ (ระบบ per-customer-segment price list: สินค้าชื่อเดียวกันมีได้
+ * หลายแถว แถวละ 1 กลุ่มราคา) ไม่งั้นสินค้าชื่อซ้ำกันข้าม group จะได้ราคาผิด (เช่นไข่นกกระทา) — fallback ไปใช้
+ * สินค้าทั้งหมดถ้า group นั้นไม่มีสินค้าเลย ตรงกับ fallback ฝั่ง frontend
+ *
+ * ⚠️ ผู้เรียกต้องส่ง customerGroup ที่ยืนยันแล้วว่าเป็นของจริง (เช่นดึงจาก Sheet "Customer" ตรงๆ) ห้ามส่งค่าที่
+ * client อ้างมาเฉยๆ ไม่งั้นคนร้ายแค่เปลี่ยนจาก "โกหกยอดรวม" เป็น "โกหกกลุ่มราคา" แทน ช่องโหว่ก็ยังไม่ปิดจริง
+ */
+function computeOrderTotal(itemsText, customerGroup) {
+  const items = parseItemsServer(itemsText);
+  const allProducts = getAllProductRows();
+  const groupProducts = customerGroup ? allProducts.filter(p => p['group'] === customerGroup) : [];
+  const source = groupProducts.length ? groupProducts : allProducts;
+  const priceMap = {};
+  source.forEach(p => { priceMap[p['name']] = Number(p['price']) || 0; });
+  return items.reduce((sum, item) => sum + item.qty * (priceMap[item.name] || 0), 0);
 }
 
 function getOrders(customer_id) {
@@ -488,19 +531,26 @@ function createOrder(data) {
     const headers = sheet.getDataRange().getValues()[0];
     const orderId = 'ORD-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss');
 
+    // ดึง product_group จริงของลูกค้าคนนี้จาก Sheet "Customer" ตรงๆ ไม่เชื่อ data.customer_group ที่ client อ้างมา
+    // (กันคนอ้างว่าตัวเองอยู่กลุ่มราคาถูกกว่าความจริง) แล้วคำนวณ total จากราคาสินค้าจริงตามกลุ่มนั้น ไม่เชื่อ data.total
+    // เลย — เดิม backend รับค่าทั้งสองตัวนี้จาก client ตรงๆ 100% ไม่เคยตรวจสอบอะไรเลย
+    const customerRow = findCustomerRow(data.customer_id);
+    const realGroup = customerRow ? customerRow['product_group'] : data.customer_group;
+    const total = computeOrderTotal(data.items, realGroup);
+
     // เขียนแถวด้วยการอ้างชื่อหัวคอลัมน์ (ไม่ใช่ตำแหน่ง) — สลับ/ลบ/เพิ่มคอลัมน์ในชีตได้โดยไม่กระทบโค้ด
     const rowObj = {
       order_id: orderId,
       customer_id: data.customer_id,
       customer_name: data.customer_name,
       items: data.items,
-      total: data.total,
+      total: total,
       note: data.note,
       status: 'pending',
       timestamp: new Date(),
       delivery_status: 'pending',
       payment_status: 'pending',
-      customer_group: data.customer_group
+      customer_group: realGroup
     };
     const row = headers.map(h => (h in rowObj) ? rowObj[h] : '');
     sheet.appendRow(row);
@@ -511,7 +561,7 @@ function createOrder(data) {
       '🛒 ออเดอร์ใหม่!\n' +
       'รหัส: ' + orderId + '\n' +
       'ลูกค้า: ' + data.customer_name + '\n' +
-      'ยอดรวม: ฿' + formatMoney(data.total) +
+      'ยอดรวม: ฿' + formatMoney(total) +
       (data.note ? '\nโน้ต: ' + data.note : '')
     );
 
@@ -532,8 +582,12 @@ function updateOrder(data) {
   if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
     return response({ error: 'unauthorized' });
   }
+  // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
+  // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
+  const orderGroup = row[headers.indexOf('customer_group')];
+  const total = computeOrderTotal(data.items, orderGroup);
   sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
-  sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(data.total);
+  sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(total);
   sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
   invalidateOrderCache();
   return response({ success: true });

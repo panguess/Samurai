@@ -310,7 +310,32 @@ check ผ่านแล้ว (`node --check`), ส่งไฟล์เต็�
   POST ลูกค้าแนบ `customer_id` ไม่มี `key`, และ XSS payload (`<img onerror>`) ไม่ทำงานในการ์ดแอดมิน render เป็น
   escaped text แทน — **เจอบั๊กจริงระหว่างเทส (จุดที่ 5 ด้านบน) แก้แล้วรันซ้ำผ่านหมด**
 
-**ยังไม่ทำ**: backlog ข้อ 3 (คำนวณ `total` ใหม่ที่ backend), ข้อ 4 (กัน comma ใน `parseItems`)
+**ยังไม่ทำ**: backlog ข้อ 4 (กัน comma ใน `parseItems`)
+
+✅ **[ทำเสร็จแล้ว] ข้อ 3 — คำนวณ `total` ใหม่ที่ backend (8 ก.ย. 69)**: เดิม `createOrder`/`updateOrder` เชื่อค่า
+`data.total` จาก client 100% (คำนวณจาก `items.reduce` ฝั่ง browser แล้วส่งมาตรงๆ) ใครก็เปิด DevTools/ยิง API ตรงๆ
+แก้ยอดก่อนส่งได้ — เพิ่ม `computeOrderTotal(itemsText, customerGroup)` คำนวณจากราคาสินค้าจริงใน Sheet "Product"
+
+⚠️ **สำคัญที่พบระหว่างคุย**: ระบบราคาผูกกับ `customer_group` (per-customer-segment price list — สินค้าชื่อเดียวกันมี
+หลายแถวคนละราคาต่อกลุ่ม) ถ้าคำนวณ total ใหม่แต่ยังเชื่อ `customer_group` ที่ client ส่งมา ช่องโหว่จะไม่ปิดจริง (แค่
+เปลี่ยนจาก "โกหกยอดรวม" เป็น "โกหกกลุ่มราคา" แทน) แก้โดย:
+- `createOrder`: เพิ่ม `findCustomerRow(id)` ดึง `product_group` จริงจาก Sheet "Customer" ตรงๆ ไม่เชื่อ
+  `data.customer_group` เลย (fallback ไปใช้ `data.customer_group` เฉพาะกรณี `customer_id` หาไม่เจอในชีต)
+- `updateOrder`: ใช้ `customer_group` ที่บันทึกไว้แล้วในแถวออเดอร์นั้น (ยืนยันความถูกต้องไปแล้วตอน `createOrder`)
+  ไม่รับค่าจาก `data` เลย
+- `computeOrderTotal` group-aware ตาม pattern เดียวกับ `getOrderProdMap()`/`getOrderProdFullMap()` ฝั่ง
+  `index.html` เป๊ะ (filter ตาม group ก่อน, fallback ไปสินค้าทั้งหมดถ้า group นั้นไม่มีสินค้าเลย)
+
+**ทดสอบแล้ว**: `node --check` ผ่าน, unit test แยกใน Node ครอบคลุมกรณี group-aware pricing ตรงๆ (สินค้าชื่อเดียวกัน
+คนละราคาคนละกลุ่ม ต้องไม่ leak ราคากลุ่มอื่น), fallback เมื่อ group ไม่มีสินค้า, และสินค้าที่หาชื่อไม่เจอ (ราคา 0 ไม่ throw)
+— ผ่านหมดทุกเคส **ไม่ได้แก้ frontend เลยรอบนี้** (`index.html` ยังส่ง `total`/`customer_group` แบบเดิม แค่ backend
+เพิกเฉยแล้วคำนวณเองแทน) — จุดนี้ไม่กระทบ UX ปกติเลย
+
+⚠️ **Trade-off ที่ยังไม่ได้แก้ (ความเสี่ยงต่ำ ไม่ได้ทำอะไรเพิ่ม)**: `findRecentMatchingOrder()` ฝั่ง `index.html`
+(กันออเดอร์ซ้ำตอน retry) เทียบ `total` ที่ client คำนวณเองกับ `o.total` ที่ตอนนี้เป็นค่าที่ backend คำนวณใหม่แล้ว —
+ปกติสองค่านี้ตรงกันเสมอเพราะข้อมูลราคามาจากแหล่งเดียวกัน มีโอกาสไม่ตรงกันเฉพาะกรณีที่ราคาสินค้าถูกแก้ในชีตระหว่าง
+ที่ลูกค้ากำลังสั่งของพอดี (หน้าต่างเวลาแคบมาก) ถ้าเกิดขึ้นจริง dedup check จะไม่เจอออเดอร์เดิม ทำให้เกิดออเดอร์ซ้ำได้ตอน
+retry — ยังไม่ได้แก้เพราะเป็น edge case ที่โอกาสเกิดต่ำมาก ถ้าเจอปัญหาออเดอร์ซ้ำอีกให้กลับมาดูจุดนี้ก่อน
 
 ⚠️ **ก่อนใช้งานได้จริงต้องตั้งค่า Script Property `ADMIN_KEY`** (Project Settings → Script Properties) ให้ตรงกับค่า
 ที่ `index.html` ใช้ (ปัจจุบัน `shop123`) ก่อน ไม่งั้น action ฝั่งแอดมินทั้งหมดจะถูกปฏิเสธหมดทันทีหลัง deploy — ผู้ใช้
