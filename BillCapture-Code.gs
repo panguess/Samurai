@@ -34,7 +34,7 @@
 // ⚠️ ต้องแทนที่ด้วย Spreadsheet ID จริงก่อน deploy (ดูขั้นตอนที่ 1 ด้านบน)
 // ใส่ ID จริงไว้แล้ว (10 ก.ย. 69) — ห้ามส่งไฟล์นี้ทับโดยไม่เช็คว่ายังมีค่านี้อยู่ก่อนเสมอ (เคยเผลอส่งเวอร์ชัน
 // placeholder ทับของจริงมาแล้วครั้งหนึ่ง ทำให้ deployment พังจนกว่าจะแก้กลับ)
-const SPREADSHEET_ID = '1649bCLwyWnfJyjmIQn54738Wv0vyDh3ITF-K4Xs0Z1c';
+const SPREADSHEET_ID = '1649bCLwyWnfJyjmIQn54738Wv0vyDh3ITF-K4Xs0Zlc';
 const SHEET = SpreadsheetApp.openById(SPREADSHEET_ID);
 const TZ = 'Asia/Bangkok';
 const PURCHASE_RECEIPTS_SHEET = 'PurchaseReceipts';
