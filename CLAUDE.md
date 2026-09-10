@@ -119,6 +119,32 @@
 
 **สถานะ backlog 101 ใบ**: ยังไม่ได้เริ่มไล่จริงจังเลย ถูกบั๊ก "did not match expected pattern" ขวางอยู่ (ทดสอบอ่านบิลจริงกี่ครั้งก็ชนบั๊กนี้) — **session ถัดไปควรขอ screenshot ของ error พร้อม stack trace จากผู้ใช้เป็นอันดับแรกก่อนทำอย่างอื่น** ถ้าแก้ได้แล้วค่อยเริ่มไล่ backlog จริง
 
+### สถานะล่าสุด (อัปเดต 10 ก.ย. 69) — ฟีเจอร์ใหม่: เตือนบิลซ้ำ + push เข้า main
+
+**บริบท**: ผู้ใช้ขอให้ระบบตรวจจับว่าบิลที่กำลังสแกนถูกบันทึกเข้าระบบไปแล้วหรือยัง (กังวลเรื่องสแกนบิลใบเดิมซ้ำ โดยเฉพาะตอนไล่ backlog 101 ใบที่ยังไม่ได้เริ่ม — ดูหัวข้อด้านบน บั๊ก "did not match expected pattern" ยังไม่ได้แก้ ไม่ได้แตะเรื่องนี้ session นี้เลย) คุยผ่าน `AskUserQuestion` ตกลง 3 จุดก่อนเริ่ม implement (ตามกติกา demo ก่อนของแอปนี้):
+1. เกณฑ์ตัดสิน: เลขที่บิล (BillNumber) ตรงกันก่อนเป็นอันดับแรก ถ้าไม่มี (บิลเขียนมือ ส่วนใหญ่ของซัพพลายเออร์รายวัน ไม่มี billHeader เลย) → เทียบรายการสินค้าทั้งหมด (ชื่อ+จำนวน+ราคา) แทน
+2. ช่วงเวลาตรวจ: ไม่จำกัดเวลาย้อนหลัง (เผื่อบิล backlog ถูกสแกนซ้ำห่างกันเป็นเดือน)
+3. พฤติกรรมเมื่อพบว่าอาจซ้ำ: เตือนอย่างเดียว ไม่บล็อกการบันทึก (เหมือน `supplierMismatchWarning` เดิม)
+
+ทำ demo เป็น Artifact (mockup แบนเนอร์ 4 กรณี ใช้ข้อมูลบิล TVI จริงเป็นตัวอย่าง) ให้ดูก่อน ได้รับ "โอเคทั้งสามข้อ" แล้วค่อย implement จริง
+
+**สิ่งที่ทำจริงใน `Code.gs`** (จุดเดียวที่แตะ `analyzeBillPhoto` ตั้งใจ เพิ่ม field `duplicateBillWarning` ใน return object):
+- `checkDuplicateBill(supplierId, billHeader, items)` — เช็คกับทั้ง `PendingBillReceipts` (รอเจ้าของตรวจ) และ `PurchaseReceipts` (บันทึกจริงแล้ว) ของซัพพลายเออร์เดียวกัน เลขที่บิลตรงกันเป๊ะ → ฟันธงทันที (`matchType:'billNumber'`) ไม่งั้นเทียบรายการด้วย `itemOverlapRatio` (หารด้วยจำนวนรายการที่ **มากกว่า** กันบิลบางส่วน/บิลแก้ไขได้คะแนนสูงเกินจริง) ≥0.7 ถือว่าน่าจะซ้ำ (`matchType:'items'`)
+- `buildItemFingerprint(items)` — สร้าง key เทียบกันได้จาก `normalizeAliasKey(billText)+qty+unitPrice` (ใช้ normalizer ตัวเดียวกับ ProductAlias)
+- คืน `{ matchType, batchId, date, billNumber, photoUrl, status:'pending'|'finalized', overlapRatio }` หรือ `null` — **ไม่ persist ลงชีตไหนเลย** (เหมือน `supplierMismatchWarning`) เป็นคำเตือนแบบ ephemeral เฉพาะตอนสแกน ไม่โผล่ตอนเจ้าของเปิดบิลค้างจาก `PendingBillReceipts` มาดูทีหลัง (owner-resume ไม่เรียก `analyzeBillPhoto` ซ้ำ)
+
+**ฝั่งเว็บ (`stock-check.html`)**: เพิ่ม `.duplicate-bill-warning` (สีส้ม `--amber` แยกระดับความรุนแรงจาก `.supplier-mismatch-warning` สีแดง) + ปุ่ม "ดูรูปบิลเดิม" (เปิด `openBillPhotoLightbox` เดิมด้วยรูปบิลเก่า ไม่ใช่รูปที่เพิ่งถ่าย) เพิ่มครบทั้ง 2 เส้นทางที่เรียก `analyzeBillPhoto`: หน้ารีวิวบิลเดี่ยว (`renderBillReview`, `state.billDuplicateWarning`) และโหมดหลายบิล (`renderBillBatchItemReview` เต็ม + มินิแบดจ์ในการ์ดลิสต์ `drawBatchCards`, ต่อ group `g.duplicateBillWarning`) รวมทั้ง path วิเคราะห์ครั้งแรก (`renderBillBatchAnalyzing`) และ path แก้กลุ่มรูป (`renderBillBatchRegroup`)
+
+**ทดสอบจริงจัง (ตามกติกาข้อ 4)**:
+- Unit test 13 เคส รัน `Code.gs` จริงในแซนด์บ็อกซ์ Node (`vm` + stub `SpreadsheetApp`/`CacheService` ขั้นต่ำ) ครอบคลุมเลขบิลตรงแม้รายการไม่ตรง, รายการตรง 75% เทียบกับ `PendingBillReceipts`, รายการตรงไม่ถึง 70% ต้องไม่เตือน, ไม่ข้ามเทียบคนละซัพพลายเออร์, overlap ratio หารด้วยจำนวนที่มากกว่าเสมอ — ผ่านหมด
+- Playwright E2E จริง (mock ที่ `page.route()`) 4 สถานการณ์ (เลขบิลตรง/รายการตรง 80%/ไม่ซ้ำ-regression/โหมดหลายบิลครบมินิแบดจ์+แบนเนอร์+lightbox) — ผ่านหมด ข้อสังเกตสำหรับ session หน้า: ห้ามเรียก global `render()` (รีเซ็ต DOM ทั้งหน้าใหม่) หลังติ๊ก checkbox ด้วย Playwright เพราะ `render()` จะสร้าง checkbox ใหม่ unchecked ทับของเดิมเงียบๆ (ต้อง set state+render() ก่อน ค่อยติ๊ก checkbox ทีหลังเสมอ)
+
+**Deploy**: ส่ง `Code.gs` เต็มไฟล์ให้ผ่าน SendUserFile แล้ว — **ยังไม่ได้รับการยืนยันจากผู้ใช้ว่าแปะ/deploy จริงหรือยัง** ถ้าคุยเรื่องบิลซ้ำต่อ ให้เช็คก่อนว่า deploy แล้วหรือยัง
+
+**Push เข้า `main` แล้ว** (คำสั่งชัดเจนจากผู้ใช้ "Push เลย"): ตอน push เจอว่า `origin/main` ขยับไปไกลกว่าที่ local รู้จัก — อีก session หนึ่งดันงานฝั่ง **แอปสั่งของ** เข้า `main` ไปแล้ว 9 commits (แก้ XSS, ออเดอร์ซ้ำ, แยก endpoint แอดมิน ฯลฯ ดูหัวข้อ Order Web App ด้านล่าง) คนละไฟล์กับที่ session นี้แก้เลย (`Code.gs`/`stock-check.html` เท่านั้น เทียบกับ `index.html`/`order-app-Code.gs`/`CLAUDE.md` ของอีกฝั่ง) merge สะอาดไม่มี conflict — commit บน `main` ตอนนี้: `d5e7d5c` (ฟีเจอร์เตือนบิลซ้ำ) → `070a03a` (merge commit) หมายเหตุ: GitHub แจ้งว่า repo ถูกเปลี่ยนชื่อเป็น `panguess/Samurai` (S ใหญ่) แต่ redirect อัตโนมัติ push ผ่านปกติ ไม่ต้องแก้ remote URL
+
+⚠️ **ค้างเล็กน้อยที่ไม่กระทบอะไร**: แถวทดสอบใน `PurchaseReceipts` จาก session ก่อน (BatchID ขึ้นต้น `RB0906`/`RB0907` ของ S012/S006 — ข้อมูลทดสอบตอนไล่บั๊กฟีเจอร์แยกหลายบิล ไม่ใช่ backlog จริง) ยืนยันแล้วว่าลบได้ (ไม่กระทบ `ProductAlias`) แต่ผู้ใช้ยังไม่ได้ลบเองใน Sheets (Claude แก้ตรงไม่ได้ sandbox ต่อ `google.com` ไม่ได้)
+
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
