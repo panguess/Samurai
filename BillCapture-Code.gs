@@ -78,7 +78,13 @@ const CACHE = CacheService.getScriptCache();
 // submitBillForReview()/finalizePurchaseReceipt() (ทั้งคู่แก้ไขรายการ pending) กันเห็นข้อมูลค้าง
 // billFolder: 1 ชม. — cache Drive folder ID ต่อซัพพลายเออร์ กัน findOrCreateFolder() ต้องไล่ getFoldersByName()
 // 2 ชั้น (ปี→ซัพพลายเออร์) ซ้ำทุกครั้งที่ submitBillForReview ทั้งที่โฟลเดอร์แทบไม่เปลี่ยนเลย
-const CACHE_TTL = { productAlias: 600, pendingBills: 30, billFolder: 3600 };
+// dupCandidates: 10 นาที ต่อซัพพลายเออร์ (เหตุผลเดียวกับ productAlias) — checkDuplicateBill() เดิมอ่านทั้ง
+// PendingBillReceipts+PurchaseReceipts ใหม่ทุกครั้งที่สแกนบิล 1 ใบ ไม่มีแคชเลย ต่างจาก getPendingBillReceipts/
+// billFolder ที่แก้ไปแล้ว 10 ก.ย. 69 — PurchaseReceipts โตขึ้นเรื่อยๆ ไม่มีสิ้นสุดตามจำนวนบิลที่เคยบันทึกจริง
+// (คนละตารางกับ pendingBills ที่มักมีแค่ไม่กี่ใบค้างตรวจ) ยิ่งซัพพลายเออร์มีประวัติซื้อเยอะ ยิ่งสแกนบิลช้าลง
+// เรื่อยๆ ตามเวลา invalidate ทันทีใน submitBillForReview()/finalizePurchaseReceipt() (ทั้งคู่แก้ไขรายการที่
+// checkDuplicateBill ใช้เทียบ) กันเห็นข้อมูลค้างเหมือนกับ pendingBills
+const CACHE_TTL = { productAlias: 600, pendingBills: 30, billFolder: 3600, dupCandidates: 600 };
 function cacheGet(key) {
   const raw = CACHE.get(key);
   return raw ? JSON.parse(raw) : null;
@@ -244,6 +250,32 @@ function analyzeBillPhoto(body) {
 function checkDuplicateBill(supplierId, billHeader, items) {
   const newKeys = buildItemFingerprint(items);
   const newBillNumber = String((billHeader && billHeader.billNumber) || '').trim();
+  const candidates = getDuplicateCandidates(supplierId);
+
+  let best = null;
+  for (const c of candidates) {
+    if (newBillNumber && c.billNumber && newBillNumber === c.billNumber) {
+      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'billNumber', overlapRatio: 1 };
+      break; // เลขที่บิลตรงกันคือมั่นใจสูงสุดแล้ว ไม่ต้องหาต่อ
+    }
+    const ratio = itemOverlapRatio(newKeys, c.keys);
+    if (ratio >= 0.7 && (!best || ratio > best.overlapRatio)) {
+      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'items', overlapRatio: ratio };
+    }
+  }
+  return best;
+}
+
+// อ่าน+ประกอบ fingerprint ของบิลเก่าทั้งหมด (ทั้งที่รอตรวจใน PendingBillReceipts และบันทึกจริงแล้วใน
+// PurchaseReceipts) ของซัพพลายเออร์เดียว ผ่านแคช (10 นาที, แยก key ต่อเจ้า — เหตุผลเดียวกับ
+// getProductAliasIndex) แยกออกมาจาก checkDuplicateBill() เดิมที่อ่านทั้ง 2 ชีตใหม่ทุกครั้งที่สแกนบิล 1 ใบ
+// ไม่มีแคชเลย — PurchaseReceipts โตขึ้นเรื่อยๆ ไม่มีสิ้นสุดตามจำนวนบิลที่เคยบันทึกจริงทั้งหมด invalidate
+// ทันทีใน submitBillForReview()/finalizePurchaseReceipt() (ทั้งคู่แก้ไขรายการที่ฟังก์ชันนี้ใช้เทียบ)
+function getDuplicateCandidates(supplierId) {
+  const key = 'dupCandidates_' + supplierId;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
   const candidates = [];
 
   const pendingSh = SHEET.getSheetByName(PENDING_BILL_SHEET);
@@ -275,18 +307,11 @@ function checkDuplicateBill(supplierId, billHeader, items) {
     });
   Object.values(purchaseByBatch).forEach(b => candidates.push(Object.assign(b, { keys: buildItemFingerprint(b.items) })));
 
-  let best = null;
-  for (const c of candidates) {
-    if (newBillNumber && c.billNumber && newBillNumber === c.billNumber) {
-      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'billNumber', overlapRatio: 1 };
-      break; // เลขที่บิลตรงกันคือมั่นใจสูงสุดแล้ว ไม่ต้องหาต่อ
-    }
-    const ratio = itemOverlapRatio(newKeys, c.keys);
-    if (ratio >= 0.7 && (!best || ratio > best.overlapRatio)) {
-      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'items', overlapRatio: ratio };
-    }
-  }
-  return best;
+  cacheSet(key, candidates, CACHE_TTL.dupCandidates);
+  return candidates;
+}
+function invalidateDuplicateCandidatesCache(supplierId) {
+  cacheClear('dupCandidates_' + supplierId);
 }
 
 // แปลงรายการสินค้าของบิล (จาก analyzeBillPhoto หรือ ItemsJSON/แถว PurchaseReceipts ที่บันทึกไว้แล้ว) ให้เป็น
@@ -527,6 +552,7 @@ function submitBillForReview(body) {
   });
 
   cacheClear('pendingBills'); // เพิ่งเพิ่มบิลใหม่ในคิว — กันหน้า "บิลรอตรวจสอบ" เห็นข้อมูลค้างจากแคชเก่า
+  invalidateDuplicateCandidatesCache(body.supplierId); // บิลนี้ต้องนับเป็น candidate ซ้ำได้ทันทีสำหรับการสแกนครั้งถัดไปของเจ้านี้
   return { ok: true, batchId };
 }
 
@@ -635,6 +661,7 @@ function finalizePurchaseReceipt(body) {
   if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
 
   cacheClear('pendingBills'); // บิลนี้ออกจากคิวรอตรวจแล้ว — กันเห็นแถวที่บันทึกจริงแล้วค้างอยู่ในหน้ารอตรวจ
+  invalidateDuplicateCandidatesCache(body.supplierId); // ย้ายจาก pending ไป PurchaseReceipts จริงแล้ว ต้องอัปเดต candidate ด้วย
   return { ok: true, learnedCount };
 }
 
