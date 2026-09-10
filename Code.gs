@@ -1355,7 +1355,91 @@ function analyzeBillPhoto(body) {
     };
   });
 
-  return { items: normalized, billHeader, supplierMismatchWarning };
+  // เตือนบิลซ้ำ (7 ก.ย. 69 — ต่อ) — เจอ use case จริงว่าอาจสแกนบิลใบเดิมซ้ำโดยไม่ทันสังเกต โดยเฉพาะตอนไล่
+  // backlog บิลเก่า 101 ใบ เป็นแค่คำเตือน (เหมือน supplierMismatchWarning) ไม่บล็อกการบันทึก ดู
+  // checkDuplicateBill() ด้านล่างสำหรับรายละเอียดเกณฑ์ตัดสิน
+  const duplicateBillWarning = checkDuplicateBill(body.supplierId, billHeader, normalized);
+
+  return { items: normalized, billHeader, supplierMismatchWarning, duplicateBillWarning };
+}
+
+// ============ ตรวจจับบิลซ้ำ (7 ก.ย. 69 — ต่อ) ============
+// เช็คว่าบิลที่เพิ่งอ่านได้นี้ตรงกับบิลที่เคยเข้าระบบแล้วของซัพพลายเออร์เดียวกันไหม (ทั้งที่ยังรอเจ้าของตรวจใน
+// PendingBillReceipts และที่บันทึกจริงแล้วใน PurchaseReceipts) — ป้องกันสแกนบิลใบเดียวกันซ้ำ (เกิดขึ้นได้จริง
+// ตอนไล่ backlog บิลเก่า 101 ใบ ถ้าหยิบบิลใบเดิมมาสแกนซ้ำโดยไม่ทันสังเกต)
+// เกณฑ์: มีเลขที่บิล (billNumber) ตรงกัน -> ฟันธงซ้ำทันที (มั่นใจสูงสุด ใช้ได้กับบิลบริษัทจดทะเบียนเท่านั้น)
+// ไม่มีเลขที่บิลให้เทียบ (บิลเขียนมือ ส่วนใหญ่ของซัพพลายเออร์รายวัน ไม่มี billHeader เลย) -> เทียบ "รายการ
+// สินค้าทั้งหมด" (ชื่อ+จำนวน+ราคาต่อหน่วย) ว่าตรงกัน >=70% ของรายการไหม (ไม่บังคับ 100% เผื่อ AI อ่าน OCR
+// ไม่เหมือนกันเป๊ะทุกครั้งที่สแกนบิลใบเดียวกันซ้ำ) เป็นแค่คำเตือน (ฝั่งเว็บยังกดบันทึกต่อได้เสมอ) ไม่บล็อก
+// เพราะการเทียบรายการมีโอกาส false positive ได้ (สั่งของเซตเดียวกันซ้ำจริงในราคาเท่าเดิม) ตรวจย้อนหลัง
+// ไม่จำกัดเวลา (ไม่กรองตามวันที่) เพราะบิลใน backlog อาจถูกสแกนซ้ำห่างกันเป็นเดือนได้ ไม่ใช่แค่วันเดียวกัน
+// คืน { matchType:'billNumber'|'items', batchId, date, billNumber, photoUrl, status:'pending'|'finalized',
+// overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ
+function checkDuplicateBill(supplierId, billHeader, items) {
+  const newKeys = buildItemFingerprint(items);
+  const newBillNumber = String((billHeader && billHeader.billNumber) || '').trim();
+  const candidates = [];
+
+  const pendingSh = SHEET.getSheetByName(PENDING_BILL_SHEET);
+  if (pendingSh) {
+    readTable(PENDING_BILL_SHEET).forEach(r => {
+      if (String(r.SupplierID).trim() !== String(supplierId).trim()) return;
+      let its = [];
+      try { its = JSON.parse(r.ItemsJSON || '[]'); } catch (e) { /* แถวข้อมูลเสีย ข้ามไป ไม่ทำให้ทั้งฟังก์ชันพัง */ }
+      candidates.push({
+        batchId: r.BatchID, date: normDate(r.Date), billNumber: String(r.BillNumber || '').trim(),
+        photoUrl: toEmbeddableDriveUrl(r.PhotoURL), status: 'pending', keys: buildItemFingerprint(its)
+      });
+    });
+  }
+
+  // จัดกลุ่มแถว PurchaseReceipts (denormalized ทีละแถวต่อสินค้า) กลับเป็นทีละบิลตาม BatchID ก่อนสร้าง
+  // fingerprint เพราะการเทียบ "รายการซ้ำ" ต้องเทียบทั้งบิล ไม่ใช่ทีละแถว
+  const purchaseByBatch = {};
+  readTable(PURCHASE_RECEIPTS_SHEET)
+    .filter(r => String(r.SupplierID).trim() === String(supplierId).trim())
+    .forEach(r => {
+      if (!purchaseByBatch[r.BatchID]) {
+        purchaseByBatch[r.BatchID] = {
+          batchId: r.BatchID, date: normDate(r.Date), billNumber: String(r.BillNumber || '').trim(),
+          photoUrl: toEmbeddableDriveUrl(r.PhotoURL), status: 'finalized', items: []
+        };
+      }
+      purchaseByBatch[r.BatchID].items.push({ billText: r.BillText, qty: r.BillQty, unitPrice: r.UnitPrice });
+    });
+  Object.values(purchaseByBatch).forEach(b => candidates.push(Object.assign(b, { keys: buildItemFingerprint(b.items) })));
+
+  let best = null;
+  for (const c of candidates) {
+    if (newBillNumber && c.billNumber && newBillNumber === c.billNumber) {
+      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'billNumber', overlapRatio: 1 };
+      break; // เลขที่บิลตรงกันคือมั่นใจสูงสุดแล้ว ไม่ต้องหาต่อ
+    }
+    const ratio = itemOverlapRatio(newKeys, c.keys);
+    if (ratio >= 0.7 && (!best || ratio > best.overlapRatio)) {
+      best = { batchId: c.batchId, date: c.date, billNumber: c.billNumber, photoUrl: c.photoUrl, status: c.status, matchType: 'items', overlapRatio: ratio };
+    }
+  }
+  return best;
+}
+
+// แปลงรายการสินค้าของบิล (จาก analyzeBillPhoto หรือ ItemsJSON/แถว PurchaseReceipts ที่บันทึกไว้แล้ว) ให้เป็น
+// array ของ key เทียบกันได้ตรงๆ — normalize ชื่อด้วย normalizeAliasKey เดียวกับที่ใช้จับคู่ ProductAlias
+// (กัน AI อ่านช่องว่าง/ตัวพิมพ์ใหญ่เล็กมาไม่เป๊ะเท่าครั้งก่อนแล้วทำให้ไม่ match ทั้งที่ควรจะซ้ำ)
+function buildItemFingerprint(items) {
+  return (items || []).map(it => {
+    const qty = Number(it.qty != null ? it.qty : it.billQty) || 0;
+    const price = Number(it.unitPrice) || 0;
+    return normalizeAliasKey(it.billText) + '|' + qty + '|' + price;
+  });
+}
+// สัดส่วนรายการที่ตรงกันระหว่างบิล 2 ใบ (ไม่สนลำดับ) — หารด้วยจำนวนรายการที่มากกว่า กันบิลที่มีรายการน้อยกว่า
+// มาก (เช่น บิลแก้ไข/บิลบางส่วน) ได้คะแนนสูงเกินจริงถ้าไปหารด้วยจำนวนรายการที่น้อยกว่าแทน
+function itemOverlapRatio(keysA, keysB) {
+  if (!keysA.length || !keysB.length) return 0;
+  const setB = new Set(keysB);
+  const matched = keysA.filter(k => setB.has(k)).length;
+  return matched / Math.max(keysA.length, keysB.length);
 }
 
 // ============ โหมดใหม่: อัปโหลดรูปหลายบิลพร้อมกัน ให้ AI แยกขอบเขตเอกสารเอง (7 ก.ย. 69) ============

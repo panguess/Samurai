@@ -390,6 +390,17 @@
   .supplier-mismatch-warning .smw-title{font-size:13px; font-weight:700; color:var(--danger); margin:0 0 3px;}
   .supplier-mismatch-warning .smw-body{font-size:12px; color:var(--text); line-height:1.55; margin:0 0 9px;}
   .supplier-mismatch-warning .btn{padding:7px 12px; font-size:12px;}
+  /* คำเตือน "บิลนี้อาจซ้ำ" (7 ก.ย. 69 — ต่อ) — เตือนอย่างเดียว ไม่บล็อกการบันทึก (ต่างจาก
+     supplier-mismatch-warning ที่ร้ายแรงกว่าเพราะทั้งบิลอาจผิดเจ้า) ใช้สีส้ม (--amber) แยกระดับความรุนแรง */
+  .duplicate-bill-warning{background:var(--amber-bg); border:1.5px solid var(--amber-mid); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:9px; align-items:flex-start;}
+  .duplicate-bill-warning .icon{color:var(--amber); font-size:17px; flex-shrink:0; margin-top:1px;}
+  .duplicate-bill-warning .dbw-title{font-size:13px; font-weight:700; color:var(--amber); margin:0 0 3px;}
+  .duplicate-bill-warning .dbw-body{font-size:12px; color:var(--text); line-height:1.55; margin:0 0 8px;}
+  .duplicate-bill-warning .dbw-meta{display:flex; align-items:center; gap:6px; margin-bottom:9px; flex-wrap:wrap;}
+  .duplicate-bill-warning .dbw-pill{font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px;}
+  .duplicate-bill-warning .dbw-pill.pending{background:#fff; color:var(--amber);}
+  .duplicate-bill-warning .dbw-pill.finalized{background:var(--green-bg); color:var(--green);}
+  .duplicate-bill-warning .btn{padding:7px 12px; font-size:12px;}
   .bill-photo-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;}
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block; transition:transform .15s ease; transform-origin:center top;}
@@ -891,7 +902,11 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   billBatchGroups:[], billBatchActiveIndex:null, billBatchRegroupFrom:null, billBatchSubmittedCount:null,
   // เตือนตอนเลือกซัพพลายเออร์ผิด (ไม่ตรงกับหัวบิลจริง) — AI เทียบให้ตอน analyzeBillPhoto (ดู Code.gs)
   // null ถ้าดูตรงกันดี/ไม่มีข้อมูลอ้างอิงให้เทียบ ไม่ใช่ error แค่คำเตือนให้คนตรวจสอบเอง (ดู renderBillReview)
-  billSupplierMismatchWarning:null };
+  billSupplierMismatchWarning:null,
+  // เตือนบิลซ้ำ (7 ก.ย. 69 — ต่อ) — checkDuplicateBill() ใน Code.gs เทียบกับบิลที่เคยเข้าระบบแล้วของ
+  // ซัพพลายเออร์เดียวกันให้ตอน analyzeBillPhoto เหมือนกัน { matchType, batchId, date, billNumber, photoUrl,
+  // status, overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ — เป็นแค่คำเตือน ไม่บล็อกการบันทึก
+  billDuplicateWarning:null };
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
@@ -1397,7 +1412,7 @@ function renderBillAnalyzing(app){
       }));
       if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
       // null สำหรับบิลเขียนมือที่ไม่มีเลขที่บิล/VAT — renderBillReview จะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
-      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billMode:'staff'}, {replace:true});
+      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billDuplicateWarning: res.duplicateBillWarning || null, billMode:'staff'}, {replace:true});
     })
     .catch(err=>{
       // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
@@ -1481,6 +1496,7 @@ function renderBillBatchAnalyzing(app){
           })),
           billHeader: res.billHeader || null,
           supplierMismatchWarning: res.supplierMismatchWarning || null,
+          duplicateBillWarning: res.duplicateBillWarning || null,
           reviewed: false, submitted: false,
         });
       }
@@ -1516,6 +1532,21 @@ function renderBillReview(app){
         <button class="btn" id="wrongSupplierBtn">เลือกซัพพลายเออร์ใหม่</button>
       </div>
     </div>` : ''}
+    ${state.billDuplicateWarning ? `
+    <div class="duplicate-bill-warning">
+      <i class="ti ti-copy icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
+        <p class="dbw-body">${state.billDuplicateWarning.matchType==='billNumber'
+          ? `เลขที่บิล <b>${state.billDuplicateWarning.billNumber}</b> ตรงกับบิลที่บันทึกไว้ก่อนหน้านี้`
+          : `ไม่มีเลขที่บิลให้เทียบ แต่รายการสินค้าตรงกับบิลก่อนหน้านี้ถึง <b>${Math.round(state.billDuplicateWarning.overlapRatio*100)}%</b>`}</p>
+        <div class="dbw-meta">
+          <span class="dbw-pill ${state.billDuplicateWarning.status==='finalized'?'finalized':'pending'}">${state.billDuplicateWarning.status==='finalized'?'บันทึกแล้ว':'รอตรวจสอบ'}</span>
+          <span style="font-size:11px; color:var(--text-secondary);">${state.billDuplicateWarning.date||''}</span>
+        </div>
+        ${state.billDuplicateWarning.photoUrl ? `<button class="btn" id="viewDupePhoto">ดูรูปบิลเดิม</button>` : ''}
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${state.billPhotos[0] ? `<img class="rb-thumb" src="${state.billPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${state.billItems.length} รายการ</b> จากรูปบิล ${state.billPhotos.length} ใบ ${isResume ? '· ถ่ายโดย '+state.billStaffName : ''}<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1533,6 +1564,8 @@ function renderBillReview(app){
   app.appendChild(c);
   const wrongSupplierBtn = c.querySelector('#wrongSupplierBtn');
   if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=> go('billSupplier');
+  const viewDupePhotoBtn = c.querySelector('#viewDupePhoto');
+  if(viewDupePhotoBtn) viewDupePhotoBtn.onclick = ()=> openBillPhotoLightbox(state.billDuplicateWarning.photoUrl.split(','));
   c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(state.billPhotos);
 
   const listEl = c.querySelector('#itemList');
@@ -1795,6 +1828,7 @@ function drawBatchCards(c){
         </div>
         <div class="bc-figures"><span>${g.items.length} รายการ</span><span>ยอดรวม <b>${fmtMoneyBatch(total)}</b></span></div>
         ${g.supplierMismatchWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--danger-bg); color:var(--danger); font-size:11px; font-weight:600; padding:6px 8px; border-radius:7px; margin-bottom:9px;"><i class="ti ti-alert-triangle" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจไม่ใช่บิลของซัพพลายเออร์นี้ — ตรวจสอบก่อนยืนยัน</div>` : ''}
+        ${g.duplicateBillWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--amber-bg); color:var(--amber); font-size:11px; font-weight:600; padding:6px 8px; border-radius:7px; margin-bottom:9px;"><i class="ti ti-copy" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจซ้ำกับบิลที่บันทึกไปแล้ว — ตรวจสอบก่อนยืนยัน</div>` : ''}
         <div class="bc-actions">
           <button class="btn" data-regroup="${gi}"><i class="ti ti-photo-plus" aria-hidden="true"></i> แก้กลุ่มรูป</button>
           <button class="btn btn-primary" data-review="${gi}">${g.reviewed?'แก้ไขรายการ':'ตรวจสอบรายการ'}</button>
@@ -1858,6 +1892,21 @@ function renderBillBatchItemReview(app){
         <p class="smw-body">${g.supplierMismatchWarning}</p>
       </div>
     </div>` : ''}
+    ${g.duplicateBillWarning ? `
+    <div class="duplicate-bill-warning">
+      <i class="ti ti-copy icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
+        <p class="dbw-body">${g.duplicateBillWarning.matchType==='billNumber'
+          ? `เลขที่บิล <b>${g.duplicateBillWarning.billNumber}</b> ตรงกับบิลที่บันทึกไว้ก่อนหน้านี้`
+          : `ไม่มีเลขที่บิลให้เทียบ แต่รายการสินค้าตรงกับบิลก่อนหน้านี้ถึง <b>${Math.round(g.duplicateBillWarning.overlapRatio*100)}%</b>`}</p>
+        <div class="dbw-meta">
+          <span class="dbw-pill ${g.duplicateBillWarning.status==='finalized'?'finalized':'pending'}">${g.duplicateBillWarning.status==='finalized'?'บันทึกแล้ว':'รอตรวจสอบ'}</span>
+          <span style="font-size:11px; color:var(--text-secondary);">${g.duplicateBillWarning.date||''}</span>
+        </div>
+        ${g.duplicateBillWarning.photoUrl ? `<button class="btn" id="viewDupePhotoBatch">ดูรูปบิลเดิม</button>` : ''}
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${groupPhotos[0] ? `<img class="rb-thumb" src="${groupPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${g.items.length} รายการ</b> จากรูปบิล ${groupPhotos.length} ใบ<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1871,6 +1920,8 @@ function renderBillBatchItemReview(app){
     </div>
   `;
   app.appendChild(c);
+  const viewDupePhotoBatchBtn = c.querySelector('#viewDupePhotoBatch');
+  if(viewDupePhotoBatchBtn) viewDupePhotoBatchBtn.onclick = ()=> openBillPhotoLightbox(g.duplicateBillWarning.photoUrl.split(','));
   c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(groupPhotos);
 
   const listEl = c.querySelector('#itemList');
@@ -2110,7 +2161,7 @@ function renderBillBatchRegroup(app){
         gr.photoIndices = gr.photoIndices.filter(i=> !selected.includes(i));
         return gr.photoIndices.length > 0;
       });
-      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, reviewed:false, submitted:false });
+      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, duplicateBillWarning: res.duplicateBillWarning||null, reviewed:false, submitted:false });
       go('billBatchReview');
     }catch(err){
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
