@@ -450,6 +450,17 @@
 <script>
 /* ============ LIVE API CONFIG ============ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
+// Apps Script Web App รันในนามบัญชี Google เดียวกันทุกคำขอ ("Execute as: Me") — แปลว่าทุกคนที่เปิดแอปนี้
+// (เจ้าของ + ลูกจ้างทุกคน ไม่ว่ากี่คน) ใช้โควต้า "จำนวนการรันพร้อมกัน" ก้อนเดียวกันหมด เจอ 10 ก.ย. 69 ว่า
+// ตอนลูกจ้างถ่ายบิลให้ AI อ่าน (analyzeBillPhoto/analyzeBillBatch กินเวลา 45-100+ วิต่อครั้งเพราะรอ Gemini
+// ตอบ) จองที่นั่งการรันไว้นานผิดปกติเทียบกับ action อื่นทั้งหมดในแอป (ที่ปกติจบใน 1-4 วิ) ช่วงนั้นถ้าเจ้าของ
+// เปิดหน้าอื่นพร้อมกันพอดี คำขอนั้นมีโอกาสถูก Google ปฏิเสธตั้งแต่ชั้น infrastructure เลย (ไม่ถึงโค้ด doGet
+// ของเราด้วยซ้ำ — ไม่มี log โผล่เลยสักบรรทัดทั้งที่เพิ่ม log ทุก action ไปแล้ว ตรงกับที่เจอจริง) แยก URL
+// ของฟีเจอร์ "รับของ — ถ่ายบิล" ออกเป็น Apps Script โปรเจกต์ต่างหาก (คนละโควต้าการรันพร้อมกัน) ไม่ให้ถ่ายบิล
+// ที่ช้าโดยธรรมชาติไปแย่งทรัพยากรกับการเช็คสต๊อก/สั่งของ/ดูบิลรอตรวจสอบที่ควรเร็วอยู่แล้ว — โปรเจกต์ใหม่นี้
+// อ่าน/เขียน Google Sheet ตัวเดิมได้ปกติ (คนละสคริปต์ แต่ spreadsheet เดียวกัน)
+// ⚠️ ต้องแทนที่ค่านี้ด้วย URL จริงหลัง deploy โปรเจกต์ใหม่แล้ว (ดูขั้นตอนใน BillCapture-Code.gs)
+const BILL_API_URL = 'https://script.google.com/macros/s/AKfycbydw4-CO8PXffbbFV5cRcY030PxLASKknm27Jt4kBE1NYbkXRaZ4inCKXL_6CKFiAg5/exec';
 
 const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อนๆ หรือ Apps Script cold start ตอบช้ากว่า 12 วิได้ง่ายๆ
 
@@ -459,12 +470,12 @@ function debounce(fn, wait){
   let t;
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
-async function apiGet(action, params, timeoutMs){
+async function apiGet(action, params, timeoutMs, baseUrl){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
-    const res = await fetch(`${API_URL}?${qs}`, { signal: controller.signal });
+    const res = await fetch(`${baseUrl || API_URL}?${qs}`, { signal: controller.signal });
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     return data;
@@ -479,17 +490,17 @@ async function apiGet(action, params, timeoutMs){
 // timeoutMs: เผื่อไว้สำหรับ action ที่รู้อยู่แล้วว่าช้ากว่าปกติ (เช่น analyzeBillPhoto ที่ต้องรอ AI
 // อ่านรูปบิล) ไม่ใส่ก็ใช้ API_TIMEOUT_MS ปกติเหมือนเดิม — คนละเรื่องกับ retryOnTimeout (ห้ามใส่ retryOnTimeout
 // กับ action ที่ไม่ idempotent เด็ดขาด ดูคอมเมนต์ apiGet ด้านบน)
-async function apiPost(action, payload, retryOnTimeout, timeoutMs){
+async function apiPost(action, payload, retryOnTimeout, timeoutMs, baseUrl){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
-    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
+    const res = await fetch(baseUrl || API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     return data;
   }catch(err){
     if(err.name==='AbortError'){
-      if(retryOnTimeout) return apiPost(action, payload, false, timeoutMs); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
+      if(retryOnTimeout) return apiPost(action, payload, false, timeoutMs, baseUrl); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
       throw new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง');
     }
     throw err;
@@ -528,11 +539,11 @@ function openBillPhotoLightbox(urls){
   });
   document.body.appendChild(lb);
 }
-async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt){
+async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt, baseUrl){
   let lastErr;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
     if(onAttempt) onAttempt(attempt, maxAttempts);
-    try{ return await apiPost(action, payload, false, timeoutMs); }
+    try{ return await apiPost(action, payload, false, timeoutMs, baseUrl); }
     catch(err){
       lastErr = err;
       if(attempt<maxAttempts) await new Promise(r=> setTimeout(r, 2000)); // เว้นจังหวะสั้นๆ ให้เน็ตนิ่งก่อนลองใหม่
@@ -849,11 +860,6 @@ let supplierCheckDirty = false;
 // renderSupplierCheck() เซ็ตให้ชี้มาที่ตัวเองทุกครั้งที่เข้าหน้านี้ ใช้เรียกจาก popstate listener
 // (อยู่นอก renderSupplierCheck ไปไม่ถึงตัวแปรในนั้นโดยตรง) เพื่อเซฟก่อนค่อยปล่อยให้ปัดกลับสำเร็จจริง
 let supplierCheckAutoSave = null;
-// ผลลัพธ์ที่ยิงขอล่วงหน้าตอนอยู่หน้าเมนูเจ้าของ (renderOwnerMenu) ให้ renderOrderPage ใช้ต่อได้ทันทีถ้าทัน —
-// ดูเหตุผลที่ renderOwnerMenu
-let orderPageDataPrefetch = null;
-let orderPageDataPrefetchTs = 0;
-const ORDER_PAGE_PREFETCH_TTL = 20000; // ms
 let stockStatusCache = null;
 let _stockStatusTs = 0;
 const STOCK_STATUS_TTL = 45000; // ms - avoid refetching the whole sheet on every screen hop
@@ -1403,7 +1409,7 @@ function renderBillAnalyzing(app){
     if(msgEl) msgEl.textContent = attempt===1
       ? 'กำลังแยกรายการ จำนวน และราคาจากรูปที่ถ่ายไว้ อาจใช้เวลาสักครู่'
       : `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
-  })
+  }, BILL_API_URL)
     .then(res=>{
       const items = (res.items||[]).map((it,i)=>({
         _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
@@ -1472,7 +1478,7 @@ function renderBillBatchAnalyzing(app){
         const stageEl = c.querySelector('#analyzeStage'), msgEl = c.querySelector('#analyzeMsg');
         if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
         else if(msgEl) msgEl.textContent = 'แยกว่ารูปไหนเป็นบิลใบเดียวกันก่อน อาจใช้เวลาสักครู่';
-      });
+      }, BILL_API_URL);
       const rawGroups = groupsRes.groups || [];
       if(!rawGroups.length){ throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
 
@@ -1487,7 +1493,7 @@ function renderBillBatchAnalyzing(app){
         const photos = photoIndices.map(i=> state.billPhotos[i]);
         const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
           if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่บิลที่ ${gi+1} (${attempt}/${max})...`;
-        });
+        }, BILL_API_URL);
         groups.push({
           photoIndices,
           items: (res.items||[]).map((it,i)=>({
@@ -1760,7 +1766,7 @@ function renderBillReview(app){
       const res = await apiPost('finalizePurchaseReceipt', {
         batchId: state.billResumeBatchId, supplierId: state.billSupplierId, staffName: state.billStaffName, items,
         billHeader: state.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
       go('billSuccess', {billLearnedCount: res.learnedCount||0});
     }catch(err){
       saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
@@ -1779,7 +1785,7 @@ function renderBillReview(app){
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems,
         billHeader: state.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
       go('billSuccess', {});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
@@ -1864,7 +1870,7 @@ async function submitAllBatch(c){
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName,
         photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
       g.submitted = true;
     }catch(err){
       btn.disabled = false;
@@ -2151,7 +2157,7 @@ function renderBillBatchRegroup(app){
       // ระหว่างรอเหมือนจุดอื่นๆ ที่เรียก analyzeBillPhoto/analyzeBillBatch (ดูคอมเมนต์เต็มที่นิยามฟังก์ชัน)
       const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
         if(attempt>1) btn.textContent = `การเชื่อมต่อหลุด กำลังลองใหม่ (${attempt}/${max})...`;
-      });
+      }, BILL_API_URL);
       const items = (res.items||[]).map((it,i)=>({
         _id: 'rg'+Date.now()+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
         receivedQty: it.qty, unitPrice: it.unitPrice,
@@ -2266,8 +2272,8 @@ async function renderBillPendingList(app){
     c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
     let data;
     try{
-      try{ data = await apiGet('pendingBills', null, 10000); }
-      catch(firstErr){ data = await apiGet('pendingBills'); }
+      try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
+      catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
     }catch(err){
       c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
         <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
@@ -2801,14 +2807,6 @@ function renderOwnerMenu(app){
   c.querySelector('#goOrder').onclick = ()=>go('orderPage');
   c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
   c.querySelector('#goPendingBills').onclick = ()=>go('billPendingList');
-
-  // ยิง orderPageData ล่วงหน้าเงียบๆ ตั้งแต่หน้าเมนูนี้ขึ้นจอ — เจ้าของมักใช้เวลาสักพักดูเมนู/อ่านหัวข้อ
-  // ก่อนกด "สั่งของ" จริง ช่วงนั้นให้คำขอวิ่งไปเบื้องหลังรอไว้เลย พอกดจริง renderOrderPage จะเจอผลที่รอ
-  // อยู่แล้ว (ถ้ายังไม่เกิน 20 วิ) แทนที่จะต้องเริ่มคำขอใหม่แล้วรอ round-trip ทั้งหมดตอนกด — ไม่ช่วยกรณี
-  // กดเร็วมาก (ทันทีที่เข้าเมนู) แต่ลดเวลารอที่รู้สึกได้จริงในเคสทั่วไป ไม่กระทบข้อมูล เพราะยังเป็นคำขอ
-  // เดิมตัวเดียวกัน แค่เริ่มเร็วกว่าเดิม
-  orderPageDataPrefetch = apiGet('orderPageData').catch(()=>null);
-  orderPageDataPrefetchTs = Date.now();
 }
 
 /* ============ OWNER: merged Dashboard + Analytics ============ */
@@ -2920,14 +2918,10 @@ async function renderOrderPage(app){
     // เพื่อให้หน้าอื่นที่เรียก getStockStatus() ต่อจากนี้ (เช่นกลับไปหน้าเช็คสต๊อก) ได้ใช้ข้อมูลสดจากรอบนี้
     // ทันทีโดยไม่ต้องยิงซ้ำ
     //
-    // ถ้ามีคำขอที่ renderOwnerMenu ยิงล่วงหน้าไว้แล้วและยังไม่เก่าเกินไป ใช้ผลนั้นแทนการเริ่มคำขอใหม่ —
-    // เจ้าของมักดูเมนูอยู่พักหนึ่งก่อนกด "สั่งของ" จริง ช่วงนั้นคำขอวิ่งไปเบื้องหลังรอไว้แล้ว
-    let data = null;
-    if (orderPageDataPrefetch && (Date.now() - orderPageDataPrefetchTs) < ORDER_PAGE_PREFETCH_TTL) {
-      data = await orderPageDataPrefetch;
-    }
-    orderPageDataPrefetch = null; // ใช้แล้วทิ้ง กันหน้าอื่นที่กลับมาเปิดซ้ำเจอผลเก่าซ้ำ
-    if (!data) data = await apiGet('orderPageData');
+    // (เคยลองเพิ่ม prefetch ยิง orderPageData ล่วงหน้าตั้งแต่หน้าเมนูเจ้าของ แต่ถอนออกแล้ว — ยิงทุกครั้งที่
+    // เข้าเมนูไม่ว่าจะกด "สั่งของ" ต่อจริงหรือไม่ กลายเป็นคำขอเปล่าประโยชน์ที่แย่งคิว/โควต้า Apps Script กับ
+    // คำขอจริงของหน้าอื่นที่เจ้าของกดไปแทน เช่น "สต๊อก & วิเคราะห์"/"บิลรอตรวจสอบ" — แลกไม่คุ้ม)
+    const data = await apiGet('orderPageData');
     statusList = data.stockStatus;
     stockStatusCache = statusList; _stockStatusTs = Date.now();
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
