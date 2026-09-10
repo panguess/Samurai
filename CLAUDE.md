@@ -439,6 +439,83 @@ order_id ที่ถูกต้องจาก response จริง) — ผ�
    ที่ไม่มีข้อมูล กด "ติดตามสถานะ" โชว์ "โหลดข้อมูลไม่ได้" (ข้อความหลอก) — หลังแก้: เด้งกลับไปโหลดร้านสำเร็จอัตโนมัติ
    ไม่มี JS error ทั้งสองเวอร์ชัน (ยืนยันว่าไม่ใช่ "crash" แบบที่เคยพูดผิดไปตอนแรก) — ผ่านหมดทุกเคสทั้ง 2 รอบ
 
+### สถานะล่าสุด (อัปเดต 10 ก.ย. 69) — ออเดอร์ซ้ำจริงจาก cold-connection timeout + แก้ด้วย idempotency key
+
+**บริบท**: ลูกค้ารายงานเจอ alert "บันทึกคำสั่งซื้อไม่สำเร็จ" ตอนสั่งของ (~07:39) ตรวจสอบแล้วพบว่า `createOrder`
+บันทึกสำเร็จจริง (ร้านเห็นออเดอร์) แต่ response หลุด/timeout กลับมาหา client (cold connection ปัญหาเดิมที่เคย
+บันทึกไว้แล้วในไฟล์นี้) — ลูกค้าเห็น alert เลยกดสั่งซ้ำเอง ยืนยันจาก Telegram ที่แจ้งเตือน "ออเดอร์ใหม่" 2 รอบ ->
+**เกิดออเดอร์ซ้ำจริงในชีต** ไม่ใช่แค่ false-alarm ทาง UX เท่านั้น (ตรงกับ trade-off ที่เคย flag ไว้ตอนแก้เรื่อง
+คำนวณ `total` ใหม่ที่ backend เมื่อ 8 ก.ย. 69 — แต่ครั้งนี้ต้นตอเป็น connection ล้มเหลวทั้ง `createOrder` และ
+`findRecentMatchingOrder`'s dedup check พร้อมกัน ไม่ใช่กรณี `total` ไม่ตรงกันตามที่เคยคาดไว้)
+
+**Vercel logs ไม่เกี่ยวข้องกับบั๊กประเภทนี้เลย**: แอปนี้เป็น static site ล้วน ยิง request ตรงจาก browser ไปหา
+Google Apps Script โดยไม่ผ่าน Vercel backend ใดๆ — ถ้าเจอรายงาน "สั่งของ/บันทึกไม่สำเร็จ" ในอนาคต ไม่ต้องเสียเวลา
+เช็ค Vercel runtime logs/errors เลย ให้เช็ค Apps Script Executions log แทน (ตามธรรมเนียมเดิมของแอปเช็คสต๊อก)
+
+**แก้แล้ว (ยังไม่ deploy backend — รอผู้ใช้แปะ `order-app-Code.gs` ใหม่)**: เพิ่ม idempotency key กัน
+`createOrder` สร้างแถวซ้ำ:
+- `index.html`: `showConfirm()` สร้าง `orderIdemKey` ใหม่ทุกครั้งที่เข้าหน้ายืนยันออเดอร์ (คู่กับ `pendingOid` เดิม)
+  ส่งไปกับ payload ของ `placeOrder()` — key เดิมนี้ถูกใช้ซ้ำทั้งตอน auto-retry ของ `postAction` และตอนลูกค้ากดปุ่ม
+  "ยืนยันสั่งซื้อ" ซ้ำเองด้วยมือ (เพราะไม่ได้เรียก `showConfirm()` ใหม่) จนกว่าจะสำเร็จจริงหรือกลับไปเริ่มออเดอร์ใหม่
+  (`showOrderSuccessScreen()` reset เป็น `''`) — เปิด auto-retry ให้ `createOrder` แล้ว (`postAction(...,15000,1)`
+  จากเดิม `retries=0`) เพราะตอนนี้ปลอดภัยแล้วที่ backend
+- `order-app-Code.gs`: `createOrder` ห่อด้วย `LockService.getScriptLock()` (pattern เดียวกับ `updateDelivery`)
+  เช็ค `CacheService` ก่อนว่าเคยสร้างออเดอร์ด้วย `idempotency_key` นี้แล้วหรือยัง (TTL 5 นาที) ถ้าเจอคืน `order_id`
+  เดิมกลับไปเลยไม่ `appendRow` ซ้ำ — **ไม่บังคับว่าต้องมี key** (frontend เก่าที่ cache ค้างยังทำงานได้ปกติ แค่ไม่มี
+  dedup protection ให้ เหมือนพฤติกรรมเดิมก่อนแก้)
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่านทั้ง 2 ไฟล์
+- Unit test แยกใน Node (mock `LockService`/`CacheService`/`SpreadsheetApp`) ครอบคลุม 4 เคส: key เดิมซ้ำ ->
+  ได้ `order_id` เดิม + `appendRow` แค่ 1 ครั้ง, key ต่างกัน -> คนละออเดอร์, ไม่มี key เลย -> พฤติกรรมเดิม (ไม่ dedup,
+  backward compat), lock ชนกัน -> คืน error สุภาพไม่เขียนแถว — ผ่านหมด
+- Playwright E2E จริง (mock `page.route()`) 3 เคส: (1) attempt แรกพัง auto-retry สำเร็จ -> ไม่โชว์ alert เลย
+  ทั้ง 2 ครั้งส่ง key เดียวกัน (2) ทั้ง 2 attempt พังหมด -> โชว์ alert ไม่สำเร็จ แล้วกดปุ่มซ้ำเอง (manual retry) ->
+  ยังใช้ key เดิมทุกครั้งทั้ง 4 คำขอ (3) สั่งสำเร็จแล้วกลับไปสั่งออเดอร์ใหม่รอบสอง -> ได้ key ใหม่ไม่ซ้ำของเดิม —
+  ผ่านหมดทุกเคส
+
+**ขั้นต่อไป**: ผู้ใช้ต้องแปะ `order-app-Code.gs` เวอร์ชันใหม่ใน Apps Script Editor (Manage deployments -> New
+version) — ยังไม่ได้ push ขึ้น `main` (รอ approve ตามธรรมเนียมเดิม) frontend/backend รอบนี้ compatible กันทั้ง
+2 ทิศทาง (deploy backend ก่อนหรือหลัง push frontend ก็ได้ ไม่มีช่วงพัง เพราะ backend ไม่บังคับว่าต้องมี key)
+
+⚠️ **[พักไว้ 10 ก.ย. 69] ผู้ใช้ขอเก็บ fix นี้ไว้ก่อน** — ยังไม่ deploy/push ทั้งคู่ รอแก้อีกเรื่องหนึ่งให้เสร็จก่อน
+แล้วจะขึ้นระบบ (deploy backend + push frontend) พร้อมกันทีเดียว โค้ดทั้ง 2 ไฟล์ในเครื่อง/ใน repo นี้แก้เสร็จพร้อม
+ใช้แล้ว แค่รอคำสั่งให้ deploy จริง — **ห้าม push/เตือนให้ deploy fix นี้เองโดยไม่ถูกถาม**
+
+### สถานะล่าสุด (อัปเดต 10 ก.ย. 69 — ต่อ) — "อีกเรื่อง" ที่รออยู่คือบั๊ก lock ค้างเพราะ Telegram (พบ+แก้แล้ว)
+
+**บริบท**: ผู้ใช้ส่งภาพจริงจากฝั่งแอดมิน — กด "จัดเสร็จแล้ว" (`markDone`) แล้วเจอ error
+`updateDelivery: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง` (ข้อความจาก `LockService` ที่เพิ่มไป 8 ก.ย. 69)
+นี่คือ "อีกเรื่อง" ที่ผู้ใช้บอกว่าจะรอแก้ก่อนขึ้นระบบพร้อมกับ idempotency key fix ด้านบน
+
+**Root cause**: `sendTelegramNotify()` (network call ใช้เวลาไม่แน่นอน) เดิมถูกเรียก**ข้างใน**
+`try{...}finally{lock.releaseLock()}` ของ `updateDelivery` — ถ้า Telegram ช้า lock จะถูกถือค้างนานเกิน 10 วิได้
+คำขอ `updateDelivery` อื่นที่เข้ามาพร้อมกัน (เช่น auto-retry ของ `postAction` ที่ `markDone()`/`markPacking()`
+ไม่ได้ปิด retry ไว้ ใช้ default `retries=1`) จะ `waitLock` timeout เห็น error นี้ ทั้งที่คำขอแรกอาจสำเร็จจริงอยู่ดี
+— รูปแบบบั๊กเดียวกับเคสออเดอร์ซ้ำตอนเช้า (10 ก.ย. 69) แค่คนละฟังก์ชัน
+
+⚠️ **เจอบั๊กแฝงตัวเดียวกันใน `createOrder` ที่เพิ่งแก้ไปก่อนหน้านี้ในเซสชันเดียวกัน (ยังไม่ deploy)** — ตอนเขียน
+lock+idempotency ให้ `createOrder` ผมคัดลอกโครงเดิมมาโดยไม่ทันสังเกตว่า `sendTelegramNotify()` อยู่ในลูปก่อน
+`lock.releaseLock()` เหมือนกัน ถ้า deploy ไปตอนนั้นจะเจอปัญหาเดียวกันกับฝั่งลูกค้าได้ — แก้พร้อมกันในรอบนี้เลย
+
+**แก้แล้วทั้ง 2 จุด**: ย้าย `sendTelegramNotify()` ไปเรียกใน `finally` **ต่อจาก** `lock.releaseLock()` (เก็บแค่
+message string ไว้ในตัวแปร `notifyMessage` ระหว่างอยู่ใน critical section) — lock จะถือแค่ช่วงอ่าน/เขียนชีต
+(เร็ว) เท่านั้น ไม่ถือระหว่างรอ Telegram ตอบกลับอีกต่อไป ไม่ต้องปรับ timeout 10 วิหรือ logic อื่นเลย
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่าน
+- Unit test ใหม่ 3 เคส (mock เก็บลำดับการเรียก call log): `createOrder` และ `updateDelivery` (status `done`)
+  ยืนยันว่า `releaseLock` เกิดก่อน `sendTelegramNotify` เสมอ, `updateDelivery` (status `packing`) ยืนยันว่ายังไม่
+  แจ้ง Telegram เหมือนเดิม (ไม่ใช่ regression) — ผ่านหมด
+- รัน unit test ชุด idempotency key เดิม (4 เคส) ซ้ำอีกรอบ ยืนยันว่าไม่มี regression จากการย้าย Telegram —
+  ผ่านหมดเหมือนเดิม
+
+**สถานะ deploy**: ยังพักไว้เหมือนเดิมตามที่ผู้ใช้ขอ — `order-app-Code.gs` ในเครื่อง/ใน repo นี้ตอนนี้มีทั้ง 2 fix
+(idempotency key + Telegram-outside-lock) พร้อม deploy พร้อมกันทีเดียวเมื่อได้รับคำสั่ง ยังไม่ได้ push ขึ้น `main`
+
+**เคสนี้ยังต้องติดตามต่อ**: แนะนำให้ร้านเช็คว่าออเดอร์ซ้ำที่เกิดจริงเมื่อเช้า 10 ก.ย. 69 ถูกยกเลิก/จัดการแล้วหรือยัง
+(ไม่ใช่ปัญหาโค้ด แต่เป็นข้อมูลที่ค้างอยู่ในชีตจากก่อนแก้)
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.

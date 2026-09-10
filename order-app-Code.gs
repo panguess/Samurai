@@ -546,8 +546,43 @@ function getAdminOrdersFull(key) {
   return response(getAllOrderRows().reverse());
 }
 
+/**
+ * idempotency_key (ถ้า client ส่งมา) กันสร้างออเดอร์ซ้ำ — พบเคสจริง 10 ก.ย. 69: createOrder บันทึกสำเร็จ
+ * แต่ response หลุด/timeout กลับไปหา client (cold connection ปัญหาเดิมที่เคยบันทึกไว้), ลูกค้าเห็น alert
+ * "ไม่สำเร็จ" เลยกดสั่งซ้ำเอง -> Telegram แจ้งเตือน 2 รอบ, ออเดอร์ซ้ำจริงในชีต
+ *
+ * แก้ด้วย LockService (serialize ทุกคำขอ createOrder กันสอง request เข้ามาพร้อมกันอ่าน cache ไม่เจอทั้งคู่
+ * ก่อนฝ่ายใดเขียนทัน — เหตุผลเดียวกับ updateDelivery) + CacheService เก็บ mapping key -> order_id ที่เพิ่งสร้าง
+ * (TTL 5 นาที ครอบคลุมทั้ง auto-retry ของ postAction และการกดปุ่มซ้ำเองของลูกค้า) ยิงซ้ำด้วย key เดิมกี่ครั้ง
+ * จะได้ order_id เดิมกลับไปเสมอ ไม่ appendRow ซ้ำ — ใช้ cache ไม่ใช่คอลัมน์ใหม่ในชีต เพื่อไม่ต้องแก้ header เดิม
+ *
+ * ไม่บังคับว่าต้องมี key: frontend เก่าที่ cache ค้าง (เคยเจอปัญหานี้จริงกับแอปนี้ — ไอคอน/แท็บปักหมุด) ที่ยังไม่ส่ง
+ * มา จะทำงานได้ตามปกติเดิมทุกอย่าง แค่ไม่มี dedup protection ให้ (เหมือนพฤติกรรมก่อนแก้)
+ *
+ * ⚠️ sendTelegramNotify() ต้องเรียก "หลัง" lock.releaseLock() เท่านั้น (เก็บ message ไว้ในตัวแปร notifyMessage
+ * ระหว่างอยู่ใน lock) — เจอบั๊กจริงจากจุดเดียวกันนี้ใน updateDelivery เมื่อ 10 ก.ย. 69: Telegram เป็น network
+ * call ที่ใช้เวลาไม่แน่นอน ถ้าเรียกในนี้จะถือ lock ค้างนานเกิน 10 วิได้ตอน Telegram ช้า ทำให้คำขอ createOrder
+ * อื่น (เช่น auto-retry ของ postAction) waitLock timeout เห็น error "ระบบกำลังประมวลผลคำขออื่นอยู่" ทั้งที่
+ * คำขอแรกอาจบันทึกสำเร็จจริงอยู่ดี
+ */
 function createOrder(data) {
+  const lock = LockService.getScriptLock();
   try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return response({ error: 'createOrder: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
+  }
+  let notifyMessage = null;
+  try {
+    const idemKey = data.idempotency_key;
+    const cache = CacheService.getScriptCache();
+    if (idemKey) {
+      const cachedOrderId = cache.get('idem_order_' + idemKey);
+      if (cachedOrderId) {
+        return response({ success: true, order_id: cachedOrderId });
+      }
+    }
+
     // ออเดอร์ใหม่เขียนลง sheet ของปีปัจจุบันเสมอ (ผ่าน getOrderSheetByYear จุดเดียว)
     const sheet = getOrderSheetByYear();
     if (!sheet) {
@@ -581,18 +616,29 @@ function createOrder(data) {
     sheet.appendRow(row);
     invalidateOrderCache();
 
-    // การแจ้งเตือน Telegram ต้องไม่มีผลต่อความสำเร็จของการบันทึกออเดอร์ (sendTelegramNotify มี try/catch ของตัวเองอยู่แล้ว)
-    sendTelegramNotify(
+    if (idemKey) {
+      try {
+        cache.put('idem_order_' + idemKey, orderId, 300);
+      } catch (e) {
+        console.error('createOrder: cache.put idempotency key ล้มเหลว: ' + e);
+      }
+    }
+
+    // เก็บไว้ส่งหลัง release lock เท่านั้น (ดู comment ด้านบนฟังก์ชัน) — ไม่มีผลต่อความสำเร็จของการบันทึกออเดอร์
+    // อยู่แล้ว (sendTelegramNotify มี try/catch ของตัวเองอยู่แล้ว)
+    notifyMessage =
       '🛒 ออเดอร์ใหม่!\n' +
       'รหัส: ' + orderId + '\n' +
       'ลูกค้า: ' + data.customer_name + '\n' +
       'ยอดรวม: ฿' + formatMoney(total) +
-      (data.note ? '\nโน้ต: ' + data.note : '')
-    );
+      (data.note ? '\nโน้ต: ' + data.note : '');
 
     return response({ success: true, order_id: orderId });
   } catch (e) {
     return response({ error: 'createOrder: ' + e.message });
+  } finally {
+    lock.releaseLock();
+    if (notifyMessage) sendTelegramNotify(notifyMessage);
   }
 }
 
@@ -625,6 +671,14 @@ function updateOrder(data) {
  * ก่อนฝ่ายใดจะเขียนทัน ผ่าน guard "currentStatus === data.delivery_status" ได้ทั้งคู่ -> เขียน done ซ้ำ
  * + ยิง Telegram ซ้ำ) การล็อกนี้ทำให้ทุก updateDelivery ทำงานทีละคำขอเท่านั้น (ไม่ว่าจะคนละ order_id ก็ตาม)
  * ยอมรับได้เพราะปริมาณคำขอของร้านนี้ต่ำ ไม่ถึงระดับที่การรอคิวจะกระทบผู้ใช้จริง
+ *
+ * ⚠️ [แก้ 10 ก.ย. 69] sendTelegramNotify() ต้องเรียก "หลัง" lock.releaseLock() เท่านั้น ห้ามย้ายกลับเข้าไปใน
+ * critical section — เดิมเรียกอยู่ข้างในก่อน releaseLock พบจริงว่า Telegram (network call ที่ใช้เวลาไม่แน่นอน)
+ * ทำให้ lock ถูกถือค้างนานเกิน 10 วิ ตอน Telegram ช้า ทำให้คำขอ updateDelivery อื่นที่เข้ามาพร้อมกัน (เช่น
+ * auto-retry ของ postAction ที่ markDone()/markPacking() ไม่ได้ปิด retry ไว้) waitLock timeout เห็น error
+ * "ระบบกำลังประมวลผลคำขออื่นอยู่" ทั้งที่คำขอแรกอาจสำเร็จจริงอยู่ดี — ย้าย sendTelegramNotify มาไว้ใน finally
+ * ต่อจาก releaseLock() แทน (เก็บแค่ message string ไว้ในตัวแปร notifyMessage ระหว่างอยู่ใน lock) lock จะถือแค่
+ * ช่วงอ่าน/เขียนชีต (เร็ว) เท่านั้น
  */
 function updateDelivery(data) {
   if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
@@ -634,6 +688,8 @@ function updateDelivery(data) {
   } catch (e) {
     return response({ error: 'updateDelivery: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
   }
+  // สร้างไว้เผื่อมีข้อความต้องแจ้ง — ส่งจริงหลัง release lock แล้วเท่านั้น (ดูเหตุผลที่ comment ด้านบนฟังก์ชัน)
+  let notifyMessage = null;
   try {
     const loc = findOrderLocation(data.order_id);
     if (!loc) return response({ error: 'not found' });
@@ -661,17 +717,19 @@ function updateDelivery(data) {
 
         const customerName = row[headers.indexOf('customer_name')];
         const total = row[headers.indexOf('total')];
-        sendTelegramNotify(
+        notifyMessage =
           '✅ จัดเสร็จแล้ว\n' +
           'รหัส: ' + data.order_id + '\n' +
           'ลูกค้า: ' + customerName + '\n' +
-          'ยอดรวม: ฿' + formatMoney(total)
-        );
+          'ยอดรวม: ฿' + formatMoney(total);
       }
 
     return response({ success: true });
   } finally {
     lock.releaseLock();
+    // ตั้งใจส่งหลัง release lock แล้วเท่านั้น (ดู comment ด้านบนฟังก์ชัน) — sendTelegramNotify มี try/catch
+    // ของตัวเองอยู่แล้ว ไม่ต้องห่อซ้ำ
+    if (notifyMessage) sendTelegramNotify(notifyMessage);
   }
 }
 
