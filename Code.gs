@@ -108,6 +108,11 @@ function cacheClear(key) {
 
 function doGet(e) {
   const action = e.parameter.action;
+  // ใส่ log ตอนเริ่มทุกครั้ง (ไม่ใช่แค่ตอน error) — เจอ 10 ก.ย. 69 ว่า Executions log เดิมโชว์แค่ Function
+  // (doGet/doPost) กับ Duration ไม่บอกว่าเป็น action ไหน ทำให้ไล่ไม่ออกว่าหน้าที่ควรยิงคำขอเดียว (เช่น
+  // orderPageData) ยิงจริงกี่ครั้ง/action อะไรบ้างตอนมีคนบ่นว่าช้า — คลิกเข้าไปดูรายละเอียดแต่ละแถวใน
+  // Executions จะเห็นบรรทัดนี้แล้วรู้ทันทีว่าคำขอนั้นคือ action อะไร
+  Logger.log('[doGet] ' + action);
   let result;
   try {
     switch (action) {
@@ -133,6 +138,7 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
+  Logger.log('[doPost] ' + body.action); // ดูเหตุผลเดียวกับ log ใน doGet ด้านบน
   let result;
   try {
     switch (body.action) {

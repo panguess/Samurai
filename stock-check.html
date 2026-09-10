@@ -849,6 +849,11 @@ let supplierCheckDirty = false;
 // renderSupplierCheck() เซ็ตให้ชี้มาที่ตัวเองทุกครั้งที่เข้าหน้านี้ ใช้เรียกจาก popstate listener
 // (อยู่นอก renderSupplierCheck ไปไม่ถึงตัวแปรในนั้นโดยตรง) เพื่อเซฟก่อนค่อยปล่อยให้ปัดกลับสำเร็จจริง
 let supplierCheckAutoSave = null;
+// ผลลัพธ์ที่ยิงขอล่วงหน้าตอนอยู่หน้าเมนูเจ้าของ (renderOwnerMenu) ให้ renderOrderPage ใช้ต่อได้ทันทีถ้าทัน —
+// ดูเหตุผลที่ renderOwnerMenu
+let orderPageDataPrefetch = null;
+let orderPageDataPrefetchTs = 0;
+const ORDER_PAGE_PREFETCH_TTL = 20000; // ms
 let stockStatusCache = null;
 let _stockStatusTs = 0;
 const STOCK_STATUS_TTL = 45000; // ms - avoid refetching the whole sheet on every screen hop
@@ -2796,6 +2801,14 @@ function renderOwnerMenu(app){
   c.querySelector('#goOrder').onclick = ()=>go('orderPage');
   c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
   c.querySelector('#goPendingBills').onclick = ()=>go('billPendingList');
+
+  // ยิง orderPageData ล่วงหน้าเงียบๆ ตั้งแต่หน้าเมนูนี้ขึ้นจอ — เจ้าของมักใช้เวลาสักพักดูเมนู/อ่านหัวข้อ
+  // ก่อนกด "สั่งของ" จริง ช่วงนั้นให้คำขอวิ่งไปเบื้องหลังรอไว้เลย พอกดจริง renderOrderPage จะเจอผลที่รอ
+  // อยู่แล้ว (ถ้ายังไม่เกิน 20 วิ) แทนที่จะต้องเริ่มคำขอใหม่แล้วรอ round-trip ทั้งหมดตอนกด — ไม่ช่วยกรณี
+  // กดเร็วมาก (ทันทีที่เข้าเมนู) แต่ลดเวลารอที่รู้สึกได้จริงในเคสทั่วไป ไม่กระทบข้อมูล เพราะยังเป็นคำขอ
+  // เดิมตัวเดียวกัน แค่เริ่มเร็วกว่าเดิม
+  orderPageDataPrefetch = apiGet('orderPageData').catch(()=>null);
+  orderPageDataPrefetchTs = Date.now();
 }
 
 /* ============ OWNER: merged Dashboard + Analytics ============ */
@@ -2906,7 +2919,15 @@ async function renderOrderPage(app){
     // ตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้านี้ 1 ครั้งจาก 4 เหลือ 1 — อัปเดต stockStatusCache ไปด้วยเลย
     // เพื่อให้หน้าอื่นที่เรียก getStockStatus() ต่อจากนี้ (เช่นกลับไปหน้าเช็คสต๊อก) ได้ใช้ข้อมูลสดจากรอบนี้
     // ทันทีโดยไม่ต้องยิงซ้ำ
-    const data = await apiGet('orderPageData');
+    //
+    // ถ้ามีคำขอที่ renderOwnerMenu ยิงล่วงหน้าไว้แล้วและยังไม่เก่าเกินไป ใช้ผลนั้นแทนการเริ่มคำขอใหม่ —
+    // เจ้าของมักดูเมนูอยู่พักหนึ่งก่อนกด "สั่งของ" จริง ช่วงนั้นคำขอวิ่งไปเบื้องหลังรอไว้แล้ว
+    let data = null;
+    if (orderPageDataPrefetch && (Date.now() - orderPageDataPrefetchTs) < ORDER_PAGE_PREFETCH_TTL) {
+      data = await orderPageDataPrefetch;
+    }
+    orderPageDataPrefetch = null; // ใช้แล้วทิ้ง กันหน้าอื่นที่กลับมาเปิดซ้ำเจอผลเก่าซ้ำ
+    if (!data) data = await apiGet('orderPageData');
     statusList = data.stockStatus;
     stockStatusCache = statusList; _stockStatusTs = Date.now();
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
