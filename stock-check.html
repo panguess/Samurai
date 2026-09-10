@@ -870,6 +870,29 @@ async function getStockStatus(force){
   return data;
 }
 function invalidateStockStatus(){ stockStatusCache = null; _stockStatusTs = 0; }
+
+// เจอ 10 ก.ย. 69 (ต่อ): renderOrderPage() เดิมยิง apiGet('orderPageData') ใหม่ทุกครั้งที่เข้าหน้านี้ ไม่เช็ค
+// cache เลยสักครั้ง (ต่างจากฝั่งลูกจ้างที่ renderSupplierList ใช้ stockStatusCache/STOCK_STATUS_TTL อยู่แล้ว)
+// ระหว่างสั่งของหลายเจ้าในรอบเดียว เจ้าของจะวนเข้าออกหน้านี้บ่อยมาก (สั่งของเจ้านี้ → ข้อความ → เสร็จสิ้น →
+// กลับมาหน้าสั่งของ → เลือกเจ้าถัดไป → ...) แต่ละรอบคือ Apps Script round-trip เต็มๆ ใหม่ทั้งที่ข้อมูลแทบไม่
+// เปลี่ยนภายในไม่กี่วินาที — นี่คือสาเหตุของ "ช้าหลายจังหวะ" ที่เจอจริง ไม่ใช่แค่ครั้งแรกที่เข้าหน้าช้า
+// แก้ด้วย cache แบบเดียวกับ getStockStatus() ใช้ TTL เดียวกัน (STOCK_STATUS_TTL) — เช็ค stockStatusCache ควบคู่
+// กับเวลาตัวเอง กัน edge case ที่ stockStatusCache ถูกอย่างอื่นล้างไปแล้วแต่ _orderPageDataTs ยังไม่หมดอายุ
+// orderedProductIds/confirmedSupplierIds/orderedItemsTodayMap ที่อัปเดตแบบ optimistic ไว้แล้วตอนกด
+// "สั่งของเจ้านี้"/ปุ่มยืนยันส่งออเดอร์ (ดู onclick handlers ด้านล่าง) จะไม่ถูกเขียนทับด้วยข้อมูลเก่าตอน
+// cache hit เพราะฟังก์ชันนี้แค่ return เฉยๆ ไม่แตะตัวแปรพวกนั้นเลยถ้ายังไม่หมดอายุ
+let _orderPageDataTs = 0;
+async function ensureOrderPageData(force){
+  if(!force && stockStatusCache && (Date.now() - _orderPageDataTs) < STOCK_STATUS_TTL) return;
+  const data = await apiGet('orderPageData');
+  stockStatusCache = data.stockStatus; _stockStatusTs = Date.now();
+  data.stockStatus.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+  orderedProductIds = new Set((data.ordered && data.ordered.productIds) || []);
+  confirmedSupplierIds = new Set((data.confirmed && data.confirmed.supplierIds) || []);
+  orderedItemsTodayMap = {};
+  ((data.orderedItems && data.orderedItems.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
+  _orderPageDataTs = Date.now();
+}
 function patchStockStatusChecked(products, items){
   // After a successful saveStock, update the cache in place instead of
   // invalidating it, so the next screen doesn't have to wait on another
@@ -2909,30 +2932,25 @@ async function renderOrderPage(app){
   c.innerHTML = '<p class="empty-state">กำลังโหลดข้อมูล...</p>';
   app.appendChild(c);
 
-  let statusList;
+  // เดิมยิง 4 คำขอแยก (getStockStatus + orderedToday + confirmedToday + orderedItemsToday) พร้อมกันด้วย
+  // Promise.all — เจอ 10 ก.ย. 69 ว่าคำขอที่ควรพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาทีใน Apps
+  // Script Executions log (สัญญาณคิว/serialize ฝั่ง backend) รวมเป็น action เดียว (orderPageData) แทน
+  // ตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้านี้ 1 ครั้งจาก 4 เหลือ 1
+  //
+  // (เคยลองเพิ่ม prefetch ยิง orderPageData ล่วงหน้าตั้งแต่หน้าเมนูเจ้าของ แต่ถอนออกแล้ว — ยิงทุกครั้งที่
+  // เข้าเมนูไม่ว่าจะกด "สั่งของ" ต่อจริงหรือไม่ กลายเป็นคำขอเปล่าประโยชน์ที่แย่งคิว/โควต้า Apps Script กับ
+  // คำขอจริงของหน้าอื่นที่เจ้าของกดไปแทน เช่น "สต๊อก & วิเคราะห์"/"บิลรอตรวจสอบ" — แลกไม่คุ้ม)
+  //
+  // เจอเพิ่ม 10 ก.ย. 69 (ต่อ): แค่รวมเป็น 1 คำขอยังไม่พอ — หน้านี้ถูกเข้าออกซ้ำๆ บ่อยมากระหว่างสั่งของ
+  // หลายเจ้าในรอบเดียว (ดู ensureOrderPageData ด้านบนสำหรับรายละเอียดเต็ม) ใช้ cache TTL แทนการยิงคำขอใหม่
+  // ทุกครั้งที่กลับมาหน้านี้
   try{
-    // เดิมยิง 4 คำขอแยก (getStockStatus + orderedToday + confirmedToday + orderedItemsToday) พร้อมกันด้วย
-    // Promise.all — เจอ 10 ก.ย. 69 ว่าคำขอที่ควรพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาทีใน Apps
-    // Script Executions log (สัญญาณคิว/serialize ฝั่ง backend) รวมเป็น action เดียว (orderPageData) แทน
-    // ตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้านี้ 1 ครั้งจาก 4 เหลือ 1 — อัปเดต stockStatusCache ไปด้วยเลย
-    // เพื่อให้หน้าอื่นที่เรียก getStockStatus() ต่อจากนี้ (เช่นกลับไปหน้าเช็คสต๊อก) ได้ใช้ข้อมูลสดจากรอบนี้
-    // ทันทีโดยไม่ต้องยิงซ้ำ
-    //
-    // (เคยลองเพิ่ม prefetch ยิง orderPageData ล่วงหน้าตั้งแต่หน้าเมนูเจ้าของ แต่ถอนออกแล้ว — ยิงทุกครั้งที่
-    // เข้าเมนูไม่ว่าจะกด "สั่งของ" ต่อจริงหรือไม่ กลายเป็นคำขอเปล่าประโยชน์ที่แย่งคิว/โควต้า Apps Script กับ
-    // คำขอจริงของหน้าอื่นที่เจ้าของกดไปแทน เช่น "สต๊อก & วิเคราะห์"/"บิลรอตรวจสอบ" — แลกไม่คุ้ม)
-    const data = await apiGet('orderPageData');
-    statusList = data.stockStatus;
-    stockStatusCache = statusList; _stockStatusTs = Date.now();
-    statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
-    orderedProductIds = new Set((data.ordered && data.ordered.productIds) || []);
-    confirmedSupplierIds = new Set((data.confirmed && data.confirmed.supplierIds) || []);
-    orderedItemsTodayMap = {};
-    ((data.orderedItems && data.orderedItems.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
+    await ensureOrderPageData();
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
   }
+  const statusList = stockStatusCache;
   const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
   // จัดกลุ่มสินค้าตาม supplierId ไว้ล่วงหน้าครั้งเดียว แทนการวน PRODUCTS.filter(p=>p.supplierId===s.id)
@@ -3195,9 +3213,13 @@ async function renderOrderPage(app){
             if(!confirm(msg)) return;
             (async ()=>{
               try{
-                await Promise.all(skipDates.map(date=>
-                  apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true)
-                ));
+                // เดิมยิง Promise.all พร้อมกันทุกวันที่ในครั้งเดียว — pattern เดียวกับที่เคยเจอปัญหาคิว/
+                // serialize ของ Apps Script ตอนหน้านี้เองเคยยิง 4 คำขอพร้อมกัน (ดู ensureOrderPageData
+                // ด้านบน) สินค้าที่งดไว้หลายวันไม่ติดกันจะยิงหลายคำขอพร้อมกันโดยไม่จำเป็น เปลี่ยนเป็นยิง
+                // ทีละคำขอแทน (ส่วนใหญ่มีแค่ 1 วันอยู่แล้ว ไม่กระทบเคสปกติ)
+                for(const date of skipDates){
+                  await apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true);
+                }
                 p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
                 renderGroups(c.querySelector('#search').value);
               }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
