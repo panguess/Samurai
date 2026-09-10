@@ -1551,6 +1551,33 @@ function renderBillReview(app){
   const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
   const isResume = state.billMode === 'owner-resume';
+  // ออโต้เซฟความคืบหน้าไว้ในเครื่อง (localStorage) เฉพาะโหมดเจ้าของตรวจบิลค้าง — เจอจริงว่าบิลใหญ่บางเจ้า
+  // (เช่นลุงทวี 20-30+ รายการ) กว่าจะจับคู่+ตั้งอัตราแปลงหน่วยครบทุกรายการใช้เวลานาน ถ้าปัดนิ้ว/กดออกจากหน้า
+  // นี้โดยไม่ตั้งใจก่อนกด "บันทึกต้นทุน" (ซึ่งเป็นจุดเดียวที่เขียนข้อมูลไปเซิร์ฟเวอร์จริง) งานที่ทำมาทั้งหมดจะ
+  // หายหมดต้องเริ่มจับคู่ใหม่ทุกรายการ — คีย์ด้วย batchId (มีเฉพาะโหมด owner-resume เท่านั้น เพราะ
+  // batchId ถูกสร้างตอน submitBillForReview ไปแล้วก่อนหน้านี้) ไม่ทำกับโหมด staff (ถ่ายบิลใหม่) เพราะยังไม่มี
+  // batchId ให้คีย์ และไม่ทำกับโหมดหลายบิล (renderBillBatchItemReview) เพราะยังไม่เคยมีรายงานปัญหานี้ที่นั่น
+  const draftKey = isResume && state.billResumeBatchId ? ('billDraft_' + state.billResumeBatchId) : null;
+  if(draftKey){
+    try{
+      const raw = localStorage.getItem(draftKey);
+      if(raw){
+        const draft = JSON.parse(raw);
+        // เช็คจำนวนรายการให้ตรงกับของจริงจากเซิร์ฟเวอร์ก่อนใช้ — กันกรณี ItemsJSON ต้นทางเปลี่ยนไปแล้ว
+        // (เช่น ถูกแก้จากที่อื่น) แล้ว draft เก่าจะเข้ากันไม่ได้ ถ้าจำนวนไม่ตรงทิ้ง draft ไปใช้ของจริงแทน
+        if(Array.isArray(draft) && draft.length === state.billItems.length) state.billItems = draft;
+        else localStorage.removeItem(draftKey);
+      }
+    }catch(e){ try{ localStorage.removeItem(draftKey); }catch(e2){} }
+  }
+  function saveDraft(){
+    if(!draftKey) return;
+    try{ localStorage.setItem(draftKey, JSON.stringify(state.billItems)); }catch(e){}
+  }
+  function clearDraft(){
+    if(!draftKey) return;
+    try{ localStorage.removeItem(draftKey); }catch(e){}
+  }
   app.appendChild(topbar('ตรวจสอบรายการ', {
     back: ()=> isResume ? go('billPendingList') : go('billCapture'),
     meta: sup.name
@@ -1749,7 +1776,7 @@ function renderBillReview(app){
     const qtyI = card.querySelector('.qtyInput');
     if(qtyI) qtyI.oninput = ()=>{ it.qty = Number(qtyI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); renderDrift(); };
     const recI = card.querySelector('.receivedInput');
-    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); };
+    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); saveDraft(); };
     const priI = card.querySelector('.priceInput');
     if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); };
     const skipT = card.querySelector('.skipToggle');
@@ -1764,6 +1791,7 @@ function renderBillReview(app){
     updateFooter();
   }
   function updateFooter(){
+    saveDraft(); // เรียกซ้ำได้ปลอดภัย (localStorage เขียนทับตัวเอง) ครอบคลุมทุก path ที่แก้ state.billItems ยกเว้น receivedInput ซึ่งเรียกเองแยกต่างหากด้านบน
     const pending = state.billItems.filter(it=> !isResolved(it)).length;
     const total = state.billItems.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     // ฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการส่ง (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
@@ -1790,6 +1818,7 @@ function renderBillReview(app){
         batchId: state.billResumeBatchId, supplierId: state.billSupplierId, staffName: state.billStaffName, items,
         billHeader: state.billHeader
       }, false, undefined, BILL_API_URL);
+      clearDraft(); // บันทึกจริงสำเร็จแล้ว — เลิกต้องมี draft ค้างไว้ในเครื่องอีกต่อไป
       go('billSuccess', {billLearnedCount: res.learnedCount||0});
     }catch(err){
       saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
