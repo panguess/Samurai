@@ -1697,7 +1697,7 @@ function renderBillReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -2043,7 +2043,7 @@ function renderBillBatchItemReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
