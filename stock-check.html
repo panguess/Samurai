@@ -2900,13 +2900,20 @@ async function renderOrderPage(app){
 
   let statusList;
   try{
-    const [sl, orderedRes, confirmedRes, orderedItemsRes] = await Promise.all([getStockStatus(), apiGet('orderedToday'), apiGet('confirmedToday'), apiGet('orderedItemsToday')]);
-    statusList = sl;
+    // เดิมยิง 4 คำขอแยก (getStockStatus + orderedToday + confirmedToday + orderedItemsToday) พร้อมกันด้วย
+    // Promise.all — เจอ 10 ก.ย. 69 ว่าคำขอที่ควรพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาทีใน Apps
+    // Script Executions log (สัญญาณคิว/serialize ฝั่ง backend) รวมเป็น action เดียว (orderPageData) แทน
+    // ตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้านี้ 1 ครั้งจาก 4 เหลือ 1 — อัปเดต stockStatusCache ไปด้วยเลย
+    // เพื่อให้หน้าอื่นที่เรียก getStockStatus() ต่อจากนี้ (เช่นกลับไปหน้าเช็คสต๊อก) ได้ใช้ข้อมูลสดจากรอบนี้
+    // ทันทีโดยไม่ต้องยิงซ้ำ
+    const data = await apiGet('orderPageData');
+    statusList = data.stockStatus;
+    stockStatusCache = statusList; _stockStatusTs = Date.now();
     statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
-    orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
-    confirmedSupplierIds = new Set((confirmedRes && confirmedRes.supplierIds) || []);
+    orderedProductIds = new Set((data.ordered && data.ordered.productIds) || []);
+    confirmedSupplierIds = new Set((data.confirmed && data.confirmed.supplierIds) || []);
     orderedItemsTodayMap = {};
-    ((orderedItemsRes && orderedItemsRes.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
+    ((data.orderedItems && data.orderedItems.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;

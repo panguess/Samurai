@@ -118,6 +118,7 @@ function doGet(e) {
       case 'orderedToday':  result = getOrderedToday();                        break;
       case 'orderedItemsToday': result = getOrderedItemsToday();               break;
       case 'confirmedToday':result = getConfirmedToday();                     break;
+      case 'orderPageData': result = getOrderPageData();                     break;
       case 'pendingBills':  result = getPendingBillReceipts();                break;
       default:              result = { error: 'unknown action: ' + action };
     }
@@ -336,27 +337,41 @@ function saveStock(body) {
 
 // อัปเดต/เพิ่มแถวใน StockLogsLatest ให้เหลือ 1 แถวต่อ 1 UnitID เสมอ (เขียนทับแถวเดิมถ้ามี)
 // ขนาดชีตนี้จึงคงที่เท่าจำนวนหน่วยสินค้าทั้งหมด ไม่โตขึ้นตามจำนวนครั้งที่เช็คสต๊อกเหมือน StockLogs
+//
+// เดิมเขียนทับแถวที่มีอยู่แล้วทีละแถว (sh.getRange(...).setValues() แยกคนละคำสั่งต่อ 1 รายการ) — เจ้าที่มี
+// ของเยอะ (เช่นลุงทวี 20-30 รายการ) จะยิง Sheets API 20-30 ครั้งต่อเนื่องใน saveStock ครั้งเดียว ช้ากว่าเจ้า
+// ที่มีของไม่กี่รายการอย่างมีนัยสำคัญ (เจอ 10 ก.ย. 69 ตอนไล่บั๊กเรื่องสั่งของช้า) — เปลี่ยนเป็น merge ข้อมูล
+// ใหม่เข้ากับข้อมูลเดิมในหน่วยความจำก่อน แล้วเขียนทับทั้งก้อนด้วย setValues() ครั้งเดียว ปลอดภัยเพราะชีตนี้
+// ขนาดคงที่ (ไม่โตตามเวลาเหมือน StockLogs) เขียนทั้งก้อนจึงไม่แพงขึ้นตามอายุร้าน
 function upsertStockLogsLatest(items, date, staffName, ts) {
   const headers = ['UnitID', 'Date', 'RemainQty', 'CheckedBy', 'Timestamp'];
   const sh = ensureSheetWithHeaders(STOCK_LOGS_LATEST_SHEET, headers);
   const data = sh.getDataRange().getValues();
 
-  const rowByUnit = {};
+  const rowByUnit = {}; // uid -> index ใน body (ไม่รวม header)
   for (let i = 1; i < data.length; i++) {
     const uid = String(data[i][0]).trim();
-    if (uid) rowByUnit[uid] = i + 1; // เลขแถวจริงในชีต (1-indexed)
+    if (uid) rowByUnit[uid] = i - 1;
   }
 
+  const body = data.slice(1);
   const toAppend = [];
+  let bodyChanged = false;
+
   items.forEach(item => {
     const uid = String(item.unitId).trim();
     const rowValues = [uid, date, item.remainQty, staffName, ts];
-    if (rowByUnit[uid]) {
-      sh.getRange(rowByUnit[uid], 1, 1, headers.length).setValues([rowValues]);
+    if (rowByUnit[uid] !== undefined) {
+      body[rowByUnit[uid]] = rowValues;
+      bodyChanged = true;
     } else {
       toAppend.push(rowValues);
     }
   });
+
+  if (bodyChanged && body.length) {
+    sh.getRange(2, 1, body.length, headers.length).setValues(body);
+  }
 
   if (toAppend.length) {
     sh.getRange(sh.getLastRow() + 1, 1, toAppend.length, headers.length).setValues(toAppend);
@@ -540,21 +555,11 @@ function createOrderBatch(body) {
   const sh = SHEET.getSheetByName('OrderLogs');
   sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
 
-  // อัปเดต OrderTriggered ของ StockLogs วันนี้ทีเดียว แทน setValue ทีละเซลล์ในลูป
-  const stockSh = SHEET.getSheetByName('StockLogs');
-  const rows = stockSh.getDataRange().getValues();
-  const headerRow = rows[0];
-  const dateCol = headerRow.indexOf('Date');
-  const triggeredCol = headerRow.indexOf('OrderTriggered');
-  const triggeredValues = [];
-  let hasToday = false;
-  for (let i = 1; i < rows.length; i++) {
-    if (normDate(rows[i][dateCol]) === date) { triggeredValues.push([true]); hasToday = true; }
-    else triggeredValues.push([rows[i][triggeredCol]]);
-  }
-  if (hasToday) {
-    stockSh.getRange(2, triggeredCol + 1, triggeredValues.length, 1).setValues(triggeredValues);
-  }
+  // เดิมตรงนี้อ่านทั้งชีต StockLogs (getDataRange) ทุกครั้งที่กดสั่งของ เพื่ออัปเดตคอลัมน์ OrderTriggered
+  // ของวันนี้ — เจอ (10 ก.ย. 69) ว่าคอลัมน์นี้ไม่เคยถูกอ่านที่ไหนเลยทั้งแอป (grep ทั้ง Code.gs + stock-check.html
+  // ไม่เจอจุดอ่านเลยสักที่) เท่ากับทุกคลิก "สั่งของ" เสียเวลาอ่าน+เขียนทั้งตาราง StockLogs ที่โตขึ้นเรื่อยๆ
+  // ตามอายุร้านไปฟรีๆ — ลบทิ้งทั้งบล็อก (คอลัมน์ OrderTriggered ในชีต StockLogs ยังอยู่เหมือนเดิม เผื่อมีใคร
+  // อยากใช้ในอนาคต แค่ไม่ต้องคำนวณ/เขียนทับมันจากจุดนี้อีกต่อไป)
 
   cacheClear('analytics_7d');
   cacheClear('analytics_30d');
@@ -879,6 +884,23 @@ function getConfirmedToday() {
   const result = { supplierIds: [...new Set(rows.map(r => String(r.SupplierID).trim()))] };
   cacheSet(cacheKey, result, CACHE_TTL.confirmedToday);
   return result;
+}
+
+/* ============ getOrderPageData ============ */
+// หน้า "สั่งของ" ฝั่งเจ้าของเดิมยิง 4 คำขอ (stockStatus/orderedToday/confirmedToday/orderedItemsToday)
+// พร้อมกันทุกครั้งที่เปิดหน้า (Promise.all) — เจอ 10 ก.ย. 69 ว่าตอนมีคำขอชนกันหลายตัว (เช่น เปิดหน้าซ้อนกัน
+// หลายแท็บ/หลายคน) Apps Script executions ที่ควรยิงพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาที
+// (สัญญาณของคิว/serialize ฝั่ง Apps Script) รวมเป็น endpoint เดียวตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้า 1 ครั้ง
+// จาก 4 เหลือ 1 ลดโอกาสชนคิว — แต่ละฟังก์ชันข้างในยังมีแคชของตัวเองเหมือนเดิมทุกอย่าง (ไม่ได้เปลี่ยน logic
+// หรือ TTL ของฟังก์ชันย่อยเลย แค่ห่อรวมผลลัพธ์เป็นก้อนเดียวตอนส่งกลับ) หน้าเว็บที่เรียก action เดิม 4 ตัวแยก
+// (ถ้ามี debug/หน้าอื่นเผลอเรียกอยู่) ยังใช้งานได้ปกติ ไม่ได้ถูกลบทิ้ง
+function getOrderPageData() {
+  return {
+    stockStatus: getStockStatus(),
+    ordered: getOrderedToday(),
+    confirmed: getConfirmedToday(),
+    orderedItems: getOrderedItemsToday()
+  };
 }
 
 // body = { supplierId, confirmed, staffName } — confirmed:true เพิ่มแถวยืนยัน (ถ้ายังไม่มีของวันนี้)
