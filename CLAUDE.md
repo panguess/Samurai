@@ -5,7 +5,7 @@
 | | แอปเช็คสต๊อก | แอปสั่งของ (order web app) |
 |---|---|---|
 | ไฟล์หน้าเว็บ | `stock-check.html` | `index.html` |
-| ไฟล์ backend | `Code.gs` | (คนละไฟล์ ไม่อยู่ใน repo นี้ — ผู้ใช้อัปโหลดแยกเวลาต้องแก้) |
+| ไฟล์ backend | `Code.gs` | `order-app-Code.gs` (เก็บใน repo ตั้งแต่ 8 ก.ย. 69 — ดูคำเตือนเรื่อง sync ด้านล่าง) |
 | ใช้โดย | ลูกจ้างเช็คสต๊อก + เจ้าของสั่งของกับซัพพลายเออร์ | ลูกค้าสั่งซื้อสินค้า + แอดมินจัดการออเดอร์/จัดส่ง/ชำระเงิน |
 | Google Sheet | คนละไฟล์สเปรดชีตกับแอปสั่งของ | คนละไฟล์สเปรดชีตกับแอปเช็คสต๊อก |
 
@@ -122,8 +122,15 @@
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
-backend Google Apps Script คนละไฟล์ที่ไม่อยู่ใน repo — ผู้ใช้อัปโหลด `.gs` มาให้แยกทุกครั้งที่ต้องแก้ backend
-(ห้ามสมมุติเนื้อหาไฟล์ backend เอง ต้องขอไฟล์จริงก่อนเสมอ)
+backend Google Apps Script — โค้ดเก็บไว้ใน repo นี้แล้วที่ `order-app-Code.gs` (ตั้งแต่ 8 ก.ย. 69 อย่าสับสนกับ
+`Code.gs` ที่ root ซึ่งเป็นของแอปเช็คสต๊อกคนละแอป)
+
+⚠️ **`order-app-Code.gs` ใน repo อาจไม่ตรงกับตัวจริงที่ deploy อยู่เสมอ** — `git push` **ไม่มีทาง** deploy ให้
+(เหมือนกับ `Code.gs` ของแอปเช็คสต๊อกทุกประการ) ผู้ใช้ต้องแก้ผ่าน Apps Script Editor เองแล้วก็อปกลับมาเขียนทับไฟล์นี้ใน
+repo (หรือขอให้ผมช่วยแก้แล้ว SendUserFile ให้เอาไปแปะ + อัปเดตไฟล์ใน repo ให้ตรงกันในคราวเดียว) — **ถ้าผู้ใช้บอกว่าแก้
+backend เองนอกเซสชั่นแล้ว ห้ามเชื่อว่าไฟล์ใน repo ตรงกับของจริงโดยอัตโนมัติ ให้ถามหรือขอไฟล์ล่าสุดมาเทียบก่อนเสมอ**
+ก่อนแก้ backend action ไหนต่อ ให้เปิด `order-app-Code.gs` ในนี้ดูก่อนเป็นจุดเริ่ม แต่ถ้าเนื้อหาดูไม่สอดคล้องกับที่ผู้ใช้
+อธิบายพฤติกรรมจริง ให้สงสัยว่าไฟล์เก่ากว่าของจริง แล้วขอไฟล์ปัจจุบันมาเทียบ
 
 ### Routing (query params บน `index.html`)
 - `?admin=true&key=shop123` → เปิดหน้าแอดมิน (ADMIN_KEY ฝังในโค้ดตรงๆ ที่ตัวแปร `ADMIN_KEY`)
@@ -141,9 +148,13 @@ backend Google Apps Script คนละไฟล์ที่ไม่อยู�
 - `BusinessNote`: `note_id, date, text` — โน้ตอิสระของแอดมิน ไม่ผูกกับเดือน
 - `Link for Customers`: `customer_id, name, link` — ลิงก์สั่งของเฉพาะตัว (`?ref=...`) ของลูกค้าแต่ละคน
 
-### Backend actions ปัจจุบัน (คลีนแล้ว 31 ส.ค. 69 — ดูรายละเอียดการลบด้านล่าง)
-- `doGet`: `getCustomer, getProducts, getOrders, getAdminOrders, getBusinessNotes, getThaiHolidays`
+### Backend actions ปัจจุบัน (ยืนยันตรงกับ `order-app-Code.gs` ที่ผู้ใช้ส่งมา 8 ก.ย. 69)
+- `doGet`: `getCustomer, getProducts, getOrders, getAdminOrders, getAdminOrdersFull, getBusinessNotes, getThaiHolidays`
+  - `getAdminOrders` ตอนนี้กรองช่วงย้อนหลังแล้ว (ดูหัวข้อ `ADMIN_ORDERS_WINDOW_DAYS` ด้านล่าง) — `getAdminOrdersFull`
+    คือตัวที่ไม่กรอง ใช้เฉพาะหน้า "ภาพรวม/แดชบอร์ด" (`renderAdminOverview`)
 - `doPost`: `createOrder, updateOrder, updateDelivery, cancelOrder, addBusinessNote, deleteBusinessNote`
+  - `updateDelivery` มี guard กันเรียกซ้ำอยู่แล้ว: ถ้า `delivery_status` ที่ส่งมาตรงกับค่าปัจจุบันในชีต จะ skip ทั้งหมด
+    (ไม่เขียนซ้ำ ไม่ยิง Telegram ซ้ำ) — ดูหัวข้อ "บั๊กแจ้งเตือนซ้ำ" ด้านล่างเรื่องช่องโหว่ race condition ที่ guard นี้ยังกันไม่หมด
 - **ลบไปแล้ว** เพราะไม่มี frontend เรียกใช้: `getOwnerOrders, updateStatus, updatePayment, uploadSlip, verifyPayment`
   (ตัวหลังสุดเคยเรียก Claude API ตรวจสลิปโอนเงิน มีค่าใช้จ่ายต่อครั้ง) พร้อม helper ที่กลายเป็นขยะไปด้วย
   (`checkNameMatch`, ตัวแปร `CLAUDE_API_KEY`) — **ถ้าเจอโค้ดพวกนี้ในไฟล์ `.gs` ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่ายังไม่ได้อัปเดตเป็นเวอร์ชันล่าสุด ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ**
@@ -171,10 +182,8 @@ backend Google Apps Script คนละไฟล์ที่ไม่อยู�
 `TELEGRAM_CHAT_ID` (ไม่มี fallback ไป LINE แล้ว ถ้าเจอโค้ด `sendLineNotify`/`LINE_CHANNEL_ACCESS_TOKEN` ในไฟล์ `.gs`
 ที่ผู้ใช้อัปโหลดมาใหม่ แปลว่าเป็นเวอร์ชันเก่าก่อนย้าย ให้แจ้งผู้ใช้ก่อนแก้อย่างอื่นต่อ)
 
-⚠️ **ปัญหาที่ยังไม่จบ**: ผู้ใช้เคยแจ้งว่า "Telegram มันไม่ดัง" แล้วขอให้ลบทิ้ง ก่อนจะพูดกลับว่าพูดผิด (จริงๆ อยากลบแค่
-ฟีเจอร์เสียงในแอปเว็บ ไม่ใช่ Telegram) — โค้ด `sendTelegramNotify` ถูก restore กลับมาแล้ว แต่ **สาเหตุที่ไม่มีเสียง/แจ้งเตือน
-ยังไม่ได้ไล่หาจริงจัง** (เป็นไปได้ทั้งเรื่อง mute แชท/ตั้งค่าเครื่อง หรือบั๊กจริงใน backend) ถ้าคุยเรื่องนี้ต่อให้ไล่เช็คจาก
-Apps Script Editor > Executions ว่ามี error log ตอนยิง Telegram ไหมก่อน
+✅ **เรื่อง Telegram ปิดถาวรแล้ว (อัปเดต 7 ก.ย. 69)** — ผู้ใช้ยืนยันว่าใช้งานได้ปกติ **ห้ามหยิบเรื่องนี้ขึ้นมาพูดอีกโดยไม่ถูกถาม**
+(เคยมีช่วงสับสนว่า "ไม่ดัง" แต่ที่จริงหมายถึงฟีเจอร์เสียงในแอปเว็บที่ถูกลบไปแล้ว ไม่เกี่ยวกับ Telegram — ดูหัวข้อถัดไป)
 
 **เสียงแจ้งเตือนในแอปเว็บ (`index.html`) ถูกลบทิ้งไปแล้วตามคำขอ** — เคยมีฟีเจอร์ `playNewOrderChime()`/`orderChimeCtx`
 (สร้างเสียงด้วย Web Audio API ตอนหน้าแอดมิน auto-refresh เจอ order_id ใหม่) ถูก revert ออกทั้งหมด **อย่าเพิ่มกลับเข้าไป
@@ -198,6 +207,314 @@ timeout ทั้ง auto-retry และการกดซ้ำของลู
 **Backlog ที่ยังไม่ทำ (ตั้งใจพักไว้)**: จำกัดช่วงข้อมูลย้อนหลังที่ `getAdminOrders()` ส่งกลับ (ตอนนี้ส่งออเดอร์ทั้งหมด
 ทุกปีทุกครั้ง ไม่มี limit) — ตอนคุยกันข้อมูลมีแค่ ~3 เดือนยังไม่กระทบมาก แต่จะเป็นปัญหาความเร็วเพิ่มขึ้นเรื่อยๆ ตามอายุร้าน
 ถ้าจะทำต้องคุยก่อนว่าฟีเจอร์ "ภาพรวม/กราฟยอดขาย" (`renderAdminOverview`) ต้องดูย้อนหลังกี่เดือน ไม่งั้นจะพังฟีเจอร์นั้น
+**(อัปเดต 7 ก.ย. 69: ทำเสร็จแล้ว ดูหัวข้อด้านล่าง — backlog นี้ปิดแล้ว)**
+
+### สถานะล่าสุด (อัปเดต 7 ก.ย. 69) — ตรวจสอบ performance/security ทั้งไฟล์ + แยก endpoint โหลดข้อมูลแอดมิน
+
+**Telegram ปิดเคสแล้ว** (รายละเอียดอยู่ด้านบนแล้ว หัวข้อ "เรื่อง Telegram ปิดถาวรแล้ว")
+
+**ตรวจโค้ดทั้ง `index.html` (3,008 บรรทัด) และ `Code.gs` จริงที่ผู้ใช้อัปโหลดมา** ตามคำขอ "เช็คว่ามีจุดไหนทำให้แอปเร็วขึ้นได้อีก มีบั๊กไหม มีจุดเสี่ยงตรงไหนอีก" สรุปที่ยืนยันแล้วว่าเป็นเรื่องจริง (ไม่ใช่แค่สงสัย):
+
+⚠️ **[ยังไม่แก้] ช่องโหว่ความปลอดภัยสำคัญที่สุด**: `doGet`/`doPost` ใน `Code.gs` ไม่มีการเช็คสิทธิ์/key ใดๆ เลยแม้แต่จุดเดียว
+(`ADMIN_KEY='shop123'` ใน `index.html` เป็นแค่ตัวกรอง UI ฝั่ง browser เท่านั้น ไม่เคยถูกส่งไปเช็คที่ backend) — ใครก็ตามที่รู้ URL
+ของ `API` (เปิดเผยอยู่ใน `index.html` บน GitHub) ยิง `getAdminOrders`/`getAdminOrdersFull` ตรงๆ จะดึงชื่อ+ออเดอร์ลูกค้าทั้งร้าน
+ออกมาได้หมด และยิง `updateOrder`/`updateDelivery`/`cancelOrder`/`addBusinessNote`/`deleteBusinessNote` แก้ไขข้อมูลได้อิสระ
+โดยไม่ต้องผ่านหน้าเว็บเลย — pattern เดียวกับที่แอปเช็คสต๊อกเป็น แต่แอปนี้เก็บข้อมูลลูกค้าจริงจึงเสี่ยงกว่า
+
+⚠️ **[ยังไม่แก้] Stored XSS ผ่านช่องโน้ต**: `note` (ลูกค้าพิมพ์ตอนสั่งของ) และ `text` (โน้ตแอดมิน) ถูกเขียนลง Sheet ตรงๆ
+ไม่มีการ sanitize ทั้งฝั่ง frontend/backend แล้ว render ผ่าน `innerHTML` แบบไม่ escape ในหลายจุด (`buildHistoryCard`,
+`buildPendingAdminCard`, `buildDoneAdminCard`, `renderOverviewNotePanel`) — รวมกับข้อบนที่ backend ไม่เช็คสิทธิ์เลย
+ทำให้คนนอกยิง `createOrder`/`addBusinessNote` พร้อม payload สคริปต์ตรงๆ แล้วไปรันในเบราว์เซอร์แอดมินได้ทันที
+ไม่ต้องผ่านฟอร์มสั่งของด้วยซ้ำ
+
+⚠️ **[ยังไม่แก้] `total` ไม่ถูกคำนวณใหม่ที่ backend**: `createOrder`/`updateOrder` เชื่อค่า `data.total` จาก client 100%
+ไม่มีการ recompute จากราคาสินค้าจริงใน Sheet เลย
+
+⚠️ **[ยังไม่แก้] `parseItems` เปราะบาง**: เก็บรายการสินค้าเป็น string `"ชื่อ xจำนวน, ชื่อ xจำนวน"` แล้ว `split(', ')` กลับ
+— ถ้าตั้งชื่อสินค้าที่มี comma อยู่ในชื่อ การ parse จะพังแบบเงียบๆ (ยอด/รายการผิดโดยไม่มี error ให้เห็น)
+
+✅ **[ทำเสร็จแล้ว] แยก endpoint โหลดข้อมูลแอดมิน** (ปิด backlog เดิมจาก 4 ก.ย.) — ก่อนแก้ทำเดโม่เทียบ performance ด้วยข้อมูลจำลอง
+เป็น Claude Artifact ให้ดูก่อน (ตามที่ผู้ใช้ขอ "ต้องแก้เรื่องมีผลต่อความหน่วงของแอปก่อน") ได้รับ approve แล้วค่อย implement จริง:
+- `Code.gs`: เพิ่ม `filterAdminOrdersWindow()` + ค่าคงที่ `ADMIN_ORDERS_WINDOW_DAYS=60` — `getAdminOrders()` (เดิม) ตอนนี้ส่งแค่
+  pending/packing (ทุกอายุ) + done/cancelled ย้อนหลัง 60 วัน ใช้กับแท็บหลัก (รอจัด/กำลังจัด/เสร็จวันนี้) และ auto-refresh ทุก 30 วิ
+- `Code.gs`: เพิ่ม action ใหม่ `getAdminOrdersFull()` ส่งข้อมูลเต็มทุกปีแบบเดิม ใช้เฉพาะตอนแอดมินเปิดแท็บ "ภาพรวม"/แดชบอร์ดเท่านั้น
+- `index.html`: เพิ่มตัวแปร `allAdminOrdersFull` + ฟังก์ชัน `fetchFullAdminOrders()` — `switchAdminTab('overview')` และ auto-refresh
+  ตอนอยู่แท็บภาพรวม จะเรียก `getAdminOrdersFull` แยกต่างหาก ส่วนจุดที่ใช้ `allAdminOrders` (windowed) เดิมทั้งหมด
+  (`renderAdminOrders`, การหา order ด้วย id ในแท็บหลัก) ไม่ต้องแก้เพราะข้อมูลที่ต้องใช้อยู่ในหน้าต่าง 60 วันอยู่แล้วเสมอ
+  ส่วนที่ต้องดูย้อนหลังได้ไกลกว่านั้น (`getAvailableOverviewMonths`, `ov_doneOrdersInRange`, `renderAdminOverview`'s
+  `activeOrders`, `db_doneOrders`) เปลี่ยนไปอ่านจาก `allAdminOrdersFull` แทน
+- ทดสอบผ่าน Playwright E2E จริง (mock API ที่ `page.route()`) ยืนยันว่า: เปิดแอดมินครั้งแรกยิงแค่ `getAdminOrders` ไม่ยิง Full
+  โดยไม่จำเป็น, เปิดแท็บภาพรวมยิง `getAdminOrdersFull` แค่ 1 ครั้งและเห็นออเดอร์เก่ากว่า 60 วันได้ถูกต้องเมื่อเลือกฟิลเตอร์ "ทั้งหมด",
+  สลับกลับแท็บหลักใช้งานปกติไม่มี JS error
+- Push แล้ว (commit `17e7ef1` บน `main`) และผู้ใช้ deploy `Code.gs` ใหม่ผ่าน Apps Script Editor (Manage deployments → New version) แล้ว
+
+**Backlog ที่ยังไม่ทำ (เรียงตามความสำคัญ ตกลงกันไว้ว่าจะทำต่อ)**:
+1. เพิ่ม key check ที่ backend สำหรับ action ฝั่งแอดมินทั้งหมด (`getAdminOrders`, `getAdminOrdersFull`, `updateOrder`,
+   `updateDelivery`, `cancelOrder`, `addBusinessNote`, `deleteBusinessNote`) — เก็บ key ไว้ใน Script Properties เหมือน
+   `TELEGRAM_BOT_TOKEN`, ฝั่ง action ของลูกค้า (`getCustomer`/`getProducts`/`getOrders` เฉพาะ id ตัวเอง/`createOrder`) ปล่อยผ่านได้ตามเดิม
+2. Escape user input (`note`, business note `text`) ก่อน render ด้วย `innerHTML` ทุกจุดที่ระบุไว้ด้านบน
+3. คำนวณ `total` ใหม่ที่ backend จากราคาสินค้าจริงใน Sheet แทนเชื่อค่าจาก client
+4. กันชื่อสินค้ามี comma ปนใน `parseItems`/รูปแบบเก็บ `items`
+ข้อ 1-2 ควรทำพร้อมกันก่อนเป็นอันดับแรก เพราะเป็นช่องโหว่จริงที่ยืนยันแล้วทั้งสองฝั่ง
+
+### สถานะล่าสุด (อัปเดต 8 ก.ย. 69) — เก็บ backend เข้า repo + แก้บั๊กแจ้งเตือนซ้ำ
+
+**`order-app-Code.gs` ถูกเก็บเข้า repo แล้ว** (ก่อนหน้านี้ไม่เคยอยู่ใน repo เลย ต้องขอผู้ใช้อัปโหลดทุกครั้ง) สแกนหา
+secret/hardcoded key ก่อนแล้ว ไม่พบ (Telegram token/chat id ดึงผ่าน `PropertiesService` ทั้งคู่) —ดูคำเตือนเรื่อง sync
+สองทางที่ย่อหน้า Production ด้านบน
+
+✅ **บั๊กแจ้งเตือน Telegram ซ้ำตอน "จัดเสร็จ" — แก้ในโค้ดแล้ว ผู้ใช้ deploy แล้ว**: พบจากภาพแชท (ออเดอร์เดียวกัน แจ้ง
+"จัดเสร็จแล้ว" 2 ครั้งเวลาเดียวกัน) ต้นตอคือ `updateDelivery` มี guard กันเรียกซ้ำอยู่แล้ว (skip ถ้า `delivery_status`
+ที่ส่งมาตรงกับค่าปัจจุบันในชีต) แต่ guard เช็คก่อนเขียนเท่านั้น ไม่ได้ล็อกอะไรเลย (ไฟล์ไม่เคยมี `LockService`) — ถ้า 2
+request มาถึงพร้อมกัน (เช่น `postAction` auto-retry ยิงซ้ำตอน execution แรกยังเขียนไม่เสร็จ หรือแตะปุ่มรัว) ทั้งคู่อ่าน
+`currentStatus` เดิมพร้อมกันได้ก่อนฝ่ายใดเขียนทัน → ผ่าน guard ได้ทั้งคู่ → เขียน `done` ซ้ำ + ยิง Telegram ซ้ำ
+**แก้แล้ว**: ห่อทั้งฟังก์ชัน `updateDelivery` ด้วย `LockService.getScriptLock()` (`lock.waitLock(10000)` ก่อนเริ่ม,
+`lock.releaseLock()` ใน `finally`) ทำให้ทุกคำขอ `updateDelivery` ประมวลผลทีละคำขอเท่านั้น ปิด race นี้ที่ต้นตอ — syntax
+check ผ่านแล้ว (`node --check`), ส่งไฟล์เต็มให้ผู้ใช้แปะ Apps Script Editor แล้ว และผู้ใช้ยืนยันว่า deploy แล้ว
+⚠️ หมายเหตุ: fix นี้ยังไม่ได้ทำกับ `cancelOrder` (มี pattern คล้ายกันแต่ยังไม่มีรายงานบั๊กจริงที่จุดนั้น — ตั้งใจพักไว้
+ตามที่ผู้ใช้ขอให้ไล่แก้ทีละเรื่อง)
+
+✅ **[ทำเสร็จแล้ว] ข้อ 1+2 ของ backlog — auth check ฝั่งแอดมิน + escape note กัน stored XSS (8 ก.ย. 69)**:
+
+**ออกแบบ** (คุยผ่าน `AskUserQuestion` ก่อน implement เพราะพบว่า backlog เดิมสโคปผิด — `updateOrder`/`cancelOrder`
+ไม่ใช่ action ฝั่งแอดมินล้วนอย่างที่บันทึกไว้ แต่ถูกเรียกจากฝั่งลูกค้าด้วย เช่น หน้า track order ของลูกค้ามีปุ่ม
+"แก้ไข"/"ยกเลิก" ออเดอร์ตัวเอง — ถ้าบังคับ `ADMIN_KEY` ตรงๆ ตาม list เดิมจะพังฟีเจอร์ลูกค้า และเจอเพิ่มว่าเดิมทั้งคู่
+ไม่เช็ค ownership เลยด้วยซ้ำ ไม่ใช่แค่ไม่มี key):
+- **Action แอดมินล้วน** (`getAdminOrders`, `getAdminOrdersFull`, `updateDelivery`, `addBusinessNote`,
+  `deleteBusinessNote`) — ต้องมี `ADMIN_KEY` ที่ถูกต้องเท่านั้น เก็บ key ไว้ใน Script Properties (ฟังก์ชันใหม่
+  `isValidAdminKey(key)` อ่านจาก `PropertiesService`) ไม่ hardcode ในไฟล์
+- **`updateOrder`/`cancelOrder`** (ใช้ร่วมกันทั้งแอดมินและลูกค้า) — ยอมผ่านถ้ามี `ADMIN_KEY` ถูกต้อง **หรือ**
+  `customer_id` ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (เทียบจาก `findOrderLocation` ที่อ่านมาแล้ว) — ปิดทั้ง 2 ช่องโหว่
+  พร้อมกัน (ไม่มี key เลย + ไม่เช็ค ownership เลย)
+
+**Backend (`order-app-Code.gs`)**: เพิ่ม `isValidAdminKey(key)`, `doGet` ส่ง `e.parameter.key` ให้
+`getAdminOrders`/`getAdminOrdersFull`, ทั้ง 7 ฟังก์ชันข้างต้นเช็คสิทธิ์ก่อนทำงานจริงทุกตัว
+
+**Frontend (`index.html`)**:
+- `postAction()` แนบ `key:ADMIN_KEY` อัตโนมัติให้ทุกคำขอที่ยิงตอน `isAdmin===true` (ครอบคลุม `updateDelivery`,
+  `addBusinessNote`, `deleteBusinessNote`, และ `updateOrder` ที่แอดมินเรียก — ไม่ต้องแก้ทีละจุดเรียก)
+- 4 จุดเรียก GET (`getAdminOrders`×3, `getAdminOrdersFull`×1) เติม `&key=${ADMIN_KEY}` ในสตริง URL ตรงๆ
+- 2 จุดเรียกฝั่งลูกค้า (`saveEdit`→`updateOrder`, `cancelOrder()`) เพิ่ม `customer_id:customer.customer_id`
+- เพิ่ม `escapeHtml()` helper แล้ว escape ทุกจุดที่ render `note`/business-note `text` ผ่าน `innerHTML` — **จริงๆ มี
+  5 จุด ไม่ใช่ 4 จุดตามที่ backlog เดิมระบุ** (`buildHistoryCard`, `buildPendingAdminCard` ที่ backlog เดิมไม่ได้แยก
+  จากจุดเรียกใน `renderAdminOrders` ที่ใช้กับแท็บ packing ให้ถูก, `buildDoneAdminCard`, `renderOverviewNotePanel`,
+  และจุดที่ backlog เดิมไม่เคยพูดถึงเลยคือ textarea `editNote` ใน `renderEditModal` ที่ pre-fill note เดิมของลูกค้า
+  ตอนเปิดหน้าแก้ไข) — **เจอจุดที่ 5 (`buildPendingAdminCard`) จากการรัน Playwright test จริงเท่านั้น** ตอนแรกไล่ด้วยตาเปล่า
+  แล้วคิดว่าครบ 4 จุดตาม backlog แต่เทสจริงจับได้ว่า XSS payload ยังทำงานได้จากแท็บ "รอจัด" (default tab ของแอดมิน)
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่านทั้ง 2 ไฟล์
+- ทดสอบ logic `isValidAdminKey`/authorization ของ `updateOrder`/`cancelOrder` แยกใน Node (mock `PropertiesService`)
+  ครบ 10 เคส ผ่านหมด
+- Playwright E2E จริง (mock `page.route()`): ยืนยันว่า GET แอดมินแนบ `key=` ใน URL, POST แอดมินแนบ `key` ใน body,
+  POST ลูกค้าแนบ `customer_id` ไม่มี `key`, และ XSS payload (`<img onerror>`) ไม่ทำงานในการ์ดแอดมิน render เป็น
+  escaped text แทน — **เจอบั๊กจริงระหว่างเทส (จุดที่ 5 ด้านบน) แก้แล้วรันซ้ำผ่านหมด**
+
+**พักไว้ไม่ทำ (ผู้ใช้ตัดสินใจแล้ว 8 ก.ย. 69)**: backlog ข้อ 4 (กัน comma ใน `parseItems`) — ผู้ใช้บอกว่าไม่สำคัญ
+ไม่ต้องหยิบขึ้นมาเสนออีกโดยไม่ถูกถาม
+
+✅ **[ทำเสร็จแล้ว] ข้อ 3 — คำนวณ `total` ใหม่ที่ backend (8 ก.ย. 69)**: เดิม `createOrder`/`updateOrder` เชื่อค่า
+`data.total` จาก client 100% (คำนวณจาก `items.reduce` ฝั่ง browser แล้วส่งมาตรงๆ) ใครก็เปิด DevTools/ยิง API ตรงๆ
+แก้ยอดก่อนส่งได้ — เพิ่ม `computeOrderTotal(itemsText, customerGroup)` คำนวณจากราคาสินค้าจริงใน Sheet "Product"
+
+⚠️ **สำคัญที่พบระหว่างคุย**: ระบบราคาผูกกับ `customer_group` (per-customer-segment price list — สินค้าชื่อเดียวกันมี
+หลายแถวคนละราคาต่อกลุ่ม) ถ้าคำนวณ total ใหม่แต่ยังเชื่อ `customer_group` ที่ client ส่งมา ช่องโหว่จะไม่ปิดจริง (แค่
+เปลี่ยนจาก "โกหกยอดรวม" เป็น "โกหกกลุ่มราคา" แทน) แก้โดย:
+- `createOrder`: เพิ่ม `findCustomerRow(id)` ดึง `product_group` จริงจาก Sheet "Customer" ตรงๆ ไม่เชื่อ
+  `data.customer_group` เลย (fallback ไปใช้ `data.customer_group` เฉพาะกรณี `customer_id` หาไม่เจอในชีต)
+- `updateOrder`: ใช้ `customer_group` ที่บันทึกไว้แล้วในแถวออเดอร์นั้น (ยืนยันความถูกต้องไปแล้วตอน `createOrder`)
+  ไม่รับค่าจาก `data` เลย
+- `computeOrderTotal` group-aware ตาม pattern เดียวกับ `getOrderProdMap()`/`getOrderProdFullMap()` ฝั่ง
+  `index.html` เป๊ะ (filter ตาม group ก่อน, fallback ไปสินค้าทั้งหมดถ้า group นั้นไม่มีสินค้าเลย)
+
+**ทดสอบแล้ว**: `node --check` ผ่าน, unit test แยกใน Node ครอบคลุมกรณี group-aware pricing ตรงๆ (สินค้าชื่อเดียวกัน
+คนละราคาคนละกลุ่ม ต้องไม่ leak ราคากลุ่มอื่น), fallback เมื่อ group ไม่มีสินค้า, และสินค้าที่หาชื่อไม่เจอ (ราคา 0 ไม่ throw)
+— ผ่านหมดทุกเคส **ไม่ได้แก้ frontend เลยรอบนี้** (`index.html` ยังส่ง `total`/`customer_group` แบบเดิม แค่ backend
+เพิกเฉยแล้วคำนวณเองแทน) — จุดนี้ไม่กระทบ UX ปกติเลย
+
+⚠️ **Trade-off ที่ยังไม่ได้แก้ (ความเสี่ยงต่ำ ไม่ได้ทำอะไรเพิ่ม)**: `findRecentMatchingOrder()` ฝั่ง `index.html`
+(กันออเดอร์ซ้ำตอน retry) เทียบ `total` ที่ client คำนวณเองกับ `o.total` ที่ตอนนี้เป็นค่าที่ backend คำนวณใหม่แล้ว —
+ปกติสองค่านี้ตรงกันเสมอเพราะข้อมูลราคามาจากแหล่งเดียวกัน มีโอกาสไม่ตรงกันเฉพาะกรณีที่ราคาสินค้าถูกแก้ในชีตระหว่าง
+ที่ลูกค้ากำลังสั่งของพอดี (หน้าต่างเวลาแคบมาก) ถ้าเกิดขึ้นจริง dedup check จะไม่เจอออเดอร์เดิม ทำให้เกิดออเดอร์ซ้ำได้ตอน
+retry — ยังไม่ได้แก้เพราะเป็น edge case ที่โอกาสเกิดต่ำมาก ถ้าเจอปัญหาออเดอร์ซ้ำอีกให้กลับมาดูจุดนี้ก่อน
+
+✅ **Script Property `ADMIN_KEY` ตั้งค่าแล้ว + deploy แล้ว + frontend push แล้ว (ยืนยันจากผู้ใช้ 8 ก.ย. 69)** —
+ลำดับ deploy ที่ใช้จริง (ปลอดภัย ไม่มีช่วงพัง): push frontend เข้า `main` ก่อน (Vercel auto-deploy, ส่ง key แต่
+backend เก่ายังไม่เช็คเลยไม่กระทบอะไร) รอ deploy เสร็จ แล้วค่อยตั้ง Script Property + แปะ `order-app-Code.gs` +
+deploy backend ทีหลัง — **ถ้าแก้ auth/key เรื่องนี้ต่อในอนาคต ให้แนะนำลำดับเดียวกันนี้เสมอ (frontend ก่อน backend
+เสมอเมื่อ backend กำลังจะเริ่มบังคับ requirement ใหม่ที่ frontend เก่ายังไม่รู้จัก)**
+
+### สถานะล่าสุด (อัปเดต 8 ก.ย. 69) — แก้การเทียบยอดขาย MoM/YoY ให้ตัดช่วงวันเท่ากัน
+
+**ปัญหาที่พบ**: หน้าแดชบอร์ด "ภาพรวม → ยอดขาย" (`renderDashboardSales`) เทียบยอดขายเดือนที่ยังไม่จบ (เช่นวันนี้อยู่
+วันที่ 8-9 ของเดือน) กับยอดขาย**เต็มเดือน**ก่อนหน้าตรงๆ — ทำให้ % เปลี่ยนแปลงดูแย่เกินจริงเสมอ (เทียบข้อมูล ~9 วัน
+กับ ~30 วัน) ผู้ใช้เจอจากภาพจริง (เดือนนี้ 9 วันแรก ฿113,236 เทียบกับเดือนก่อนเต็มเดือน ฿448,070 → โชว์ "ลดลง 75%"
+ทั้งที่ไม่ได้แย่ขนาดนั้นจริง)
+
+**แก้แล้ว**: เพิ่ม `isInProgressMonth(y,m)` เช็คว่าเดือนที่กำลังดูอยู่คือเดือนปัจจุบันจริงๆ (ยังไม่จบ) หรือไม่ — ถ้าใช่
+ตัดช่วงเดือนที่เอามาเทียบ (`prevE`) ให้เหลือแค่ "วันที่ 1 ถึงวันเดียวกับวันนี้" เท่านั้น (cap ไม่ให้เกินจำนวนวันจริงของ
+เดือนที่เทียบ เผื่อกรณีเทียบกับเดือน ก.พ.) แทนที่จะเอาทั้งเดือนมาเทียบ — ใช้ได้ทั้งโหมด "เทียบเดือนก่อน" และ
+"เทียบปีก่อน" (logic เดียวกัน ไม่ต้องแยก) เพิ่มข้อความ periodNote ต่อท้าย insight บอกช่วงวันที่กำลังเทียบให้ชัดเจน
+เช่น "(เทียบเฉพาะวันที่ 1-8 เท่ากันทั้งสองช่วง เพราะเดือนนี้ยังไม่จบ)"
+
+**เดือนที่จบแล้วไม่กระทบเลย** — เทียบเต็มเดือนต่อเต็มเดือนเหมือนเดิมทุกอย่าง (`isInProgressMonth` return false)
+ปัญหานี้เกิดเฉพาะตอนดูเดือนที่ยังไม่จบเท่านั้น
+
+**ทำไมไม่ใช้การหารเฉลี่ยต่อวันแทน** (ผู้ใช้เสนอมาเองว่าอาจต้องหารเฉลี่ยเพราะแต่ละเดือนวันไม่เท่ากัน) — ตัดช่วงให้
+จำนวนวันเท่ากัน (day-range capped) แก้ปัญหา "จำนวนวันไม่เท่ากัน" ได้ในตัวอยู่แล้ว โดยไม่ต้องหารเฉลี่ยเพิ่ม การหารเฉลี่ย
+จะจำเป็นก็ต่อเมื่อยืนกรานเทียบกับเต็มเดือนก่อน (จำนวนวันไม่เท่ากันจริง) ซึ่งไม่ใช่สิ่งที่ต้องการ
+
+**ทำเดโม่ก่อน implement ตาม workflow**: ใช้ไฟล์ `index.html` จริงทั้งไฟล์ทับ (ไม่ใช่ mockup) override
+`safeFetchJSON`/`postAction` ด้วยข้อมูลจำลอง (เดือนก่อนเต็มเดือน + เดือนนี้ถึงแค่วันนี้จริงตาม `new Date()`) แล้ว
+override `renderDashboardSales` ด้วย logic ใหม่ ให้ดูผลจริงก่อน ได้ approve แล้วค่อย implement ใน `index.html` จริง
+
+**ทดสอบแล้ว**: `node --check` ผ่าน + Playwright E2E จริง (mock `page.route()`) ยืนยัน 2 เคส — (1) เดือนที่ยังไม่จบ
+โชว์ periodNote ถูกต้อง และ prevTotal คำนวณจากแค่ N วันแรกจริง ไม่ใช่เต็มเดือน (2) เดือนที่จบแล้ว **ไม่**โชว์
+periodNote และยังเทียบกับเต็มเดือนก่อนเหมือนเดิม (regression check) — ผ่านหมดทุกเคส
+
+### สถานะล่าสุด (อัปเดต 8 ก.ย. 69 — ต่อ) — ตรวจสอบฝั่งลูกค้า: ลบฟีเจอร์รีวิวปลอม + แก้ประสิทธิภาพ `getOrders`
+
+**ตามคำขอ "ตรวจสอบแอปฝั่งลูกค้าว่ามีช่องโหว่/บั๊ก/หน่วงตรงไหนอีก"** ไล่โค้ดฝั่งลูกค้าทั้งหมด (ไม่ใช่แค่อ่านผ่านๆ —
+ไล่ทุกจุดที่ยิง network call จริง) เจอ 3 จุด แก้ครบทั้ง 3 แล้ว:
+
+✅ **[ลบแล้ว] ฟีเจอร์ "ให้คะแนน/ติชม" เป็นของปลอม ไม่เคยถูกต่อเข้าเมนูเลย** — `feedbackSection`/`reviewSection`
+(รวม `setupReview`/`rateReview`/`submitReview`/`currentRating`) มีโค้ดสมบูรณ์ (ให้ดาว, คอมเมนต์, แยกร้าน/พนักงานคนที่
+1/2) แต่ **ไม่มีทางเข้าถึงจากเมนูไหนในแอปเลยสักจุด** (เช็คแล้ว: ไม่มี `goSection('feedback')` เรียกจากที่ไหนนอกจาก
+ปุ่มย้อนกลับที่วนกลับมาหน้าเดียวกันเอง) — ต่อให้เข้าถึงได้ก็เป็นของปลอมอยู่ดี (`submitReview()` แค่โชว์ "ขอบคุณ" ไม่เคย
+ส่งข้อมูลไปไหนเลย ไม่มี action/sheet เก็บรีวิวใน backend เลยสักตัว) ผู้ใช้ยืนยันให้ลบทิ้งทั้งหมด (ไม่ต่อให้ใช้งานได้จริง)
+— ลบ HTML 2 section + ฟังก์ชัน JS 3 ตัว + ตัวแปร 1 ตัว + จุดอ้างอิงใน `goHome()`/`goSection()` ครบ เช็คแล้วไม่มี
+ที่ไหนอ้างอิงเหลือค้าง (`grep` ทั้งไฟล์ = 0 ผลลัพธ์)
+
+✅ **[แก้แล้ว] `getOrders` ฝั่งลูกค้าไม่มี limit เลย — เหมือน `getAdminOrders` ก่อนแก้เป๊ะ แต่หนักกว่า**: เรียกจาก
+6 จุดในแอป ส่งประวัติ**ทั้งหมดตลอดชีพ**ของลูกค้าทุกครั้ง จุดที่หนักสุดคือหน้า track ที่ auto-refresh ทุก **10 วิ**
+(เร็วกว่า `getAdminOrders` เดิมที่เป็น 30 วิ) — ยิ่งลูกค้าสั่งสะสมมานาน ยิ่งช้าลงเรื่อยๆ เฉพาะคนนั้น เพิ่ม action ใหม่
+`getTrackOrders(customer_id)` ใน `order-app-Code.gs` ทำ filter ที่ backend ให้ตรงกับที่ frontend กรองทิ้งอยู่แล้ว
+(active/pending/packing ทุกอันไม่ว่าจะเก่าแค่ไหน + เสร็จ/ยกเลิกล่าสุดอย่างละ 5 อัน — ค่าคงที่
+`TRACK_ORDERS_RECENT_LIMIT`) — สลับไปใช้ตัวใหม่ 4 จาก 6 จุด (`loadTrackSection`, auto-refresh, dedup-check ใน
+`findRecentMatchingOrder`, `openReorderModal`) **`loadHistory()` (แท็บ "ประวัติทั้งหมด") ยังคงใช้ `getOrders` เดิม
+ตั้งใจไม่แตะ** เพราะจุดนั้นต้องการเห็นทุกออเดอร์จริงๆ ตามชื่อฟีเจอร์ ไม่ได้ auto-refresh ถี่เหมือนหน้า track เลยความเสี่ยง
+ต่ำกว่ามาก — **หน้าตาที่ลูกค้าเห็นเหมือนเดิมทุกอย่าง ไม่เปลี่ยนอะไรที่มองเห็นได้เลย** เปลี่ยนแค่ปริมาณข้อมูลที่ส่งมา
+
+✅ **[แก้แล้ว] `placeOrder()` ยิง `getOrders` ซ้ำโดยไม่จำเป็นหลังสั่งของสำเร็จ**: `createOrder` คืน `order_id` จริง
+มาให้ในตัวอยู่แล้วตอนสำเร็จ (`result.order_id`) แต่โค้ดเดิมไม่ใช้ค่านั้น กลับไปยิง `getOrders` (ตอนนี้คือ
+`getTrackOrders` แล้ว) ซ้ำเพื่อ "เดา" เอาจาก `orders[0]` แทน — ตัดการยิงซ้ำทิ้งทั้งก้อน ใช้ `result.order_id` ตรงๆ
+(fallback เป็น `pendingOid` เดิมเฉพาะกรณี `result.order_id` หายไปจริงๆ) ปิดทั้งการยิง request เปล่าประโยชน์ในจุดที่
+ลูกค้าใช้บ่อยที่สุดของแอป และปิดความเสี่ยงที่เคยมีว่า `orders[0]` อาจไม่ใช่ออเดอร์ที่เพิ่งสั่งจริงถ้ามีออเดอร์อื่นแทรกมา
+
+**ทดสอบแล้ว**: `node --check` ผ่านทั้ง 2 ไฟล์ + unit test แยกของ `getTrackOrders()` ใน Node (mock ข้อมูล 8 done/
+8 cancelled/2 active คนละอายุ ยืนยันว่ากรองเหลือแค่ active ทั้งหมด+ล่าสุดอย่างละ 5 ถูกต้อง และไม่หลุดข้อมูลลูกค้าอื่นมา
+ปนด้วย) + Playwright E2E จริงยืนยัน 12 เคสครบทั้ง 3 เรื่อง (ฟีเจอร์รีวิวหายสนิท, 4 จุดใหม่เรียก `getTrackOrders` ไม่ใช่
+`getOrders`, `loadHistory` ยัง unaffected เหมือนเดิม, `placeOrder` เรียกแค่ `createOrder` ไม่มี fetch ซ้ำ และโชว์
+order_id ที่ถูกต้องจาก response จริง) — ผ่านหมดทุกเคส
+
+### สถานะล่าสุด (อัปเดต 8 ก.ย. 69 — ต่อ) — แก้เข้าแอปแบบไม่มี `?ref=` โชว์ error ผิดเรื่อง
+
+**พบระหว่างไล่หา "จุดที่ enhance ได้อีก" ตามคำขอผู้ใช้**: เปิด `index.html` แบบไม่มี query string เลย (เช่น
+`https://samurai-murex.vercel.app/` เฉยๆ) จะเห็นหน้า home ที่ดูใช้งานได้ปกติ (โชว์ "สวัสดีครับ" เฉยๆ ไม่มีชื่อ) แต่
+`customer` เป็น `null` อยู่เบื้องหลัง — กดปุ่ม "สั่งสินค้า" จะเห็นร้านว่างเปล่า (ไม่มี error) และกดปุ่ม "ติดตามสถานะ"
+**ไม่ได้พัง/ไม่มี JS error เต็มจอ** (แก้คำพูดตัวเองจากตอนแรกที่บอกว่า "พัง" — เกินจริง) เพราะ `loadTrackSection()`
+อ่าน `customer.customer_id` อยู่ใน `try{}` block ที่ดักไว้อยู่แล้ว — สิ่งที่เกิดขึ้นจริงคือ**โชว์ข้อความ "โหลดข้อมูลไม่ได้"**
+ซึ่งหลอกลูกค้าว่าเน็ตมีปัญหา ทั้งที่จริงๆ ไม่เกี่ยวเน็ตเลย (สาเหตุจริงคือไม่มีข้อมูลลูกค้าอยู่เบื้องหลังต่างหาก) — ยืนยันด้วย
+เทส before/after เทียบโค้ดจริง 2 เวอร์ชันแล้ว (ดูหัวข้อทดสอบด้านล่าง) ไม่ใช่แค่เดา
+
+**ทำไมเกิดขึ้นได้ทั้งที่ลิงก์ที่ให้ลูกค้ามี `?ref=` เสมอ**: `manifest.json` (ผู้ใช้ตั้งใจทำไอคอน PWA ไว้เอง — มี
+`icon-192.png`/`icon-512.png`/เวอร์ชัน black ครบ) ตั้ง `start_url: "/"` — ไม่มี `?ref=` ติดไปด้วย เพราะเป็นไฟล์เดียว
+ใช้ร่วมกันทุกคน ใส่ค่าเฉพาะคนไม่ได้ — พฤติกรรมมาตรฐานของ PWA คือตอนลูกค้ากด "ติดตั้งแอป"/"เพิ่มหน้าจอโฮม"
+เบราว์เซอร์จะจำแค่ `start_url` จาก manifest ไปใช้เปิดทุกครั้งในอนาคต **ไม่ได้จำ URL ที่กดติดตั้งตอนนั้น** — แปลว่า
+ลูกค้าคนไหนก็ตามที่กด "ติดตั้งแอป" จากลิงก์ส่วนตัวของตัวเอง ไอคอนที่ได้จะพาไปหน้าที่พังแบบนี้ทุกครั้งที่เปิดในอนาคต
+
+✅ **แก้แล้ว**: `initCustomer()` จำ `customerRef` ที่เพิ่งเข้าสำเร็จไว้ใน `localStorage`
+(`samurai_customer_ref`) — `window.onload` เมื่อเจอ query string ว่างเปล่าเลย จะลองอ่านค่านี้ก่อน ถ้ามีจะ
+`location.replace` เด้งกลับไปที่ `?ref=<ค่าที่จำไว้>` อัตโนมัติ (โหลดร้านของลูกค้าคนนั้นได้ปกติ ไม่ต้องเจอข้อความ error
+ผิดเรื่องอีกต่อไป) ถ้าไม่มีเลย (เครื่องใหม่/ล้าง storage) แสดง `showError(false)` (หน้า "ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อ
+ร้านค้าครับ" — ข้อความตรงประเด็นจริง) แทนที่จะปล่อยให้ไปเจอหน้า home ที่ดูปกติแต่กดอะไรก็ได้ข้อความหลอก —
+ไม่ได้แตะ backend เลย แก้แค่ `index.html`
+
+**ทดสอบแล้ว 2 รอบ**:
+1. Playwright E2E จริง (ใช้ browser context เดียวกันเพื่อให้ localStorage ข้ามหน้าได้เหมือนอุปกรณ์จริง) ยืนยัน 3 เคส:
+   เข้าด้วย `?ref=` ปกติแล้ว ref ถูกจำไว้ / เข้าแบบไม่มี query string ทีหลัง (จำลองเปิดผ่านไอคอน PWA) เด้งกลับไปโหลด
+   ร้านถูกต้องอัตโนมัติ / browser context ใหม่ที่ไม่เคยมี ref จำไว้เลยโชว์หน้า error ที่ตรงประเด็น
+2. **ผู้ใช้ขอให้ทดสอบเทียบก่อน-หลังให้เห็นผลต่างจริงก่อนอนุญาตไปต่อ** — ทำเทส before/after รันโค้ดจากคอมมิตล่าสุด
+   (ยังไม่มี fix) เทียบกับโค้ดที่แก้ในเครื่อง (มี fix) ด้วยสถานการณ์เดียวกันเป๊ะ ผลคือก่อนแก้: ลูกค้าค้างอยู่หน้า home
+   ที่ไม่มีข้อมูล กด "ติดตามสถานะ" โชว์ "โหลดข้อมูลไม่ได้" (ข้อความหลอก) — หลังแก้: เด้งกลับไปโหลดร้านสำเร็จอัตโนมัติ
+   ไม่มี JS error ทั้งสองเวอร์ชัน (ยืนยันว่าไม่ใช่ "crash" แบบที่เคยพูดผิดไปตอนแรก) — ผ่านหมดทุกเคสทั้ง 2 รอบ
+
+### สถานะล่าสุด (อัปเดต 10 ก.ย. 69) — ออเดอร์ซ้ำจริงจาก cold-connection timeout + แก้ด้วย idempotency key
+
+**บริบท**: ลูกค้ารายงานเจอ alert "บันทึกคำสั่งซื้อไม่สำเร็จ" ตอนสั่งของ (~07:39) ตรวจสอบแล้วพบว่า `createOrder`
+บันทึกสำเร็จจริง (ร้านเห็นออเดอร์) แต่ response หลุด/timeout กลับมาหา client (cold connection ปัญหาเดิมที่เคย
+บันทึกไว้แล้วในไฟล์นี้) — ลูกค้าเห็น alert เลยกดสั่งซ้ำเอง ยืนยันจาก Telegram ที่แจ้งเตือน "ออเดอร์ใหม่" 2 รอบ ->
+**เกิดออเดอร์ซ้ำจริงในชีต** ไม่ใช่แค่ false-alarm ทาง UX เท่านั้น (ตรงกับ trade-off ที่เคย flag ไว้ตอนแก้เรื่อง
+คำนวณ `total` ใหม่ที่ backend เมื่อ 8 ก.ย. 69 — แต่ครั้งนี้ต้นตอเป็น connection ล้มเหลวทั้ง `createOrder` และ
+`findRecentMatchingOrder`'s dedup check พร้อมกัน ไม่ใช่กรณี `total` ไม่ตรงกันตามที่เคยคาดไว้)
+
+**Vercel logs ไม่เกี่ยวข้องกับบั๊กประเภทนี้เลย**: แอปนี้เป็น static site ล้วน ยิง request ตรงจาก browser ไปหา
+Google Apps Script โดยไม่ผ่าน Vercel backend ใดๆ — ถ้าเจอรายงาน "สั่งของ/บันทึกไม่สำเร็จ" ในอนาคต ไม่ต้องเสียเวลา
+เช็ค Vercel runtime logs/errors เลย ให้เช็ค Apps Script Executions log แทน (ตามธรรมเนียมเดิมของแอปเช็คสต๊อก)
+
+**แก้แล้ว (ยังไม่ deploy backend — รอผู้ใช้แปะ `order-app-Code.gs` ใหม่)**: เพิ่ม idempotency key กัน
+`createOrder` สร้างแถวซ้ำ:
+- `index.html`: `showConfirm()` สร้าง `orderIdemKey` ใหม่ทุกครั้งที่เข้าหน้ายืนยันออเดอร์ (คู่กับ `pendingOid` เดิม)
+  ส่งไปกับ payload ของ `placeOrder()` — key เดิมนี้ถูกใช้ซ้ำทั้งตอน auto-retry ของ `postAction` และตอนลูกค้ากดปุ่ม
+  "ยืนยันสั่งซื้อ" ซ้ำเองด้วยมือ (เพราะไม่ได้เรียก `showConfirm()` ใหม่) จนกว่าจะสำเร็จจริงหรือกลับไปเริ่มออเดอร์ใหม่
+  (`showOrderSuccessScreen()` reset เป็น `''`) — เปิด auto-retry ให้ `createOrder` แล้ว (`postAction(...,15000,1)`
+  จากเดิม `retries=0`) เพราะตอนนี้ปลอดภัยแล้วที่ backend
+- `order-app-Code.gs`: `createOrder` ห่อด้วย `LockService.getScriptLock()` (pattern เดียวกับ `updateDelivery`)
+  เช็ค `CacheService` ก่อนว่าเคยสร้างออเดอร์ด้วย `idempotency_key` นี้แล้วหรือยัง (TTL 5 นาที) ถ้าเจอคืน `order_id`
+  เดิมกลับไปเลยไม่ `appendRow` ซ้ำ — **ไม่บังคับว่าต้องมี key** (frontend เก่าที่ cache ค้างยังทำงานได้ปกติ แค่ไม่มี
+  dedup protection ให้ เหมือนพฤติกรรมเดิมก่อนแก้)
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่านทั้ง 2 ไฟล์
+- Unit test แยกใน Node (mock `LockService`/`CacheService`/`SpreadsheetApp`) ครอบคลุม 4 เคส: key เดิมซ้ำ ->
+  ได้ `order_id` เดิม + `appendRow` แค่ 1 ครั้ง, key ต่างกัน -> คนละออเดอร์, ไม่มี key เลย -> พฤติกรรมเดิม (ไม่ dedup,
+  backward compat), lock ชนกัน -> คืน error สุภาพไม่เขียนแถว — ผ่านหมด
+- Playwright E2E จริง (mock `page.route()`) 3 เคส: (1) attempt แรกพัง auto-retry สำเร็จ -> ไม่โชว์ alert เลย
+  ทั้ง 2 ครั้งส่ง key เดียวกัน (2) ทั้ง 2 attempt พังหมด -> โชว์ alert ไม่สำเร็จ แล้วกดปุ่มซ้ำเอง (manual retry) ->
+  ยังใช้ key เดิมทุกครั้งทั้ง 4 คำขอ (3) สั่งสำเร็จแล้วกลับไปสั่งออเดอร์ใหม่รอบสอง -> ได้ key ใหม่ไม่ซ้ำของเดิม —
+  ผ่านหมดทุกเคส
+
+**ขั้นต่อไป**: ผู้ใช้ต้องแปะ `order-app-Code.gs` เวอร์ชันใหม่ใน Apps Script Editor (Manage deployments -> New
+version) — ยังไม่ได้ push ขึ้น `main` (รอ approve ตามธรรมเนียมเดิม) frontend/backend รอบนี้ compatible กันทั้ง
+2 ทิศทาง (deploy backend ก่อนหรือหลัง push frontend ก็ได้ ไม่มีช่วงพัง เพราะ backend ไม่บังคับว่าต้องมี key)
+
+⚠️ **[พักไว้ 10 ก.ย. 69] ผู้ใช้ขอเก็บ fix นี้ไว้ก่อน** — ยังไม่ deploy/push ทั้งคู่ รอแก้อีกเรื่องหนึ่งให้เสร็จก่อน
+แล้วจะขึ้นระบบ (deploy backend + push frontend) พร้อมกันทีเดียว โค้ดทั้ง 2 ไฟล์ในเครื่อง/ใน repo นี้แก้เสร็จพร้อม
+ใช้แล้ว แค่รอคำสั่งให้ deploy จริง — **ห้าม push/เตือนให้ deploy fix นี้เองโดยไม่ถูกถาม**
+
+### สถานะล่าสุด (อัปเดต 10 ก.ย. 69 — ต่อ) — "อีกเรื่อง" ที่รออยู่คือบั๊ก lock ค้างเพราะ Telegram (พบ+แก้แล้ว)
+
+**บริบท**: ผู้ใช้ส่งภาพจริงจากฝั่งแอดมิน — กด "จัดเสร็จแล้ว" (`markDone`) แล้วเจอ error
+`updateDelivery: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง` (ข้อความจาก `LockService` ที่เพิ่มไป 8 ก.ย. 69)
+นี่คือ "อีกเรื่อง" ที่ผู้ใช้บอกว่าจะรอแก้ก่อนขึ้นระบบพร้อมกับ idempotency key fix ด้านบน
+
+**Root cause**: `sendTelegramNotify()` (network call ใช้เวลาไม่แน่นอน) เดิมถูกเรียก**ข้างใน**
+`try{...}finally{lock.releaseLock()}` ของ `updateDelivery` — ถ้า Telegram ช้า lock จะถูกถือค้างนานเกิน 10 วิได้
+คำขอ `updateDelivery` อื่นที่เข้ามาพร้อมกัน (เช่น auto-retry ของ `postAction` ที่ `markDone()`/`markPacking()`
+ไม่ได้ปิด retry ไว้ ใช้ default `retries=1`) จะ `waitLock` timeout เห็น error นี้ ทั้งที่คำขอแรกอาจสำเร็จจริงอยู่ดี
+— รูปแบบบั๊กเดียวกับเคสออเดอร์ซ้ำตอนเช้า (10 ก.ย. 69) แค่คนละฟังก์ชัน
+
+⚠️ **เจอบั๊กแฝงตัวเดียวกันใน `createOrder` ที่เพิ่งแก้ไปก่อนหน้านี้ในเซสชันเดียวกัน (ยังไม่ deploy)** — ตอนเขียน
+lock+idempotency ให้ `createOrder` ผมคัดลอกโครงเดิมมาโดยไม่ทันสังเกตว่า `sendTelegramNotify()` อยู่ในลูปก่อน
+`lock.releaseLock()` เหมือนกัน ถ้า deploy ไปตอนนั้นจะเจอปัญหาเดียวกันกับฝั่งลูกค้าได้ — แก้พร้อมกันในรอบนี้เลย
+
+**แก้แล้วทั้ง 2 จุด**: ย้าย `sendTelegramNotify()` ไปเรียกใน `finally` **ต่อจาก** `lock.releaseLock()` (เก็บแค่
+message string ไว้ในตัวแปร `notifyMessage` ระหว่างอยู่ใน critical section) — lock จะถือแค่ช่วงอ่าน/เขียนชีต
+(เร็ว) เท่านั้น ไม่ถือระหว่างรอ Telegram ตอบกลับอีกต่อไป ไม่ต้องปรับ timeout 10 วิหรือ logic อื่นเลย
+
+**ทดสอบแล้ว**:
+- `node --check` ผ่าน
+- Unit test ใหม่ 3 เคส (mock เก็บลำดับการเรียก call log): `createOrder` และ `updateDelivery` (status `done`)
+  ยืนยันว่า `releaseLock` เกิดก่อน `sendTelegramNotify` เสมอ, `updateDelivery` (status `packing`) ยืนยันว่ายังไม่
+  แจ้ง Telegram เหมือนเดิม (ไม่ใช่ regression) — ผ่านหมด
+- รัน unit test ชุด idempotency key เดิม (4 เคส) ซ้ำอีกรอบ ยืนยันว่าไม่มี regression จากการย้าย Telegram —
+  ผ่านหมดเหมือนเดิม
+
+**สถานะ deploy**: ยังพักไว้เหมือนเดิมตามที่ผู้ใช้ขอ — `order-app-Code.gs` ในเครื่อง/ใน repo นี้ตอนนี้มีทั้ง 2 fix
+(idempotency key + Telegram-outside-lock) พร้อม deploy พร้อมกันทีเดียวเมื่อได้รับคำสั่ง ยังไม่ได้ push ขึ้น `main`
+
+**เคสนี้ยังต้องติดตามต่อ**: แนะนำให้ร้านเช็คว่าออเดอร์ซ้ำที่เกิดจริงเมื่อเช้า 10 ก.ย. 69 ถูกยกเลิก/จัดการแล้วหรือยัง
+(ไม่ใช่ปัญหาโค้ด แต่เป็นข้อมูลที่ค้างอยู่ในชีตจากก่อนแก้)
 
 ## Bill Templates by Supplier
 

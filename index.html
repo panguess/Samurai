@@ -323,69 +323,6 @@
       </div>
     </div>
   </div>
-  <!-- Feedback Section -->
-  <div id="feedbackSection" style="display:none">
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
-        <div class="header-name" style="font-size:20px">ให้คะแนนและติชม</div>
-      </div>
-    </div>
-    <div style="padding:16px">
-      <div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:4px">ความคิดเห็นของคุณสำคัญมากครับ</div>
-      <div style="font-size:14.5px;color:#888;margin-bottom:16px;line-height:1.5">เลือกว่าอยากให้คะแนนและแนะนำเรื่องอะไรครับ</div>
-      <div onclick="goSection('review_shop')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#fdf5f2;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🏪</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">ติชมร้าน</div><div style="font-size:13.5px;color:#888">คุณภาพสินค้า ความสะอาด บรรยากาศร้าน</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-      <div onclick="goSection('review_staff1')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🧑</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 1</div><div style="font-size:13.5px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-      <div onclick="goSection('review_staff2')" style="background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:16px;cursor:pointer;display:flex;align-items:center;gap:14px">
-        <div style="width:52px;height:52px;border-radius:12px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:31.5px;flex-shrink:0"><span style="font-size:31.5px">🧑</span></div>
-        <div style="flex:1"><div style="font-size:17px;font-weight:600;color:#1a1a1a;margin-bottom:3px">พนักงานคนที่ 2</div><div style="font-size:13.5px;color:#888">ความสุภาพ ความรวดเร็ว การบริการ</div></div>
-        <div style="font-size:20px;color:#ddd">›</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Review Screens -->
-  <div id="reviewSection" style="display:none">
-    <div class="header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="goSection('feedback')" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
-        <div class="header-name" style="font-size:20px" id="reviewTitle">ติชม</div>
-      </div>
-    </div>
-    <div style="padding:16px">
-      <div style="text-align:center;padding:1.25rem 1rem">
-        <div id="reviewAvatar" style="width:70px;height:70px;border-radius:50%;background:#fdf5f2;border:2px solid #f5c4b3;display:flex;align-items:center;justify-content:center;margin:0 auto 10px"></div>
-        <div id="reviewName" style="font-size:20px;font-weight:700;color:#1a1a1a"></div>
-        <div id="reviewRole" style="font-size:14.5px;color:#888;margin-top:3px"></div>
-      </div>
-      <div style="font-size:14.5px;color:#888;font-weight:500;margin-bottom:8px">ให้คะแนน</div>
-      <div id="starRow" style="display:flex;gap:10px;justify-content:center;margin-bottom:16px">
-        <span class="rv-star" onclick="rateReview(1)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(2)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(3)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(4)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-        <span class="rv-star" onclick="rateReview(5)" style="font-size:38px;cursor:pointer;opacity:0.3">★</span>
-      </div>
-      <div style="font-size:14.5px;color:#888;font-weight:500;margin-bottom:6px">แนะนำหรือให้กำลังใจ (ไม่บังคับ)</div>
-      <textarea id="reviewComment" placeholder="เช่น บริการดีมาก สินค้าสดใหม่..." style="width:100%;border:1px solid #e8e2dc;border-radius:10px;padding:10px 12px;font-size:14.5px;resize:none;height:90px;font-family:inherit;color:#1a1a1a"></textarea>
-      <button onclick="submitReview()" style="width:100%;padding:13px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px">ส่งความคิดเห็น</button>
-      <div id="thankBox" style="display:none;text-align:center;padding:2rem 1rem">
-        <div style="font-size:54px;margin-bottom:12px">🙏</div>
-        <div style="font-size:22.5px;font-weight:700;color:#D64109">ขอบคุณมากครับ!</div>
-        <div id="thankMsg" style="font-size:14.5px;color:#888;margin-top:6px;line-height:1.6"></div>
-        <button onclick="goHome()" style="margin-top:16px;padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;cursor:pointer">กลับหน้าหลัก</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Track Section -->
   <div id="trackSection" style="display:none">
     <div class="header">
@@ -453,8 +390,11 @@ function fmtOrderDateTime(ts){
   return`${dateStr} ${timeStr} น.`;
 }
 function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').trim();}
+// กัน stored XSS — note/business note เป็น free text ที่ผู้ใช้พิมพ์เอง เขียนลง Sheet ตรงๆ ไม่ sanitize
+// ต้อง escape ก่อน render ทุกจุดที่ใส่ผ่าน innerHTML (ไม่ escape ตอนเก็บ เพื่อให้ข้อมูลดิบใน Sheet ไม่ถูกบิดเบือน)
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 var ADMIN_KEY='shop123';
-let customer=null,products=[],cart={},pendingOid='',editingOrder=null,editQtys={},allAdminOrders=[],adminCurrentTab='pending';
+let customer=null,products=[],cart={},pendingOid='',orderIdemKey='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
 var adminQtys={};
 var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
 let pickedItems=new Set();
@@ -535,6 +475,9 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
 async function postAction(payload,label,timeoutMs,retries){
   timeoutMs=timeoutMs||15000;
   retries=retries==null?1:retries;
+  // แนบ ADMIN_KEY ให้ทุกคำขอที่ยิงจากหน้าแอดมินอัตโนมัติ (การ์ดกันสิทธิ์ฝั่ง backend เพิ่งเพิ่ม — ก่อนหน้านี้ backend
+  // ไม่เช็คอะไรเลย) จุดเรียกที่ต้องส่ง customer_id แทน (แก้ไข/ยกเลิกออเดอร์ตัวเองของลูกค้า) ยังคงส่งเองตรงจุดเรียกตามเดิม
+  if(isAdmin&&payload.key===undefined) payload={...payload,key:ADMIN_KEY};
   for(let attempt=0;attempt<=retries;attempt++){
     const controller=new AbortController();
     const t=setTimeout(()=>controller.abort(),timeoutMs);
@@ -571,7 +514,22 @@ async function postAction(payload,label,timeoutMs,retries){
   return null;
 }
 
-window.onload=()=>{if(isAdmin)initAdmin();else if(customerRef)initCustomer();else if(params.toString())showError();else document.getElementById('loading').style.display='none';};
+window.onload=()=>{
+  if(isAdmin)initAdmin();
+  else if(customerRef)initCustomer();
+  else if(params.toString())showError();
+  else{
+    // เข้ามาแบบไม่มี query string เลย (พบจริง: PWA ที่ลูกค้ากด "ติดตั้งแอป"/"เพิ่มหน้าจอโฮม" จะเปิดด้วย
+    // manifest.json's start_url="/" เสมอ ไม่ใช่ลิงก์ ?ref=... ที่ลูกค้าใช้ตอนติดตั้ง เพราะ manifest เป็นไฟล์เดียว
+    // ใช้ร่วมกันทุกคน ใส่ ref เฉพาะคนลงไปไม่ได้) เดิมปล่อยให้ไปเจอหน้า home ที่ดูใช้งานได้ปกติแต่ customer เป็น
+    // null อยู่เบื้องหลัง กดปุ่ม "ติดตามสถานะ" แล้วพังทันที — แก้โดยลองเด้งกลับไปที่ ref เดิมที่เคยเข้าสำเร็จก่อน
+    let savedRef=null;
+    try{savedRef=localStorage.getItem('samurai_customer_ref');}catch(e){}
+    if(savedRef){ location.replace(location.pathname+'?ref='+encodeURIComponent(savedRef)); return; }
+    document.getElementById('loading').style.display='none';
+    showError(false);
+  }
+};
 async function initCustomer(){
   try{
     const custCacheKey='customer_'+customerRef;
@@ -583,6 +541,8 @@ async function initCustomer(){
     if(data===null){showError(true);return;}
     if(data.error){showError(false);return;}
     customer=data;
+    // จำ ref ที่เพิ่งเข้าสำเร็จไว้ ใช้กู้กลับตอนเข้ามาแบบไม่มี query string เลย (ดู window.onload ด้านบน)
+    try{localStorage.setItem('samurai_customer_ref',customerRef);}catch(e){}
     document.getElementById('customerName').textContent='สวัสดีครับ '+customer.name;
     document.title='ซามูไรไส้กรอก - '+customer.name;
     show('app');
@@ -594,25 +554,17 @@ function goHome(skipPush){
   document.getElementById('homeScreen').style.display='block';
   document.getElementById('shopSection').style.display='none';
   document.getElementById('trackSection').style.display='none';
-  document.getElementById('feedbackSection').style.display='none';
-  document.getElementById('reviewSection').style.display='none';
   document.getElementById('cartBar').classList.remove('show');
   if(typeof trackRefreshInterval!=='undefined'&&trackRefreshInterval){clearInterval(trackRefreshInterval);trackRefreshInterval=null;}
   if(!skipPush) history.pushState({section:'home'},'',location.href);
 }
 
-let currentRating=0;
 async function goSection(section,skipPush){
   document.getElementById('homeScreen').style.display='none';
   document.getElementById('shopSection').style.display=section==='shop'?'block':'none';
   document.getElementById('trackSection').style.display=section==='track'?'block':'none';
-  document.getElementById('feedbackSection').style.display=section==='feedback'?'block':'none';
-  document.getElementById('reviewSection').style.display=['review_shop','review_staff1','review_staff2'].includes(section)?'block':'none';
   if(section==='track') await loadTrackSection();
   if(section==='shop'){updateCart();}
-  if(section==='review_shop') setupReview('shop');
-  if(section==='review_staff1') setupReview('staff1');
-  if(section==='review_staff2') setupReview('staff2');
   if(!skipPush) history.pushState({section:section},'',location.href);
 }
 
@@ -623,52 +575,6 @@ window.addEventListener('popstate',(e)=>{
     goHome(true);
   }
 });
-
-function setupReview(type){
-  currentRating=0;
-  document.querySelectorAll('.rv-star').forEach(s=>{s.style.color='';s.style.opacity='0.3';});
-  document.getElementById('reviewComment').value='';
-  document.getElementById('thankBox').style.display='none';
-  document.querySelector('#reviewSection button[onclick="submitReview()"]').style.display='block';
-  document.getElementById('reviewComment').style.display='block';
-  if(type==='shop'){
-    document.getElementById('reviewTitle').textContent='ติชมร้าน';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🏪</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#fdf5f2;border:2px solid #f5c4b3;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='ซามูไรไส้กรอก';
-    document.getElementById('reviewRole').textContent='ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา';
-    document.getElementById('thankMsg').textContent='ความคิดเห็นของคุณช่วยให้เราพัฒนาร้านได้ดียิ่งขึ้นครับ';
-  } else if(type==='staff1'){
-    document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 1';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🧑</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#E6F1FB;border:2px solid #B5D4F4;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='พนักงานคนที่ 1';
-    document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
-    document.getElementById('thankMsg').textContent='จะส่งต่อให้พนักงานรับทราบครับ เป็นกำลังใจให้ทีมงานมากๆ';
-  } else {
-    document.getElementById('reviewTitle').textContent='ติชมพนักงานคนที่ 2';
-    document.getElementById('reviewAvatar').innerHTML='<span style="font-size:38px">🧑</span>';
-    document.getElementById('reviewAvatar').style.cssText='width:70px;height:70px;border-radius:50%;background:#EAF3DE;border:2px solid #C0DD97;display:flex;align-items:center;justify-content:center;margin:0 auto 10px';
-    document.getElementById('reviewName').textContent='พนักงานคนที่ 2';
-    document.getElementById('reviewRole').textContent='ทีมบริการซามูไรไส้กรอก';
-    document.getElementById('thankMsg').textContent='จะส่งต่อให้พนักงานรับทราบครับ เป็นกำลังใจให้ทีมงานมากๆ';
-  }
-}
-
-function rateReview(n){
-  currentRating=n;
-  document.querySelectorAll('.rv-star').forEach((s,i)=>{
-    s.style.color=i<n?'#f5a623':'';
-    s.style.opacity=i<n?'1':'0.3';
-  });
-}
-
-function submitReview(){
-  if(!currentRating){showToast('กรุณาให้คะแนนก่อนครับ');return;}
-  document.querySelector('#reviewSection button[onclick="submitReview()"]').style.display='none';
-  document.getElementById('reviewComment').style.display='none';
-  document.getElementById('thankBox').style.display='block';
-}
 
 let trackRefreshInterval=null;
 let trackRefreshFailCount=0;
@@ -688,7 +594,7 @@ async function loadTrackSection(){
     return[...active,...doneOrders,...cancelledOrders].sort(byTimeDesc);
   };
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
     lastTrackOrdersHash=JSON.stringify(orders);
     lastTrackOrders=orders;
@@ -703,7 +609,7 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
+      const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
       if(orders===null){
         trackRefreshFailCount++;
         if(trackRefreshFailCount>=3){
@@ -801,6 +707,9 @@ function genOid(){
 
 function showConfirm(){
   pendingOid=genOid();
+  // key เฉพาะรอบเข้าหน้ายืนยันนี้ (สร้างใหม่ทุกครั้งที่กลับมาหน้านี้ เช่น แก้ตะกร้าแล้วกลับมาใหม่) ส่งให้
+  // backend เช็คก่อนสร้างออเดอร์ซ้ำ — ดูเหตุผลเต็มที่ placeOrder()
+  orderIdemKey=pendingOid+'-'+Math.random().toString(36).slice(2,10);
   document.getElementById('confirmOid').textContent='Order ID: '+pendingOid;
   document.getElementById('orderNote').value='';
   const items=Object.values(cart);
@@ -824,7 +733,7 @@ function startNewOrder(){cart={};goSection('shop');renderProducts();}
  */
 async function findRecentMatchingOrder(itemsText,total){
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
     if(!orders||!orders.length) return null;
     const cutoff=Date.now()-3*60*1000;
     return orders.find(o=>{
@@ -846,7 +755,7 @@ function showOrderSuccessScreen(oid,items){
   document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
   document.getElementById('successTime').textContent=nowTimePart;
   document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
-  cart={};
+  cart={};orderIdemKey='';
   document.getElementById('successScreen').style.display='flex';
 }
 
@@ -858,9 +767,11 @@ async function placeOrder(){
   const note=document.getElementById('orderNote').value.trim();
   const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
   try{
-    // retries=0 ตั้งใจ: createOrder ไม่ idempotent (ยิงกี่ครั้งก็สร้างออเดอร์ใหม่ทุกครั้ง)
-    // ปล่อยให้ postAction auto-retry ให้เอง เสี่ยงสร้างออเดอร์ซ้ำถ้าครั้งแรกสำเร็จจริงแต่ response ช้า/หลุด
-    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group},'placeOrder',15000,0);
+    // idempotency_key (สร้างไว้ตอนเข้าหน้ายืนยันใน showConfirm()) ให้ backend เช็คก่อนสร้างออเดอร์ใหม่ —
+    // ยิงซ้ำกี่ครั้งด้วย key เดิมจะได้ order_id เดิมกลับมาเสมอ ไม่สร้างแถวซ้ำ ปลอดภัยพอให้เปิด auto-retry
+    // ของ postAction ได้แล้ว (retries=1) แก้ปัญหาเดิมที่ cold connection ทำให้ createOrder ดู "ไม่สำเร็จ"
+    // ทั้งที่บันทึกจริงแล้ว (เคยต้องปิด retry ทิ้งเพราะ backend ไม่ idempotent — ตอนนี้ idempotent แล้ว)
+    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group,idempotency_key:orderIdemKey},'placeOrder',15000,1);
     // postAction คืน null เมื่อเชื่อมต่อไม่ได้/timeout/ตอบกลับไม่ใช่ JSON
     // และคืน {success:false,error:...} เมื่อ backend ทำงานแต่บันทึกไม่สำเร็จ
     // ต้องเช็คทั้งสองกรณีนี้ก่อน ห้ามโชว์หน้าสำเร็จถ้ายังไม่ยืนยันว่าบันทึกจริง
@@ -876,13 +787,10 @@ async function placeOrder(){
       btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
       return;
     }
-    // ดึงเลขที่ออเดอร์จริงจาก getOrders เพื่อความชัวร์ แทนการเดาจาก genOid()
-    let realOid=pendingOid;
-    try{
-      const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'placeOrder:getOrders',15000,1);
-      if(orders&&orders.length) realOid=orders[0].order_id;
-    }catch(e2){}
-    showOrderSuccessScreen(realOid,items);
+    // createOrder สำเร็จ (result.success!==false) คืน order_id จริงมาให้ในตัวอยู่แล้ว ไม่ต้องเดาจาก genOid()
+    // หรือยิง getOrders ซ้ำไปเดาเอาจากรายการล่าสุดอีกต่อไป (เดิมทำแบบนั้น เสี่ยงได้ order_id ผิดถ้ามีออเดอร์อื่น
+    // แทรกมาในช่วงเวลาไล่เลี่ยกัน แถมเปลืองคำขอโดยไม่จำเป็นในจุดที่ลูกค้าใช้บ่อยที่สุดของแอป)
+    showOrderSuccessScreen(result.order_id||pendingOid,items);
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
 }
@@ -986,7 +894,7 @@ function buildHistoryCard(o){
     <div class="hcard-detail" id="detail${o.order_id}">
       <div class="hcard-divider">
         <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
-        ${cleanNote(o.note)?`<div class="order-note">📝 ${cleanNote(o.note)}</div>`:''}
+        ${cleanNote(o.note)?`<div class="order-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
         <div class="tl">${tl1}${tl2}${tl3}</div>
         <div class="order-footer">
           <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${billBtn}${reorderBtn}${cancelBtn}${editBtn}</div>
@@ -1032,7 +940,7 @@ function renderEditModal(items,note){
       :`<div class="edit-img-placeholder">🛍️</div>`;
     return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
-  html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${note}</textarea></div>`;
+  html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${escapeHtml(note)}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${fmtMoney(calcEditTotal())}</span></div>`;
   document.getElementById('editModalBody').innerHTML=html;
 }
@@ -1066,7 +974,7 @@ async function saveEdit(){
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
   try{
-    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
+    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,customer_id:customer.customer_id,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
       btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
@@ -1084,7 +992,21 @@ function closeEditModal(){document.getElementById('editModal').style.display='no
 
 let adminRefreshInterval=null;
 let lastAdminOrdersHash='';
+let lastAdminOrdersFullHash='';
 let adminRefreshFailCount=0;
+
+// โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
+// (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
+// เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
+async function fetchFullAdminOrders(silent){
+  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',20000,1,silent);
+  if(data===null) return false;
+  const text=JSON.stringify(data);
+  if(text===lastAdminOrdersFullHash) return false;
+  lastAdminOrdersFullHash=text;
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+  return true;
+}
 
 // ---- บันทึกเหตุการณ์สำคัญ (BusinessNote) — log อิสระ ไม่ผูกกับเดือน ----
 let businessNotes=[];
@@ -1120,7 +1042,7 @@ async function initAdmin(){
   const productsPromise=adminProdCached
     ? Promise.resolve(adminProdCached)
     : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
-  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders`,null,'initAdmin:getAdminOrders',15000,1);
+  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'initAdmin:getAdminOrders',15000,1);
 
   const[productsResult,ordersData]=await Promise.all([productsPromise,ordersPromise]);
 
@@ -1142,7 +1064,7 @@ async function initAdmin(){
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
     if(reorderOpen||editOpen) return;
-    const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'autoRefresh:getAdminOrders',15000,1,true);
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
     if(data===null){
       adminRefreshFailCount++;
       if(adminRefreshFailCount>=3){
@@ -1152,17 +1074,22 @@ async function initAdmin(){
     }
     adminRefreshFailCount=0;
     const text=JSON.stringify(data);
-    if(text===lastAdminOrdersHash) return;
-    lastAdminOrdersHash=text;
-    allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
-    if(adminCurrentTab==='overview') renderAdminOverview();
-    else renderAdminOrders();
+    if(text!==lastAdminOrdersHash){
+      lastAdminOrdersHash=text;
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      if(adminCurrentTab!=='overview') renderAdminOrders();
+    }
+    // แท็บภาพรวมต้องดูข้อมูลเต็มทุกปี (allAdminOrders ด้านบนถูกจำกัดแค่ 60 วันแล้ว) รีเฟรชแยกเฉพาะตอนเปิดแท็บนี้อยู่
+    if(adminCurrentTab==='overview'){
+      const changed=await fetchFullAdminOrders(true);
+      if(changed) renderAdminOverview();
+    }
   },30000);
 }
 
 async function loadAdminOrders(){
   document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  const data=await safeFetchJSON(`${API}?action=getAdminOrders`,null,'loadAdminOrders',15000,1);
+  const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
   if(data===null){
     document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
     return;
@@ -1172,7 +1099,7 @@ async function loadAdminOrders(){
   renderAdminOrders();
 }
 
-function switchAdminTab(tab){
+async function switchAdminTab(tab){
   adminCurrentTab=tab;
   document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
   document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
@@ -1182,8 +1109,18 @@ function switchAdminTab(tab){
   document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
   document.getElementById('overviewFilterBar').style.display=tab==='overview'?'block':'none';
   document.getElementById('ownerDashboard').style.display='none';
-  if(tab==='overview') renderAdminOverview();
-  else renderAdminOrders();
+  if(tab==='overview'){
+    // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
+    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+    await fetchFullAdminOrders();
+    if(!allAdminOrdersFull){
+      document.getElementById('adminOverview').innerHTML='<div class="empty-state">โหลดข้อมูลภาพรวมไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="switchAdminTab(\'overview\')">↻ ลองใหม่</button></div>';
+      return;
+    }
+    renderAdminOverview();
+  } else {
+    renderAdminOrders();
+  }
 }
 
 function buildAdminItemsHtml(o,canAdjustQty){
@@ -1235,7 +1172,7 @@ function buildPendingAdminCard(o){
     <div class="hcard-detail ${isOpen?'open':''}">
       <div class="hcard-divider">
         <div class="admin-items-list" style="padding:0 0 8px">${itemsHtml}</div>
-        ${note?`<div class="order-note">📝 ${note}</div>`:''}
+        ${note?`<div class="order-note">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
           <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="event.stopPropagation();markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>
@@ -1332,7 +1269,7 @@ function renderAdminOrders(){
         ${topBadge}
       </div>
       <div class="admin-items-list">${itemsHtml}</div>
-      ${cleanNote(o.note)?`<div class="admin-note">📝 ${cleanNote(o.note)}</div>`:''}
+      ${cleanNote(o.note)?`<div class="admin-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
       <div class="admin-order-footer">
         <div><div class="admin-total" id="atotal${o.order_id}">฿${fmtMoney(o.total)}</div><div style="font-size:12.5px;color:#888;margin-top:2px">${items.length} รายการ</div></div>
         ${footerBtns}
@@ -1388,7 +1325,7 @@ function buildDoneAdminCard(o){
           <span style="flex:0.85;text-align:right">รวม</span>
         </div>
         ${itemsHtml}
-        ${note?`<div class="order-note" style="margin-top:8px">📝 ${note}</div>`:''}
+        ${note?`<div class="order-note" style="margin-top:8px">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
           <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="event.stopPropagation();showOrderSummary('${o.order_id}')">🧾 ใบวางบิล</button>
@@ -1416,7 +1353,7 @@ function currentMonthKey(){
 // เรียงล่าสุดก่อน ใช้ generate month picker ให้ตรงกับข้อมูลจริงเท่านั้น (ไม่โชว์เดือนว่าง)
 function getAvailableOverviewMonths(){
   const set=new Set();
-  (allAdminOrders||[]).forEach(o=>{
+  (allAdminOrdersFull||[]).forEach(o=>{
     const t=o.timestamp;
     if(!t)return;
     const d=new Date(t);
@@ -1494,7 +1431,7 @@ function ov_isDone(o){return o.delivery_status==='done'||String(o.delivery_statu
 
 // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่กำหนด (ใช้เป็น scope เดียวกับ stat cards หลัก)
 function ov_doneOrdersInRange(start,end){
-  return allAdminOrders.filter(o=>{
+  return (allAdminOrdersFull||[]).filter(o=>{
     if(ov_isCancelled(o)||!ov_isDone(o))return false;
     const tStamp=o.done_at||o.timestamp;
     if(!tStamp)return false;
@@ -1700,7 +1637,7 @@ function renderOverviewNotePanel(monthKey){
         <div style="background:#fff;border:1px solid #f0eae4;border-radius:8px;padding:9px 11px;position:relative">
           <button onclick="deleteOverviewNote('${n.note_id}')" style="position:absolute;top:8px;right:9px;font-size:11px;color:#c99;background:none;border:none;cursor:pointer">ลบ</button>
           <div style="font-size:10.5px;color:#b5a89a;font-weight:600;margin-bottom:3px">${formatNoteDateTh(n.date)}</div>
-          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${n.text}</div>
+          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${escapeHtml(n.text)}</div>
         </div>`).join('')}</div>`
     : `<div style="font-size:12.5px;color:#bbb;font-style:italic;text-align:center;padding:8px 0">ยังไม่มีบันทึกสำหรับเดือนนี้</div>`;
   return`<div style="background:#faf8f5;border-radius:8px;padding:12px;margin-bottom:12px">
@@ -1782,7 +1719,7 @@ function renderAdminOverview(){
   const wrap=document.getElementById('adminOverview');
   const ds_cancelled=ov_isCancelled;
   const ds_done=ov_isDone;
-  const activeOrders=allAdminOrders.filter(o=>!ds_cancelled(o));
+  const activeOrders=(allAdminOrdersFull||[]).filter(o=>!ds_cancelled(o));
 
   const[rangeStart,rangeEnd]=getOverviewRange();
   // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards และ ranking
@@ -1951,7 +1888,7 @@ function dbOnMonthChange(val){
 
 // ---- helper ข้อมูลร่วม ----
 function db_doneOrders(){
-  return allAdminOrders.filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
+  return (allAdminOrdersFull||[]).filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
 }
 
 // จำนวน "วันขายจริง" ในช่วง = จำนวนวันปฏิทินที่มีออเดอร์จัดเสร็จเกิดขึ้นอย่างน้อย 1 ออเดอร์ (ดูหมายเหตุด้านบน)
@@ -2020,6 +1957,13 @@ function renderOwnerDashboard(){
 }
 
 // ---------------- แท็บยอดขาย ----------------
+// เดือนที่ยังไม่จบ (เดือนปัจจุบันจริงๆ) เทียบกับเดือนก่อนแบบตรงๆ ไม่ได้ เพราะเดือนนี้มีข้อมูลแค่ไม่กี่วัน
+// แต่เดือนก่อนมีข้อมูลเต็มเดือน ทำให้ % ที่ได้ดูแย่เกินจริงเสมอ (เทียบกันคนละปริมาณวัน)
+function isInProgressMonth(y,m){
+  const now=new Date();
+  return y===now.getFullYear()&&m===now.getMonth();
+}
+
 function renderDashboardSales(){
   const[y,m]=dbSalesMonth.split('-').map(Number);
   const allDone=db_doneOrders();
@@ -2030,6 +1974,20 @@ function renderDashboardSales(){
   if(dbCompareMode==='yoy'){prevY=y-1;prevM=m;}
   else{const pv=db_prevMonthKey(y,m);prevY=pv.y;prevM=pv.m;}
   [prevS,prevE]=monthRange(prevY,prevM);
+
+  // เดือนที่ดูอยู่ยังไม่จบ -> ตัดช่วงเดือนที่เทียบให้เหลือแค่ "วันที่ 1 ถึงวันเดียวกับวันนี้" เท่านั้น
+  // (cap ไม่ให้เกินจำนวนวันจริงของเดือนที่เทียบ เช่นเทียบกับ ก.พ.) แทนที่จะเอาทั้งเดือนมาเทียบ
+  const inProgress=isInProgressMonth(y,m);
+  let periodNote='';
+  if(inProgress){
+    const todayDay=new Date().getDate();
+    const daysInPrevMonth=new Date(prevY,prevM+1,0).getDate();
+    const cappedDay=Math.min(todayDay,daysInPrevMonth);
+    const cappedEnd=new Date(prevY,prevM,cappedDay);cappedEnd.setHours(23,59,59,999);
+    prevE=cappedEnd;
+    periodNote=` (เทียบเฉพาะวันที่ 1-${cappedDay} เท่ากันทั้งสองช่วง เพราะเดือนนี้ยังไม่จบ)`;
+  }
+
   const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
 
   const currTotal=currOrders.reduce((s,o)=>s+Number(o.total),0);
@@ -2052,7 +2010,7 @@ function renderDashboardSales(){
   </div>`:'';
 
   const insightHtml=`<div style="padding:10px 12px;background:#fdf1ea;border-radius:10px;font-size:12.5px;color:#333;line-height:1.7;margin-bottom:12px">
-    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})<br>
+    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})${periodNote}<br>
     · ลูกค้าเดิมซื้อ${decomp.continuingDelta>=0?'เพิ่ม':'ลด'} ฿${fmtMoney(Math.abs(decomp.continuingDelta))}
     <div style="margin-top:8px">🆕 ลูกค้าใหม่ ${decomp.newNames.length} เจ้า (รวม฿${fmtMoney(decomp.newTotal)}) ${nameChips(decomp.newNames,'#3B6D11')}</div>
     <div style="margin-top:8px">📉 ลูกค้าที่หายไปเดือนนี้ ${decomp.churnedNames.length} เจ้า (รวม-฿${fmtMoney(decomp.churnedTotal)}) ${nameChips(decomp.churnedNames,'#A32D2D')}</div>
@@ -2749,7 +2707,7 @@ function cancelOrder(orderId){
   overlay.querySelector('#cancelYes').onclick=async()=>{
     overlay.remove();
     try{
-      const result=await postAction({action:'cancelOrder',order_id:orderId},'cancelOrder');
+      const result=await postAction({action:'cancelOrder',order_id:orderId,customer_id:customer.customer_id},'cancelOrder');
       if(!result||result.success===false){
         alert('ยกเลิกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
         return;
@@ -2769,7 +2727,7 @@ async function openReorderModal(){
   const body=document.getElementById('reorderModalBody');
   body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
   try{
-    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
     const completed=orders.filter(o=>{
       const ds=o.delivery_status||o.status||'';
