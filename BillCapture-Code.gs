@@ -72,7 +72,13 @@ const BILL_TEMPLATE_HINTS = {
 
 /* ============ server-side cache (แยกก้อนกับ Code.gs หลัก — คนละ CacheService instance) ============ */
 const CACHE = CacheService.getScriptCache();
-const CACHE_TTL = { productAlias: 600 }; // 10 นาที ต่อซัพพลายเออร์ — เหตุผลเดียวกับ Code.gs หลัก
+// productAlias: 10 นาที ต่อซัพพลายเออร์ — เหตุผลเดียวกับ Code.gs หลัก
+// pendingBills: 30 วิ — เจอ 10 ก.ย. 69 ว่าหน้า "บิลรอตรวจสอบ" ช้าเพราะ getPendingBillReceipts() ไม่เคยมีแคชเลย
+// (ต่างจากทุกหน้าอื่นในแอปหลักที่มีแคชกันหมดแล้ว) อ่านทั้งชีตใหม่ทุกครั้งที่เปิดหน้า — invalidate ทันทีใน
+// submitBillForReview()/finalizePurchaseReceipt() (ทั้งคู่แก้ไขรายการ pending) กันเห็นข้อมูลค้าง
+// billFolder: 1 ชม. — cache Drive folder ID ต่อซัพพลายเออร์ กัน findOrCreateFolder() ต้องไล่ getFoldersByName()
+// 2 ชั้น (ปี→ซัพพลายเออร์) ซ้ำทุกครั้งที่ submitBillForReview ทั้งที่โฟลเดอร์แทบไม่เปลี่ยนเลย
+const CACHE_TTL = { productAlias: 600, pendingBills: 30, billFolder: 3600 };
 function cacheGet(key) {
   const raw = CACHE.get(key);
   return raw ? JSON.parse(raw) : null;
@@ -520,6 +526,7 @@ function submitBillForReview(body) {
     BillVat: bh.vat || '', BillTotal: bh.total || '', Timestamp: new Date().toISOString()
   });
 
+  cacheClear('pendingBills'); // เพิ่งเพิ่มบิลใหม่ในคิว — กันหน้า "บิลรอตรวจสอบ" เห็นข้อมูลค้างจากแคชเก่า
   return { ok: true, batchId };
 }
 
@@ -551,14 +558,19 @@ function toEmbeddableDriveUrl(urlStr) {
 }
 
 function getPendingBillReceipts() {
+  const cached = cacheGet('pendingBills');
+  if (cached) return cached;
+
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) return { batches: [] };
-  return {
+  const result = {
     batches: readTable(PENDING_BILL_SHEET).map(r => ({
       batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
       photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
     }))
   };
+  cacheSet('pendingBills', result, CACHE_TTL.pendingBills);
+  return result;
 }
 
 // ============ เจ้าของตรวจ+กดบันทึกจริง — จุดเดียวในระบบที่เขียนลง PurchaseReceipts ============
@@ -622,6 +634,7 @@ function finalizePurchaseReceipt(body) {
 
   if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
 
+  cacheClear('pendingBills'); // บิลนี้ออกจากคิวรอตรวจแล้ว — กันเห็นแถวที่บันทึกจริงแล้วค้างอยู่ในหน้ารอตรวจ
   return { ok: true, learnedCount };
 }
 
@@ -635,10 +648,20 @@ function findOrCreateFolder(parent, name) {
 // เป็นหลัก ไม่ใช่ "ดูของที่เข้าร้านวันนี้ทั้งหมด" (มีหน้าเช็คสต๊อกทำหน้าที่นั้นอยู่แล้ว) — ชื่อไฟล์ขึ้นต้นด้วย
 // วันที่เสมอ พอ Drive เรียงชื่อไฟล์ (ค่า default) ก็ได้ลำดับตามวันที่อัตโนมัติในตัว ไม่ต้องมีโฟลเดอร์ย่อยระดับวันอีกชั้น
 function getBillPhotoFolderForSupplier(supplierId, supplierName) {
+  // แคช Drive folder ID ไว้ต่อซัพพลายเออร์ — เดิมไล่ getFoldersByName() 2 ชั้น (ปี→ซัพพลายเออร์) ทุกครั้งที่
+  // ถ่ายบิล ทั้งที่โฟลเดอร์แทบไม่เปลี่ยนเลยหลังสร้างครั้งแรก (เจอ 10 ก.ย. 69 ว่าขั้นตอน submitBillForReview
+  // ช้ากว่าที่ควร) ถ้า cache เพี้ยน/โฟลเดอร์ถูกลบไปแล้ว fallback ไปหา/สร้างใหม่ตามปกติ ไม่พัง
+  const cacheKey = 'billFolderId_' + supplierId;
+  const cachedId = cacheGet(cacheKey);
+  if (cachedId) {
+    try { return DriveApp.getFolderById(cachedId); } catch (e) { /* โฟลเดอร์หาย/ถูกลบ — หาใหม่ด้านล่าง */ }
+  }
   const root = DriveApp.getFolderById(BILL_PHOTOS_FOLDER_ID);
   const beYear = Number(Utilities.formatDate(new Date(), TZ, 'yyyy')) + 543;
   const yearFolder = findOrCreateFolder(root, String(beYear));
-  return findOrCreateFolder(yearFolder, supplierId + ' ' + supplierName);
+  const supplierFolder = findOrCreateFolder(yearFolder, supplierId + ' ' + supplierName);
+  cacheSet(cacheKey, supplierFolder.getId(), CACHE_TTL.billFolder);
+  return supplierFolder;
 }
 function saveBillPhotosOrganized(photos, batchId, supplierId, supplierName) {
   const folder = getBillPhotoFolderForSupplier(supplierId, supplierName);
