@@ -312,7 +312,7 @@
   .analyzing-wrap h2{font-size:15px; font-weight:600; margin:0 0 6px;}
   .analyzing-wrap p{font-size:12.5px; color:var(--text-tertiary); max-width:280px; line-height:1.5; margin:0;}
 
-  .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff;}
+  .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff; scroll-margin-top:64px;}
   .item-card.is-matched{border-color:rgba(8,80,65,0.22);}
   .item-card.is-skip{opacity:0.6;}
   .item-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:9px;}
@@ -347,9 +347,18 @@
   .item-skip-toggle input{width:14px; height:14px; margin:0;}
 
   .review-footer{position:sticky; bottom:0; background:var(--cream); border-top:1px solid var(--border); padding:12px 16px 14px; margin:0 -14px -80px;}
-  .review-footer .rf-summary{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--text-secondary); margin-bottom:9px;}
+  .review-footer .rf-summary{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--text-secondary); margin-bottom:9px; gap:8px; flex-wrap:wrap;}
   .review-footer .rf-summary .warn{color:var(--amber); font-weight:600;}
   .review-footer .rf-total{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .rf-left{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .jump-btn{display:inline-flex; align-items:center; gap:5px; background:var(--amber-bg); color:var(--amber); border:none; border-radius:999px; padding:5px 11px 5px 9px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit;}
+  .jump-btn:hover{background:var(--amber-mid); color:#fff;}
+  @keyframes jumpPulse{
+    0%{ box-shadow:0 0 0 0 rgba(239,159,39,0.55); border-color:var(--amber-mid); }
+    70%{ box-shadow:0 0 0 9px rgba(239,159,39,0); border-color:var(--amber-mid); }
+    100%{ box-shadow:0 0 0 0 rgba(239,159,39,0); }
+  }
+  .jump-highlight{animation:jumpPulse 1.4s ease-out; border-color:var(--amber-mid) !important;}
 
   .success-wrap{text-align:center; padding:24px 8px 6px;}
   .success-icon{width:56px; height:56px; border-radius:50%; background:var(--green-bg); color:var(--green); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:26px;}
@@ -1616,7 +1625,7 @@ function renderBillReview(app){
     <div id="billHeaderSlot"></div>
     <div id="itemList"></div>
     <div class="review-footer">
-      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      <div class="rf-summary"><span id="rfPending" class="rf-left"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
       ${isResume
         ? `<button class="btn btn-primary btn-block" id="saveBtn" disabled>บันทึกต้นทุน</button>`
         : `<button class="btn btn-primary btn-block" id="submitBtn">บันทึกรายการนี้</button>`}
@@ -1635,6 +1644,27 @@ function renderBillReview(app){
   // ยังไม่นับว่าจับคู่จนกว่าจะมีคนกดยืนยันเอง กันเคส AI เดาผิดแล้วหลุดผ่านไปโดยไม่มีใครสังเกต
   function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
   function fmtMoney(n){ return '฿'+(n||0).toLocaleString('th-TH',{maximumFractionDigits:2}); }
+  function unresolvedBillItems(){ return state.billItems.filter(it=> !isResolved(it)); }
+
+  // บิลรายการเยอะ (ลุงทวี 50-60+ รายการ) แล้วเหลือรายการเดียวที่ยังไม่จับคู่ หาด้วยตาเปล่ายากมาก (เจอจริง
+  // 11 ก.ย. 69) — ปุ่มนี้เลื่อน+ไฮไลต์ไปหารายการที่ยังไม่เสร็จให้อัตโนมัติ กดซ้ำวนไปรายการถัดไปเรื่อยๆ
+  let jumpCursor = 0;
+  function jumpToUnresolvedBillItem(){
+    const unresolved = unresolvedBillItems();
+    if(!unresolved.length) return;
+    if(jumpCursor >= unresolved.length) jumpCursor = 0;
+    const target = unresolved[jumpCursor];
+    const el = c.querySelector('#card-' + target._id);
+    if(el){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.classList.remove('jump-highlight');
+      void el.offsetWidth; // restart animation ได้แม้กดซ้ำที่รายการเดิม
+      el.classList.add('jump-highlight');
+      setTimeout(()=> el.classList.remove('jump-highlight'), 1450);
+    }
+    jumpCursor = (jumpCursor + 1) % unresolved.length;
+    updateFooter();
+  }
 
   // การ์ดหัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — ไม่ขึ้นเลยถ้า state.billHeader เป็น null (บิลเขียนมือ
   // ที่ไม่มีข้อมูลพวกนี้จริงๆ) ทุกช่องแก้ไขได้เพราะ AI อาจอ่านตัวเลข/ตัวหนังสือบนบิลผิดได้เหมือนรายการสินค้า
@@ -1688,6 +1718,7 @@ function renderBillReview(app){
     const card = document.createElement('div');
     const pendingFuzzy = it.productId && !it.confirmed;
     card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    card.id = 'card-' + it._id;
     const total = (it.qty * it.unitPrice) || 0;
     const product = products.find(p=>p.id===it.productId);
     let pillHtml, bodyHtml = '';
@@ -1792,11 +1823,19 @@ function renderBillReview(app){
   }
   function updateFooter(){
     saveDraft(); // เรียกซ้ำได้ปลอดภัย (localStorage เขียนทับตัวเอง) ครอบคลุมทุก path ที่แก้ state.billItems ยกเว้น receivedInput ซึ่งเรียกเองแยกต่างหากด้านบน
-    const pending = state.billItems.filter(it=> !isResolved(it)).length;
+    const unresolved = unresolvedBillItems();
+    const pending = unresolved.length;
     const total = state.billItems.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     // ฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการส่ง (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
     // ฝั่งเจ้าของ (resume): ต้องจับคู่ครบก่อนถึงจะบันทึกจริงได้ เพราะรายการที่ไม่มี ProductID ผูกต้นทุนเข้ากับสินค้าไหนไม่ได้เลย
-    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${state.billItems.length} รายการ)`;
+    if(pending > 0){
+      if(jumpCursor >= pending) jumpCursor = 0;
+      c.querySelector('#rfPending').innerHTML = `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>
+        <button class="jump-btn" id="jumpUnresolvedBtn" type="button"><i class="ti ti-arrow-down" aria-hidden="true"></i> ไปที่รายการที่ยังไม่จับคู่${pending>1 ? ` (${jumpCursor+1}/${pending})` : ''}</button>`;
+      c.querySelector('#jumpUnresolvedBtn').onclick = jumpToUnresolvedBillItem;
+    } else {
+      c.querySelector('#rfPending').innerHTML = `จับคู่ครบแล้ว (${state.billItems.length} รายการ)`;
+    }
     c.querySelector('#rfTotal').textContent = fmtMoney(total);
     const saveBtn = c.querySelector('#saveBtn');
     if(saveBtn) saveBtn.disabled = pending>0;
@@ -1978,7 +2017,7 @@ function renderBillBatchItemReview(app){
     <div id="billHeaderSlot"></div>
     <div id="itemList"></div>
     <div class="review-footer">
-      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      <div class="rf-summary"><span id="rfPending" class="rf-left"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
       <button class="btn btn-primary btn-block" id="confirmBtn">ยืนยันบิลนี้</button>
     </div>
   `;
@@ -1989,6 +2028,26 @@ function renderBillBatchItemReview(app){
 
   const listEl = c.querySelector('#itemList');
   function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
+  function unresolvedBatchItems(){ return g.items.filter(it=> !isResolved(it)); }
+
+  // เหมือนโหมดบิลเดี่ยว — เลื่อน+ไฮไลต์ไปหารายการที่ยังไม่จับคู่ให้อัตโนมัติ กดซ้ำวนไปรายการถัดไป
+  let jumpCursor = 0;
+  function jumpToUnresolvedBatchItem(){
+    const unresolved = unresolvedBatchItems();
+    if(!unresolved.length) return;
+    if(jumpCursor >= unresolved.length) jumpCursor = 0;
+    const target = unresolved[jumpCursor];
+    const el = c.querySelector('#card-' + target._id);
+    if(el){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.classList.remove('jump-highlight');
+      void el.offsetWidth;
+      el.classList.add('jump-highlight');
+      setTimeout(()=> el.classList.remove('jump-highlight'), 1450);
+    }
+    jumpCursor = (jumpCursor + 1) % unresolved.length;
+    updateFooter();
+  }
 
   const headerSlot = c.querySelector('#billHeaderSlot');
   function updateBillHeaderMismatch(){
@@ -2038,6 +2097,7 @@ function renderBillBatchItemReview(app){
     const card = document.createElement('div');
     const pendingFuzzy = it.productId && !it.confirmed;
     card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    card.id = 'card-' + it._id;
     const total = (it.qty * it.unitPrice) || 0;
     const product = products.find(p=>p.id===it.productId);
     let pillHtml, bodyHtml = '';
@@ -2139,10 +2199,18 @@ function renderBillBatchItemReview(app){
     updateFooter();
   }
   function updateFooter(){
-    const pending = g.items.filter(it=> !isResolved(it)).length;
+    const unresolved = unresolvedBatchItems();
+    const pending = unresolved.length;
     const total = g.items.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     // เหมือนโหมดปกติฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการยืนยัน (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
-    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${g.items.length} รายการ)`;
+    if(pending > 0){
+      if(jumpCursor >= pending) jumpCursor = 0;
+      c.querySelector('#rfPending').innerHTML = `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>
+        <button class="jump-btn" id="jumpUnresolvedBtn" type="button"><i class="ti ti-arrow-down" aria-hidden="true"></i> ไปที่รายการที่ยังไม่จับคู่${pending>1 ? ` (${jumpCursor+1}/${pending})` : ''}</button>`;
+      c.querySelector('#jumpUnresolvedBtn').onclick = jumpToUnresolvedBatchItem;
+    } else {
+      c.querySelector('#rfPending').innerHTML = `จับคู่ครบแล้ว (${g.items.length} รายการ)`;
+    }
     c.querySelector('#rfTotal').textContent = fmtMoneyBatch(total);
     updateBillHeaderMismatch();
   }
