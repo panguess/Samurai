@@ -642,26 +642,93 @@ function createOrder(data) {
   }
 }
 
-// เรียกได้ทั้งแอดมิน (แก้ไขจากหน้าจัดการ) และลูกค้า (แก้ไขออเดอร์ตัวเองก่อนถูกจัดที่หน้า track) —
-// ยอมให้ผ่านถ้ามี ADMIN_KEY ถูกต้อง หรือ customer_id ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (กันลูกค้าคนหนึ่ง
-// แก้ไขออเดอร์ของลูกค้าอีกคนโดยเดา/ยิง order_id ตรงๆ)
-function updateOrder(data) {
-  const loc = findOrderLocation(data.order_id);
-  if (!loc) return response({ error: 'not found' });
-  const { sheet, headers, rowIndex, row } = loc;
-  const ownerCustomerId = row[headers.indexOf('customer_id')];
-  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
-    return response({ error: 'unauthorized' });
+/**
+ * ===== Audit log ทุกครั้งที่ updateOrder เขียนทับออเดอร์ (เพิ่ม 12 ก.ย. 69) =====
+ * พบเคสจริง: ออเดอร์เดียวกันมียอด 2 ค่าต่างกันปรากฏในเวลาไล่เลี่ยกัน (2,917 ตอนแจ้งเตือน Telegram "จัดเสร็จแล้ว"
+ * กับ 2,527 ที่เจอทีหลังในชีต) ไล่ Apps Script Executions log พบ doPost ยิงรัว 8 ครั้งในเวลาไม่ถึง 20 วินาที
+ * แต่ log ไม่บอกว่าแต่ละคำขอเป็น action ไหน/พารามิเตอร์อะไร เพราะ updateOrder ไม่เคยบันทึกอะไรไว้เลย — สืบหา
+ * ต้นตอย้อนหลังไม่ได้จริง ต้องมี log ของตัวเองแยกจาก Apps Script Executions (ซึ่งเก็บแค่ไม่กี่วัน) ถึงจะสอบได้
+ *
+ * ต้องมีชีตชื่อ 'OrderEditLog' พร้อมหัวคอลัมน์: log_id, order_id, timestamp, edited_by, items_before,
+ * total_before, items_after, total_after — ถ้ายังไม่มีชีตนี้ ฟังก์ชันนี้จะข้ามการ log เงียบๆ (ไม่ทำให้
+ * updateOrder ทั้งฟังก์ชันพังไปด้วยแค่เพราะยังไม่ได้สร้างชีต log)
+ */
+function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter) {
+  try {
+    const sheet = getSheet('OrderEditLog');
+    if (!sheet) {
+      console.error('logOrderEdit: ไม่พบ sheet "OrderEditLog" — ข้ามการบันทึก log รอบนี้ (ควรสร้างชีตนี้ไว้)');
+      return;
+    }
+    const headers = sheet.getDataRange().getValues()[0];
+    const logId = 'LOG-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss') + '-' + Math.floor(Math.random() * 1000);
+    const rowObj = {
+      log_id: logId,
+      order_id: orderId,
+      timestamp: new Date(),
+      edited_by: editedBy,
+      items_before: itemsBefore,
+      total_before: totalBefore,
+      items_after: itemsAfter,
+      total_after: totalAfter
+    };
+    const row = headers.map(h => (h in rowObj) ? rowObj[h] : '');
+    sheet.appendRow(row);
+  } catch (e) {
+    // ไม่ throw ต่อ — log ล้มเหลวต้องไม่ทำให้การแก้ไขออเดอร์จริงพังไปด้วย
+    console.error('logOrderEdit ล้มเหลว: ' + e);
   }
-  // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
-  // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
-  const orderGroup = row[headers.indexOf('customer_group')];
-  const total = computeOrderTotal(data.items, orderGroup);
-  sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
-  sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(total);
-  sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
-  invalidateOrderCache();
-  return response({ success: true });
+}
+
+/**
+ * เรียกได้ทั้งแอดมิน (แก้ไขจากหน้าจัดการ) และลูกค้า (แก้ไขออเดอร์ตัวเองก่อนถูกจัดที่หน้า track) —
+ * ยอมให้ผ่านถ้ามี ADMIN_KEY ถูกต้อง หรือ customer_id ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (กันลูกค้าคนหนึ่ง
+ * แก้ไขออเดอร์ของลูกค้าอีกคนโดยเดา/ยิง order_id ตรงๆ)
+ *
+ * ⚠️ [แก้ 12 ก.ย. 69] ห่อด้วย LockService (แพทเทิร์นเดียวกับ updateDelivery/createOrder) — เดิมฟังก์ชันนี้
+ * ไม่มีการล็อกใดๆ เลย ถ้ามีคำขอ updateOrder หลายอันยิงเข้ามาพร้อมกัน (retry ซ้อนกัน, สองแอดมินแก้ไขออเดอร์
+ * เดียวกันพร้อมกัน) จะอ่าน-เขียนทับกันแบบสุ่ม ไม่มีทางรู้ว่าใครชนะ และไม่มี log อะไรเก็บไว้สอบทีหลังเลย
+ * (พบเคสจริง 12 ก.ย. 69 — ดู comment ของ logOrderEdit ด้านบน) แก้พร้อมกัน 2 อย่าง: (1) lock กันชนกัน
+ * (2) log ค่าก่อน/หลังทุกครั้งที่เขียนสำเร็จ ให้สอบย้อนหลังได้จริงถ้าเกิดเคสแบบนี้อีก
+ */
+function updateOrder(data) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return response({ error: 'updateOrder: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
+  }
+  try {
+    const loc = findOrderLocation(data.order_id);
+    if (!loc) return response({ error: 'not found' });
+    const { sheet, headers, rowIndex, row } = loc;
+    const ownerCustomerId = row[headers.indexOf('customer_id')];
+    const isAdminCall = isValidAdminKey(data.key);
+    if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+      return response({ error: 'unauthorized' });
+    }
+    // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
+    // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
+    const orderGroup = row[headers.indexOf('customer_group')];
+    const total = computeOrderTotal(data.items, orderGroup);
+
+    const itemsBefore = row[headers.indexOf('items')];
+    const totalBefore = row[headers.indexOf('total')];
+
+    sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
+    sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(total);
+    sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
+    invalidateOrderCache();
+
+    const editedBy = isAdminCall ? 'admin' : ('customer:' + ownerCustomerId);
+    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total);
+
+    return response({ success: true });
+  } catch (e) {
+    return response({ error: 'updateOrder: ' + e.message });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
