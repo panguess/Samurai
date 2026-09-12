@@ -312,7 +312,7 @@
   .analyzing-wrap h2{font-size:15px; font-weight:600; margin:0 0 6px;}
   .analyzing-wrap p{font-size:12.5px; color:var(--text-tertiary); max-width:280px; line-height:1.5; margin:0;}
 
-  .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff;}
+  .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff; scroll-margin-top:64px;}
   .item-card.is-matched{border-color:rgba(8,80,65,0.22);}
   .item-card.is-skip{opacity:0.6;}
   .item-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:9px;}
@@ -347,9 +347,18 @@
   .item-skip-toggle input{width:14px; height:14px; margin:0;}
 
   .review-footer{position:sticky; bottom:0; background:var(--cream); border-top:1px solid var(--border); padding:12px 16px 14px; margin:0 -14px -80px;}
-  .review-footer .rf-summary{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--text-secondary); margin-bottom:9px;}
+  .review-footer .rf-summary{display:flex; justify-content:space-between; align-items:baseline; font-size:12.5px; color:var(--text-secondary); margin-bottom:9px; gap:8px; flex-wrap:wrap;}
   .review-footer .rf-summary .warn{color:var(--amber); font-weight:600;}
   .review-footer .rf-total{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .rf-left{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .jump-btn{display:inline-flex; align-items:center; gap:5px; background:var(--amber-bg); color:var(--amber); border:none; border-radius:999px; padding:5px 11px 5px 9px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit;}
+  .jump-btn:hover{background:var(--amber-mid); color:#fff;}
+  @keyframes jumpPulse{
+    0%{ box-shadow:0 0 0 0 rgba(239,159,39,0.55); border-color:var(--amber-mid); }
+    70%{ box-shadow:0 0 0 9px rgba(239,159,39,0); border-color:var(--amber-mid); }
+    100%{ box-shadow:0 0 0 0 rgba(239,159,39,0); }
+  }
+  .jump-highlight{animation:jumpPulse 1.4s ease-out; border-color:var(--amber-mid) !important;}
 
   .success-wrap{text-align:center; padding:24px 8px 6px;}
   .success-icon{width:56px; height:56px; border-radius:50%; background:var(--green-bg); color:var(--green); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:26px;}
@@ -390,6 +399,17 @@
   .supplier-mismatch-warning .smw-title{font-size:13px; font-weight:700; color:var(--danger); margin:0 0 3px;}
   .supplier-mismatch-warning .smw-body{font-size:12px; color:var(--text); line-height:1.55; margin:0 0 9px;}
   .supplier-mismatch-warning .btn{padding:7px 12px; font-size:12px;}
+  /* คำเตือน "บิลนี้อาจซ้ำ" (7 ก.ย. 69 — ต่อ) — เตือนอย่างเดียว ไม่บล็อกการบันทึก (ต่างจาก
+     supplier-mismatch-warning ที่ร้ายแรงกว่าเพราะทั้งบิลอาจผิดเจ้า) ใช้สีส้ม (--amber) แยกระดับความรุนแรง */
+  .duplicate-bill-warning{background:var(--amber-bg); border:1.5px solid var(--amber-mid); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:9px; align-items:flex-start;}
+  .duplicate-bill-warning .icon{color:var(--amber); font-size:17px; flex-shrink:0; margin-top:1px;}
+  .duplicate-bill-warning .dbw-title{font-size:13px; font-weight:700; color:var(--amber); margin:0 0 3px;}
+  .duplicate-bill-warning .dbw-body{font-size:12px; color:var(--text); line-height:1.55; margin:0 0 8px;}
+  .duplicate-bill-warning .dbw-meta{display:flex; align-items:center; gap:6px; margin-bottom:9px; flex-wrap:wrap;}
+  .duplicate-bill-warning .dbw-pill{font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px;}
+  .duplicate-bill-warning .dbw-pill.pending{background:#fff; color:var(--amber);}
+  .duplicate-bill-warning .dbw-pill.finalized{background:var(--green-bg); color:var(--green);}
+  .duplicate-bill-warning .btn{padding:7px 12px; font-size:12px;}
   .bill-photo-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;}
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block; transition:transform .15s ease; transform-origin:center top;}
@@ -439,6 +459,17 @@
 <script>
 /* ============ LIVE API CONFIG ============ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
+// Apps Script Web App รันในนามบัญชี Google เดียวกันทุกคำขอ ("Execute as: Me") — แปลว่าทุกคนที่เปิดแอปนี้
+// (เจ้าของ + ลูกจ้างทุกคน ไม่ว่ากี่คน) ใช้โควต้า "จำนวนการรันพร้อมกัน" ก้อนเดียวกันหมด เจอ 10 ก.ย. 69 ว่า
+// ตอนลูกจ้างถ่ายบิลให้ AI อ่าน (analyzeBillPhoto/analyzeBillBatch กินเวลา 45-100+ วิต่อครั้งเพราะรอ Gemini
+// ตอบ) จองที่นั่งการรันไว้นานผิดปกติเทียบกับ action อื่นทั้งหมดในแอป (ที่ปกติจบใน 1-4 วิ) ช่วงนั้นถ้าเจ้าของ
+// เปิดหน้าอื่นพร้อมกันพอดี คำขอนั้นมีโอกาสถูก Google ปฏิเสธตั้งแต่ชั้น infrastructure เลย (ไม่ถึงโค้ด doGet
+// ของเราด้วยซ้ำ — ไม่มี log โผล่เลยสักบรรทัดทั้งที่เพิ่ม log ทุก action ไปแล้ว ตรงกับที่เจอจริง) แยก URL
+// ของฟีเจอร์ "รับของ — ถ่ายบิล" ออกเป็น Apps Script โปรเจกต์ต่างหาก (คนละโควต้าการรันพร้อมกัน) ไม่ให้ถ่ายบิล
+// ที่ช้าโดยธรรมชาติไปแย่งทรัพยากรกับการเช็คสต๊อก/สั่งของ/ดูบิลรอตรวจสอบที่ควรเร็วอยู่แล้ว — โปรเจกต์ใหม่นี้
+// อ่าน/เขียน Google Sheet ตัวเดิมได้ปกติ (คนละสคริปต์ แต่ spreadsheet เดียวกัน)
+// ⚠️ ต้องแทนที่ค่านี้ด้วย URL จริงหลัง deploy โปรเจกต์ใหม่แล้ว (ดูขั้นตอนใน BillCapture-Code.gs)
+const BILL_API_URL = 'https://script.google.com/macros/s/AKfycbydw4-CO8PXffbbFV5cRcY030PxLASKknm27Jt4kBE1NYbkXRaZ4inCKXL_6CKFiAg5/exec';
 
 const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อนๆ หรือ Apps Script cold start ตอบช้ากว่า 12 วิได้ง่ายๆ
 
@@ -448,12 +479,12 @@ function debounce(fn, wait){
   let t;
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
-async function apiGet(action, params, timeoutMs){
+async function apiGet(action, params, timeoutMs, baseUrl){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
-    const res = await fetch(`${API_URL}?${qs}`, { signal: controller.signal });
+    const res = await fetch(`${baseUrl || API_URL}?${qs}`, { signal: controller.signal });
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     return data;
@@ -468,17 +499,17 @@ async function apiGet(action, params, timeoutMs){
 // timeoutMs: เผื่อไว้สำหรับ action ที่รู้อยู่แล้วว่าช้ากว่าปกติ (เช่น analyzeBillPhoto ที่ต้องรอ AI
 // อ่านรูปบิล) ไม่ใส่ก็ใช้ API_TIMEOUT_MS ปกติเหมือนเดิม — คนละเรื่องกับ retryOnTimeout (ห้ามใส่ retryOnTimeout
 // กับ action ที่ไม่ idempotent เด็ดขาด ดูคอมเมนต์ apiGet ด้านบน)
-async function apiPost(action, payload, retryOnTimeout, timeoutMs){
+async function apiPost(action, payload, retryOnTimeout, timeoutMs, baseUrl){
   const controller = new AbortController();
   const t = setTimeout(()=>controller.abort(), timeoutMs || API_TIMEOUT_MS);
   try{
-    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
+    const res = await fetch(baseUrl || API_URL, { method:'POST', body: JSON.stringify({action, ...payload}), signal: controller.signal });
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     return data;
   }catch(err){
     if(err.name==='AbortError'){
-      if(retryOnTimeout) return apiPost(action, payload, false, timeoutMs); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
+      if(retryOnTimeout) return apiPost(action, payload, false, timeoutMs, baseUrl); // retry เงียบๆ 1 ครั้ง ไม่วนซ้ำไม่รู้จบ
       throw new Error('หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง');
     }
     throw err;
@@ -517,11 +548,11 @@ function openBillPhotoLightbox(urls){
   });
   document.body.appendChild(lb);
 }
-async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt){
+async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt, baseUrl){
   let lastErr;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
     if(onAttempt) onAttempt(attempt, maxAttempts);
-    try{ return await apiPost(action, payload, false, timeoutMs); }
+    try{ return await apiPost(action, payload, false, timeoutMs, baseUrl); }
     catch(err){
       lastErr = err;
       if(attempt<maxAttempts) await new Promise(r=> setTimeout(r, 2000)); // เว้นจังหวะสั้นๆ ให้เน็ตนิ่งก่อนลองใหม่
@@ -848,6 +879,29 @@ async function getStockStatus(force){
   return data;
 }
 function invalidateStockStatus(){ stockStatusCache = null; _stockStatusTs = 0; }
+
+// เจอ 10 ก.ย. 69 (ต่อ): renderOrderPage() เดิมยิง apiGet('orderPageData') ใหม่ทุกครั้งที่เข้าหน้านี้ ไม่เช็ค
+// cache เลยสักครั้ง (ต่างจากฝั่งลูกจ้างที่ renderSupplierList ใช้ stockStatusCache/STOCK_STATUS_TTL อยู่แล้ว)
+// ระหว่างสั่งของหลายเจ้าในรอบเดียว เจ้าของจะวนเข้าออกหน้านี้บ่อยมาก (สั่งของเจ้านี้ → ข้อความ → เสร็จสิ้น →
+// กลับมาหน้าสั่งของ → เลือกเจ้าถัดไป → ...) แต่ละรอบคือ Apps Script round-trip เต็มๆ ใหม่ทั้งที่ข้อมูลแทบไม่
+// เปลี่ยนภายในไม่กี่วินาที — นี่คือสาเหตุของ "ช้าหลายจังหวะ" ที่เจอจริง ไม่ใช่แค่ครั้งแรกที่เข้าหน้าช้า
+// แก้ด้วย cache แบบเดียวกับ getStockStatus() ใช้ TTL เดียวกัน (STOCK_STATUS_TTL) — เช็ค stockStatusCache ควบคู่
+// กับเวลาตัวเอง กัน edge case ที่ stockStatusCache ถูกอย่างอื่นล้างไปแล้วแต่ _orderPageDataTs ยังไม่หมดอายุ
+// orderedProductIds/confirmedSupplierIds/orderedItemsTodayMap ที่อัปเดตแบบ optimistic ไว้แล้วตอนกด
+// "สั่งของเจ้านี้"/ปุ่มยืนยันส่งออเดอร์ (ดู onclick handlers ด้านล่าง) จะไม่ถูกเขียนทับด้วยข้อมูลเก่าตอน
+// cache hit เพราะฟังก์ชันนี้แค่ return เฉยๆ ไม่แตะตัวแปรพวกนั้นเลยถ้ายังไม่หมดอายุ
+let _orderPageDataTs = 0;
+async function ensureOrderPageData(force){
+  if(!force && stockStatusCache && (Date.now() - _orderPageDataTs) < STOCK_STATUS_TTL) return;
+  const data = await apiGet('orderPageData');
+  stockStatusCache = data.stockStatus; _stockStatusTs = Date.now();
+  data.stockStatus.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+  orderedProductIds = new Set((data.ordered && data.ordered.productIds) || []);
+  confirmedSupplierIds = new Set((data.confirmed && data.confirmed.supplierIds) || []);
+  orderedItemsTodayMap = {};
+  ((data.orderedItems && data.orderedItems.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
+  _orderPageDataTs = Date.now();
+}
 function patchStockStatusChecked(products, items){
   // After a successful saveStock, update the cache in place instead of
   // invalidating it, so the next screen doesn't have to wait on another
@@ -891,7 +945,11 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   billBatchGroups:[], billBatchActiveIndex:null, billBatchRegroupFrom:null, billBatchSubmittedCount:null,
   // เตือนตอนเลือกซัพพลายเออร์ผิด (ไม่ตรงกับหัวบิลจริง) — AI เทียบให้ตอน analyzeBillPhoto (ดู Code.gs)
   // null ถ้าดูตรงกันดี/ไม่มีข้อมูลอ้างอิงให้เทียบ ไม่ใช่ error แค่คำเตือนให้คนตรวจสอบเอง (ดู renderBillReview)
-  billSupplierMismatchWarning:null };
+  billSupplierMismatchWarning:null,
+  // เตือนบิลซ้ำ (7 ก.ย. 69 — ต่อ) — checkDuplicateBill() ใน Code.gs เทียบกับบิลที่เคยเข้าระบบแล้วของ
+  // ซัพพลายเออร์เดียวกันให้ตอน analyzeBillPhoto เหมือนกัน { matchType, batchId, date, billNumber, photoUrl,
+  // status, overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ — เป็นแค่คำเตือน ไม่บล็อกการบันทึก
+  billDuplicateWarning:null };
 // สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
 // เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
 let lastOrderMessageSnapshot = null;
@@ -1383,7 +1441,7 @@ function renderBillAnalyzing(app){
     if(msgEl) msgEl.textContent = attempt===1
       ? 'กำลังแยกรายการ จำนวน และราคาจากรูปที่ถ่ายไว้ อาจใช้เวลาสักครู่'
       : `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
-  })
+  }, BILL_API_URL)
     .then(res=>{
       const items = (res.items||[]).map((it,i)=>({
         _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
@@ -1397,7 +1455,7 @@ function renderBillAnalyzing(app){
       }));
       if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
       // null สำหรับบิลเขียนมือที่ไม่มีเลขที่บิล/VAT — renderBillReview จะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
-      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billMode:'staff'}, {replace:true});
+      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billDuplicateWarning: res.duplicateBillWarning || null, billMode:'staff'}, {replace:true});
     })
     .catch(err=>{
       // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
@@ -1452,7 +1510,7 @@ function renderBillBatchAnalyzing(app){
         const stageEl = c.querySelector('#analyzeStage'), msgEl = c.querySelector('#analyzeMsg');
         if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
         else if(msgEl) msgEl.textContent = 'แยกว่ารูปไหนเป็นบิลใบเดียวกันก่อน อาจใช้เวลาสักครู่';
-      });
+      }, BILL_API_URL);
       const rawGroups = groupsRes.groups || [];
       if(!rawGroups.length){ throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
 
@@ -1467,7 +1525,7 @@ function renderBillBatchAnalyzing(app){
         const photos = photoIndices.map(i=> state.billPhotos[i]);
         const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
           if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่บิลที่ ${gi+1} (${attempt}/${max})...`;
-        });
+        }, BILL_API_URL);
         groups.push({
           photoIndices,
           items: (res.items||[]).map((it,i)=>({
@@ -1481,6 +1539,7 @@ function renderBillBatchAnalyzing(app){
           })),
           billHeader: res.billHeader || null,
           supplierMismatchWarning: res.supplierMismatchWarning || null,
+          duplicateBillWarning: res.duplicateBillWarning || null,
           reviewed: false, submitted: false,
         });
       }
@@ -1501,6 +1560,33 @@ function renderBillReview(app){
   const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
   const isResume = state.billMode === 'owner-resume';
+  // ออโต้เซฟความคืบหน้าไว้ในเครื่อง (localStorage) เฉพาะโหมดเจ้าของตรวจบิลค้าง — เจอจริงว่าบิลใหญ่บางเจ้า
+  // (เช่นลุงทวี 20-30+ รายการ) กว่าจะจับคู่+ตั้งอัตราแปลงหน่วยครบทุกรายการใช้เวลานาน ถ้าปัดนิ้ว/กดออกจากหน้า
+  // นี้โดยไม่ตั้งใจก่อนกด "บันทึกต้นทุน" (ซึ่งเป็นจุดเดียวที่เขียนข้อมูลไปเซิร์ฟเวอร์จริง) งานที่ทำมาทั้งหมดจะ
+  // หายหมดต้องเริ่มจับคู่ใหม่ทุกรายการ — คีย์ด้วย batchId (มีเฉพาะโหมด owner-resume เท่านั้น เพราะ
+  // batchId ถูกสร้างตอน submitBillForReview ไปแล้วก่อนหน้านี้) ไม่ทำกับโหมด staff (ถ่ายบิลใหม่) เพราะยังไม่มี
+  // batchId ให้คีย์ และไม่ทำกับโหมดหลายบิล (renderBillBatchItemReview) เพราะยังไม่เคยมีรายงานปัญหานี้ที่นั่น
+  const draftKey = isResume && state.billResumeBatchId ? ('billDraft_' + state.billResumeBatchId) : null;
+  if(draftKey){
+    try{
+      const raw = localStorage.getItem(draftKey);
+      if(raw){
+        const draft = JSON.parse(raw);
+        // เช็คจำนวนรายการให้ตรงกับของจริงจากเซิร์ฟเวอร์ก่อนใช้ — กันกรณี ItemsJSON ต้นทางเปลี่ยนไปแล้ว
+        // (เช่น ถูกแก้จากที่อื่น) แล้ว draft เก่าจะเข้ากันไม่ได้ ถ้าจำนวนไม่ตรงทิ้ง draft ไปใช้ของจริงแทน
+        if(Array.isArray(draft) && draft.length === state.billItems.length) state.billItems = draft;
+        else localStorage.removeItem(draftKey);
+      }
+    }catch(e){ try{ localStorage.removeItem(draftKey); }catch(e2){} }
+  }
+  function saveDraft(){
+    if(!draftKey) return;
+    try{ localStorage.setItem(draftKey, JSON.stringify(state.billItems)); }catch(e){}
+  }
+  function clearDraft(){
+    if(!draftKey) return;
+    try{ localStorage.removeItem(draftKey); }catch(e){}
+  }
   app.appendChild(topbar('ตรวจสอบรายการ', {
     back: ()=> isResume ? go('billPendingList') : go('billCapture'),
     meta: sup.name
@@ -1516,6 +1602,21 @@ function renderBillReview(app){
         <button class="btn" id="wrongSupplierBtn">เลือกซัพพลายเออร์ใหม่</button>
       </div>
     </div>` : ''}
+    ${state.billDuplicateWarning ? `
+    <div class="duplicate-bill-warning">
+      <i class="ti ti-copy icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
+        <p class="dbw-body">${state.billDuplicateWarning.matchType==='billNumber'
+          ? `เลขที่บิล <b>${state.billDuplicateWarning.billNumber}</b> ตรงกับบิลที่บันทึกไว้ก่อนหน้านี้`
+          : `ไม่มีเลขที่บิลให้เทียบ แต่รายการสินค้าตรงกับบิลก่อนหน้านี้ถึง <b>${Math.round(state.billDuplicateWarning.overlapRatio*100)}%</b>`}</p>
+        <div class="dbw-meta">
+          <span class="dbw-pill ${state.billDuplicateWarning.status==='finalized'?'finalized':'pending'}">${state.billDuplicateWarning.status==='finalized'?'บันทึกแล้ว':'รอตรวจสอบ'}</span>
+          <span style="font-size:11px; color:var(--text-secondary);">${state.billDuplicateWarning.date||''}</span>
+        </div>
+        ${state.billDuplicateWarning.photoUrl ? `<button class="btn" id="viewDupePhoto">ดูรูปบิลเดิม</button>` : ''}
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${state.billPhotos[0] ? `<img class="rb-thumb" src="${state.billPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${state.billItems.length} รายการ</b> จากรูปบิล ${state.billPhotos.length} ใบ ${isResume ? '· ถ่ายโดย '+state.billStaffName : ''}<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1524,7 +1625,7 @@ function renderBillReview(app){
     <div id="billHeaderSlot"></div>
     <div id="itemList"></div>
     <div class="review-footer">
-      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      <div class="rf-summary"><span id="rfPending" class="rf-left"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
       ${isResume
         ? `<button class="btn btn-primary btn-block" id="saveBtn" disabled>บันทึกต้นทุน</button>`
         : `<button class="btn btn-primary btn-block" id="submitBtn">บันทึกรายการนี้</button>`}
@@ -1533,6 +1634,8 @@ function renderBillReview(app){
   app.appendChild(c);
   const wrongSupplierBtn = c.querySelector('#wrongSupplierBtn');
   if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=> go('billSupplier');
+  const viewDupePhotoBtn = c.querySelector('#viewDupePhoto');
+  if(viewDupePhotoBtn) viewDupePhotoBtn.onclick = ()=> openBillPhotoLightbox(state.billDuplicateWarning.photoUrl.split(','));
   c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(state.billPhotos);
 
   const listEl = c.querySelector('#itemList');
@@ -1541,6 +1644,27 @@ function renderBillReview(app){
   // ยังไม่นับว่าจับคู่จนกว่าจะมีคนกดยืนยันเอง กันเคส AI เดาผิดแล้วหลุดผ่านไปโดยไม่มีใครสังเกต
   function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
   function fmtMoney(n){ return '฿'+(n||0).toLocaleString('th-TH',{maximumFractionDigits:2}); }
+  function unresolvedBillItems(){ return state.billItems.filter(it=> !isResolved(it)); }
+
+  // บิลรายการเยอะ (ลุงทวี 50-60+ รายการ) แล้วเหลือรายการเดียวที่ยังไม่จับคู่ หาด้วยตาเปล่ายากมาก (เจอจริง
+  // 11 ก.ย. 69) — ปุ่มนี้เลื่อน+ไฮไลต์ไปหารายการที่ยังไม่เสร็จให้อัตโนมัติ กดซ้ำวนไปรายการถัดไปเรื่อยๆ
+  let jumpCursor = 0;
+  function jumpToUnresolvedBillItem(){
+    const unresolved = unresolvedBillItems();
+    if(!unresolved.length) return;
+    if(jumpCursor >= unresolved.length) jumpCursor = 0;
+    const target = unresolved[jumpCursor];
+    const el = c.querySelector('#card-' + target._id);
+    if(el){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.classList.remove('jump-highlight');
+      void el.offsetWidth; // restart animation ได้แม้กดซ้ำที่รายการเดิม
+      el.classList.add('jump-highlight');
+      setTimeout(()=> el.classList.remove('jump-highlight'), 1450);
+    }
+    jumpCursor = (jumpCursor + 1) % unresolved.length;
+    updateFooter();
+  }
 
   // การ์ดหัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — ไม่ขึ้นเลยถ้า state.billHeader เป็น null (บิลเขียนมือ
   // ที่ไม่มีข้อมูลพวกนี้จริงๆ) ทุกช่องแก้ไขได้เพราะ AI อาจอ่านตัวเลข/ตัวหนังสือบนบิลผิดได้เหมือนรายการสินค้า
@@ -1594,6 +1718,7 @@ function renderBillReview(app){
     const card = document.createElement('div');
     const pendingFuzzy = it.productId && !it.confirmed;
     card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    card.id = 'card-' + it._id;
     const total = (it.qty * it.unitPrice) || 0;
     const product = products.find(p=>p.id===it.productId);
     let pillHtml, bodyHtml = '';
@@ -1630,7 +1755,7 @@ function renderBillReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -1655,7 +1780,7 @@ function renderBillReview(app){
         ${pillHtml}
       </div>
       ${bodyHtml}
-      ${it.likelyNonProduct ? `<label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก)</label>` : ''}
+      <label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก หรือไม่มีในระบบให้จับคู่)</label>
     `;
 
     function renderDrift(){
@@ -1682,7 +1807,7 @@ function renderBillReview(app){
     const qtyI = card.querySelector('.qtyInput');
     if(qtyI) qtyI.oninput = ()=>{ it.qty = Number(qtyI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); renderDrift(); };
     const recI = card.querySelector('.receivedInput');
-    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); };
+    if(recI) recI.oninput = ()=>{ it.receivedQty = Number(recI.value)||0; renderDrift(); saveDraft(); };
     const priI = card.querySelector('.priceInput');
     if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); };
     const skipT = card.querySelector('.skipToggle');
@@ -1697,11 +1822,20 @@ function renderBillReview(app){
     updateFooter();
   }
   function updateFooter(){
-    const pending = state.billItems.filter(it=> !isResolved(it)).length;
+    saveDraft(); // เรียกซ้ำได้ปลอดภัย (localStorage เขียนทับตัวเอง) ครอบคลุมทุก path ที่แก้ state.billItems ยกเว้น receivedInput ซึ่งเรียกเองแยกต่างหากด้านบน
+    const unresolved = unresolvedBillItems();
+    const pending = unresolved.length;
     const total = state.billItems.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     // ฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการส่ง (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
     // ฝั่งเจ้าของ (resume): ต้องจับคู่ครบก่อนถึงจะบันทึกจริงได้ เพราะรายการที่ไม่มี ProductID ผูกต้นทุนเข้ากับสินค้าไหนไม่ได้เลย
-    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${state.billItems.length} รายการ)`;
+    if(pending > 0){
+      if(jumpCursor >= pending) jumpCursor = 0;
+      c.querySelector('#rfPending').innerHTML = `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>
+        <button class="jump-btn" id="jumpUnresolvedBtn" type="button"><i class="ti ti-arrow-down" aria-hidden="true"></i> ไปที่รายการที่ยังไม่จับคู่${pending>1 ? ` (${jumpCursor+1}/${pending})` : ''}</button>`;
+      c.querySelector('#jumpUnresolvedBtn').onclick = jumpToUnresolvedBillItem;
+    } else {
+      c.querySelector('#rfPending').innerHTML = `จับคู่ครบแล้ว (${state.billItems.length} รายการ)`;
+    }
     c.querySelector('#rfTotal').textContent = fmtMoney(total);
     const saveBtn = c.querySelector('#saveBtn');
     if(saveBtn) saveBtn.disabled = pending>0;
@@ -1722,7 +1856,8 @@ function renderBillReview(app){
       const res = await apiPost('finalizePurchaseReceipt', {
         batchId: state.billResumeBatchId, supplierId: state.billSupplierId, staffName: state.billStaffName, items,
         billHeader: state.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
+      clearDraft(); // บันทึกจริงสำเร็จแล้ว — เลิกต้องมี draft ค้างไว้ในเครื่องอีกต่อไป
       go('billSuccess', {billLearnedCount: res.learnedCount||0});
     }catch(err){
       saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
@@ -1741,7 +1876,7 @@ function renderBillReview(app){
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems,
         billHeader: state.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
       go('billSuccess', {});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
@@ -1795,6 +1930,7 @@ function drawBatchCards(c){
         </div>
         <div class="bc-figures"><span>${g.items.length} รายการ</span><span>ยอดรวม <b>${fmtMoneyBatch(total)}</b></span></div>
         ${g.supplierMismatchWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--danger-bg); color:var(--danger); font-size:11px; font-weight:600; padding:6px 8px; border-radius:7px; margin-bottom:9px;"><i class="ti ti-alert-triangle" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจไม่ใช่บิลของซัพพลายเออร์นี้ — ตรวจสอบก่อนยืนยัน</div>` : ''}
+        ${g.duplicateBillWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--amber-bg); color:var(--amber); font-size:11px; font-weight:600; padding:6px 8px; border-radius:7px; margin-bottom:9px;"><i class="ti ti-copy" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจซ้ำกับบิลที่บันทึกไปแล้ว — ตรวจสอบก่อนยืนยัน</div>` : ''}
         <div class="bc-actions">
           <button class="btn" data-regroup="${gi}"><i class="ti ti-photo-plus" aria-hidden="true"></i> แก้กลุ่มรูป</button>
           <button class="btn btn-primary" data-review="${gi}">${g.reviewed?'แก้ไขรายการ':'ตรวจสอบรายการ'}</button>
@@ -1825,7 +1961,7 @@ async function submitAllBatch(c){
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName,
         photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader
-      });
+      }, false, undefined, BILL_API_URL);
       g.submitted = true;
     }catch(err){
       btn.disabled = false;
@@ -1858,6 +1994,21 @@ function renderBillBatchItemReview(app){
         <p class="smw-body">${g.supplierMismatchWarning}</p>
       </div>
     </div>` : ''}
+    ${g.duplicateBillWarning ? `
+    <div class="duplicate-bill-warning">
+      <i class="ti ti-copy icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
+        <p class="dbw-body">${g.duplicateBillWarning.matchType==='billNumber'
+          ? `เลขที่บิล <b>${g.duplicateBillWarning.billNumber}</b> ตรงกับบิลที่บันทึกไว้ก่อนหน้านี้`
+          : `ไม่มีเลขที่บิลให้เทียบ แต่รายการสินค้าตรงกับบิลก่อนหน้านี้ถึง <b>${Math.round(g.duplicateBillWarning.overlapRatio*100)}%</b>`}</p>
+        <div class="dbw-meta">
+          <span class="dbw-pill ${g.duplicateBillWarning.status==='finalized'?'finalized':'pending'}">${g.duplicateBillWarning.status==='finalized'?'บันทึกแล้ว':'รอตรวจสอบ'}</span>
+          <span style="font-size:11px; color:var(--text-secondary);">${g.duplicateBillWarning.date||''}</span>
+        </div>
+        ${g.duplicateBillWarning.photoUrl ? `<button class="btn" id="viewDupePhotoBatch">ดูรูปบิลเดิม</button>` : ''}
+      </div>
+    </div>` : ''}
     <div class="review-bill-strip">
       ${groupPhotos[0] ? `<img class="rb-thumb" src="${groupPhotos[0]}" alt="">` : ''}
       <div class="rb-txt">อ่านได้ <b>${g.items.length} รายการ</b> จากรูปบิล ${groupPhotos.length} ใบ<br><i class="ti ti-folder" aria-hidden="true"></i> เก็บไว้ในโฟลเดอร์ Drive ของ ${sup.name} อัตโนมัติ</div>
@@ -1866,15 +2017,37 @@ function renderBillBatchItemReview(app){
     <div id="billHeaderSlot"></div>
     <div id="itemList"></div>
     <div class="review-footer">
-      <div class="rf-summary"><span id="rfPending"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
+      <div class="rf-summary"><span id="rfPending" class="rf-left"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
       <button class="btn btn-primary btn-block" id="confirmBtn">ยืนยันบิลนี้</button>
     </div>
   `;
   app.appendChild(c);
+  const viewDupePhotoBatchBtn = c.querySelector('#viewDupePhotoBatch');
+  if(viewDupePhotoBatchBtn) viewDupePhotoBatchBtn.onclick = ()=> openBillPhotoLightbox(g.duplicateBillWarning.photoUrl.split(','));
   c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(groupPhotos);
 
   const listEl = c.querySelector('#itemList');
   function isResolved(it){ return it.skip || (it.productId && it.factor && it.confirmed); }
+  function unresolvedBatchItems(){ return g.items.filter(it=> !isResolved(it)); }
+
+  // เหมือนโหมดบิลเดี่ยว — เลื่อน+ไฮไลต์ไปหารายการที่ยังไม่จับคู่ให้อัตโนมัติ กดซ้ำวนไปรายการถัดไป
+  let jumpCursor = 0;
+  function jumpToUnresolvedBatchItem(){
+    const unresolved = unresolvedBatchItems();
+    if(!unresolved.length) return;
+    if(jumpCursor >= unresolved.length) jumpCursor = 0;
+    const target = unresolved[jumpCursor];
+    const el = c.querySelector('#card-' + target._id);
+    if(el){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.classList.remove('jump-highlight');
+      void el.offsetWidth;
+      el.classList.add('jump-highlight');
+      setTimeout(()=> el.classList.remove('jump-highlight'), 1450);
+    }
+    jumpCursor = (jumpCursor + 1) % unresolved.length;
+    updateFooter();
+  }
 
   const headerSlot = c.querySelector('#billHeaderSlot');
   function updateBillHeaderMismatch(){
@@ -1924,6 +2097,7 @@ function renderBillBatchItemReview(app){
     const card = document.createElement('div');
     const pendingFuzzy = it.productId && !it.confirmed;
     card.className = 'item-card' + (it.skip ? ' is-skip' : (it.productId && it.confirmed) ? ' is-matched' : '');
+    card.id = 'card-' + it._id;
     const total = (it.qty * it.unitPrice) || 0;
     const product = products.find(p=>p.id===it.productId);
     let pillHtml, bodyHtml = '';
@@ -1958,7 +2132,7 @@ function renderBillBatchItemReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -1983,7 +2157,7 @@ function renderBillBatchItemReview(app){
         ${pillHtml}
       </div>
       ${bodyHtml}
-      ${it.likelyNonProduct ? `<label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก)</label>` : ''}
+      <label class="item-skip-toggle"><input type="checkbox" class="skipToggle" ${it.skip?'checked':''}> ข้ามรายการนี้ (ไม่ใช่สินค้าที่ต้องสต๊อก หรือไม่มีในระบบให้จับคู่)</label>
     `;
 
     function renderDrift(){
@@ -2025,10 +2199,18 @@ function renderBillBatchItemReview(app){
     updateFooter();
   }
   function updateFooter(){
-    const pending = g.items.filter(it=> !isResolved(it)).length;
+    const unresolved = unresolvedBatchItems();
+    const pending = unresolved.length;
     const total = g.items.filter(it=> !it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     // เหมือนโหมดปกติฝั่งลูกจ้าง: บอกความคืบหน้าเฉยๆ ไม่บล็อกการยืนยัน (เจ้าของจะจับคู่ส่วนที่เหลือต่อเอง)
-    c.querySelector('#rfPending').innerHTML = pending>0 ? `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>` : `จับคู่ครบแล้ว (${g.items.length} รายการ)`;
+    if(pending > 0){
+      if(jumpCursor >= pending) jumpCursor = 0;
+      c.querySelector('#rfPending').innerHTML = `<span class="warn">ยังไม่จับคู่อีก ${pending} รายการ</span>
+        <button class="jump-btn" id="jumpUnresolvedBtn" type="button"><i class="ti ti-arrow-down" aria-hidden="true"></i> ไปที่รายการที่ยังไม่จับคู่${pending>1 ? ` (${jumpCursor+1}/${pending})` : ''}</button>`;
+      c.querySelector('#jumpUnresolvedBtn').onclick = jumpToUnresolvedBatchItem;
+    } else {
+      c.querySelector('#rfPending').innerHTML = `จับคู่ครบแล้ว (${g.items.length} รายการ)`;
+    }
     c.querySelector('#rfTotal').textContent = fmtMoneyBatch(total);
     updateBillHeaderMismatch();
   }
@@ -2095,7 +2277,7 @@ function renderBillBatchRegroup(app){
       // ระหว่างรอเหมือนจุดอื่นๆ ที่เรียก analyzeBillPhoto/analyzeBillBatch (ดูคอมเมนต์เต็มที่นิยามฟังก์ชัน)
       const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
         if(attempt>1) btn.textContent = `การเชื่อมต่อหลุด กำลังลองใหม่ (${attempt}/${max})...`;
-      });
+      }, BILL_API_URL);
       const items = (res.items||[]).map((it,i)=>({
         _id: 'rg'+Date.now()+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
         receivedQty: it.qty, unitPrice: it.unitPrice,
@@ -2110,7 +2292,7 @@ function renderBillBatchRegroup(app){
         gr.photoIndices = gr.photoIndices.filter(i=> !selected.includes(i));
         return gr.photoIndices.length > 0;
       });
-      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, reviewed:false, submitted:false });
+      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, duplicateBillWarning: res.duplicateBillWarning||null, reviewed:false, submitted:false });
       go('billBatchReview');
     }catch(err){
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
@@ -2210,8 +2392,8 @@ async function renderBillPendingList(app){
     c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
     let data;
     try{
-      try{ data = await apiGet('pendingBills', null, 10000); }
-      catch(firstErr){ data = await apiGet('pendingBills'); }
+      try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
+      catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
     }catch(err){
       c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
         <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
@@ -2847,19 +3029,25 @@ async function renderOrderPage(app){
   c.innerHTML = '<p class="empty-state">กำลังโหลดข้อมูล...</p>';
   app.appendChild(c);
 
-  let statusList;
+  // เดิมยิง 4 คำขอแยก (getStockStatus + orderedToday + confirmedToday + orderedItemsToday) พร้อมกันด้วย
+  // Promise.all — เจอ 10 ก.ย. 69 ว่าคำขอที่ควรพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาทีใน Apps
+  // Script Executions log (สัญญาณคิว/serialize ฝั่ง backend) รวมเป็น action เดียว (orderPageData) แทน
+  // ตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้านี้ 1 ครั้งจาก 4 เหลือ 1
+  //
+  // (เคยลองเพิ่ม prefetch ยิง orderPageData ล่วงหน้าตั้งแต่หน้าเมนูเจ้าของ แต่ถอนออกแล้ว — ยิงทุกครั้งที่
+  // เข้าเมนูไม่ว่าจะกด "สั่งของ" ต่อจริงหรือไม่ กลายเป็นคำขอเปล่าประโยชน์ที่แย่งคิว/โควต้า Apps Script กับ
+  // คำขอจริงของหน้าอื่นที่เจ้าของกดไปแทน เช่น "สต๊อก & วิเคราะห์"/"บิลรอตรวจสอบ" — แลกไม่คุ้ม)
+  //
+  // เจอเพิ่ม 10 ก.ย. 69 (ต่อ): แค่รวมเป็น 1 คำขอยังไม่พอ — หน้านี้ถูกเข้าออกซ้ำๆ บ่อยมากระหว่างสั่งของ
+  // หลายเจ้าในรอบเดียว (ดู ensureOrderPageData ด้านบนสำหรับรายละเอียดเต็ม) ใช้ cache TTL แทนการยิงคำขอใหม่
+  // ทุกครั้งที่กลับมาหน้านี้
   try{
-    const [sl, orderedRes, confirmedRes, orderedItemsRes] = await Promise.all([getStockStatus(), apiGet('orderedToday'), apiGet('confirmedToday'), apiGet('orderedItemsToday')]);
-    statusList = sl;
-    statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
-    orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
-    confirmedSupplierIds = new Set((confirmedRes && confirmedRes.supplierIds) || []);
-    orderedItemsTodayMap = {};
-    ((orderedItemsRes && orderedItemsRes.items) || []).forEach(it=>{ orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit }; });
+    await ensureOrderPageData();
   }catch(err){
     c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
     return;
   }
+  const statusList = stockStatusCache;
   const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
   // จัดกลุ่มสินค้าตาม supplierId ไว้ล่วงหน้าครั้งเดียว แทนการวน PRODUCTS.filter(p=>p.supplierId===s.id)
@@ -3122,9 +3310,13 @@ async function renderOrderPage(app){
             if(!confirm(msg)) return;
             (async ()=>{
               try{
-                await Promise.all(skipDates.map(date=>
-                  apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true)
-                ));
+                // เดิมยิง Promise.all พร้อมกันทุกวันที่ในครั้งเดียว — pattern เดียวกับที่เคยเจอปัญหาคิว/
+                // serialize ของ Apps Script ตอนหน้านี้เองเคยยิง 4 คำขอพร้อมกัน (ดู ensureOrderPageData
+                // ด้านบน) สินค้าที่งดไว้หลายวันไม่ติดกันจะยิงหลายคำขอพร้อมกันโดยไม่จำเป็น เปลี่ยนเป็นยิง
+                // ทีละคำขอแทน (ส่วนใหญ่มีแค่ 1 วันอยู่แล้ว ไม่กระทบเคสปกติ)
+                for(const date of skipDates){
+                  await apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true);
+                }
                 p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
                 renderGroups(c.querySelector('#search').value);
               }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }

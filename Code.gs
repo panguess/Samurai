@@ -108,6 +108,11 @@ function cacheClear(key) {
 
 function doGet(e) {
   const action = e.parameter.action;
+  // ใส่ log ตอนเริ่มทุกครั้ง (ไม่ใช่แค่ตอน error) — เจอ 10 ก.ย. 69 ว่า Executions log เดิมโชว์แค่ Function
+  // (doGet/doPost) กับ Duration ไม่บอกว่าเป็น action ไหน ทำให้ไล่ไม่ออกว่าหน้าที่ควรยิงคำขอเดียว (เช่น
+  // orderPageData) ยิงจริงกี่ครั้ง/action อะไรบ้างตอนมีคนบ่นว่าช้า — คลิกเข้าไปดูรายละเอียดแต่ละแถวใน
+  // Executions จะเห็นบรรทัดนี้แล้วรู้ทันทีว่าคำขอนั้นคือ action อะไร
+  Logger.log('[doGet] ' + action);
   let result;
   try {
     switch (action) {
@@ -118,7 +123,10 @@ function doGet(e) {
       case 'orderedToday':  result = getOrderedToday();                        break;
       case 'orderedItemsToday': result = getOrderedItemsToday();               break;
       case 'confirmedToday':result = getConfirmedToday();                     break;
-      case 'pendingBills':  result = getPendingBillReceipts();                break;
+      case 'orderPageData': result = getOrderPageData();                     break;
+      // 'pendingBills' ย้ายไปโปรเจกต์ BillCapture-Code.gs แยกต่างหากแล้ว (10 ก.ย. 69 — แยกโควต้าการรัน
+      // พร้อมกันของฟีเจอร์ถ่ายบิล/AI อ่านบิล ไม่ให้ไปแย่งทรัพยากรกับ action เร็วๆ ในไฟล์นี้) ดูเหตุผลเต็มๆ
+      // ที่คอมเมนต์ BILL_API_URL ใน stock-check.html
       default:              result = { error: 'unknown action: ' + action };
     }
   } catch (err) {
@@ -132,6 +140,7 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
+  Logger.log('[doPost] ' + body.action); // ดูเหตุผลเดียวกับ log ใน doGet ด้านบน
   let result;
   try {
     switch (body.action) {
@@ -145,10 +154,8 @@ function doPost(e) {
       case 'setProductSkipDate': result = setProductSkipDate(body);   break;
       case 'setUnitLabel':      result = setUnitLabel(body);      break;
       case 'setOrderUnitLabel': result = setOrderUnitLabel(body); break;
-      case 'analyzeBillPhoto':  result = analyzeBillPhoto(body);  break;
-      case 'analyzeBillBatch':  result = analyzeBillBatch(body);  break;
-      case 'submitBillForReview': result = submitBillForReview(body); break;
-      case 'finalizePurchaseReceipt': result = finalizePurchaseReceipt(body); break;
+      // 'analyzeBillPhoto'/'analyzeBillBatch'/'submitBillForReview'/'finalizePurchaseReceipt' ย้ายไป
+      // โปรเจกต์ BillCapture-Code.gs แยกต่างหากแล้ว (10 ก.ย. 69) ดูเหตุผลที่คอมเมนต์ doGet ด้านบน
       default:                 result = { error: 'unknown action: ' + body.action };
     }
   } catch (err) {
@@ -336,27 +343,41 @@ function saveStock(body) {
 
 // อัปเดต/เพิ่มแถวใน StockLogsLatest ให้เหลือ 1 แถวต่อ 1 UnitID เสมอ (เขียนทับแถวเดิมถ้ามี)
 // ขนาดชีตนี้จึงคงที่เท่าจำนวนหน่วยสินค้าทั้งหมด ไม่โตขึ้นตามจำนวนครั้งที่เช็คสต๊อกเหมือน StockLogs
+//
+// เดิมเขียนทับแถวที่มีอยู่แล้วทีละแถว (sh.getRange(...).setValues() แยกคนละคำสั่งต่อ 1 รายการ) — เจ้าที่มี
+// ของเยอะ (เช่นลุงทวี 20-30 รายการ) จะยิง Sheets API 20-30 ครั้งต่อเนื่องใน saveStock ครั้งเดียว ช้ากว่าเจ้า
+// ที่มีของไม่กี่รายการอย่างมีนัยสำคัญ (เจอ 10 ก.ย. 69 ตอนไล่บั๊กเรื่องสั่งของช้า) — เปลี่ยนเป็น merge ข้อมูล
+// ใหม่เข้ากับข้อมูลเดิมในหน่วยความจำก่อน แล้วเขียนทับทั้งก้อนด้วย setValues() ครั้งเดียว ปลอดภัยเพราะชีตนี้
+// ขนาดคงที่ (ไม่โตตามเวลาเหมือน StockLogs) เขียนทั้งก้อนจึงไม่แพงขึ้นตามอายุร้าน
 function upsertStockLogsLatest(items, date, staffName, ts) {
   const headers = ['UnitID', 'Date', 'RemainQty', 'CheckedBy', 'Timestamp'];
   const sh = ensureSheetWithHeaders(STOCK_LOGS_LATEST_SHEET, headers);
   const data = sh.getDataRange().getValues();
 
-  const rowByUnit = {};
+  const rowByUnit = {}; // uid -> index ใน body (ไม่รวม header)
   for (let i = 1; i < data.length; i++) {
     const uid = String(data[i][0]).trim();
-    if (uid) rowByUnit[uid] = i + 1; // เลขแถวจริงในชีต (1-indexed)
+    if (uid) rowByUnit[uid] = i - 1;
   }
 
+  const body = data.slice(1);
   const toAppend = [];
+  let bodyChanged = false;
+
   items.forEach(item => {
     const uid = String(item.unitId).trim();
     const rowValues = [uid, date, item.remainQty, staffName, ts];
-    if (rowByUnit[uid]) {
-      sh.getRange(rowByUnit[uid], 1, 1, headers.length).setValues([rowValues]);
+    if (rowByUnit[uid] !== undefined) {
+      body[rowByUnit[uid]] = rowValues;
+      bodyChanged = true;
     } else {
       toAppend.push(rowValues);
     }
   });
+
+  if (bodyChanged && body.length) {
+    sh.getRange(2, 1, body.length, headers.length).setValues(body);
+  }
 
   if (toAppend.length) {
     sh.getRange(sh.getLastRow() + 1, 1, toAppend.length, headers.length).setValues(toAppend);
@@ -540,21 +561,11 @@ function createOrderBatch(body) {
   const sh = SHEET.getSheetByName('OrderLogs');
   sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
 
-  // อัปเดต OrderTriggered ของ StockLogs วันนี้ทีเดียว แทน setValue ทีละเซลล์ในลูป
-  const stockSh = SHEET.getSheetByName('StockLogs');
-  const rows = stockSh.getDataRange().getValues();
-  const headerRow = rows[0];
-  const dateCol = headerRow.indexOf('Date');
-  const triggeredCol = headerRow.indexOf('OrderTriggered');
-  const triggeredValues = [];
-  let hasToday = false;
-  for (let i = 1; i < rows.length; i++) {
-    if (normDate(rows[i][dateCol]) === date) { triggeredValues.push([true]); hasToday = true; }
-    else triggeredValues.push([rows[i][triggeredCol]]);
-  }
-  if (hasToday) {
-    stockSh.getRange(2, triggeredCol + 1, triggeredValues.length, 1).setValues(triggeredValues);
-  }
+  // เดิมตรงนี้อ่านทั้งชีต StockLogs (getDataRange) ทุกครั้งที่กดสั่งของ เพื่ออัปเดตคอลัมน์ OrderTriggered
+  // ของวันนี้ — เจอ (10 ก.ย. 69) ว่าคอลัมน์นี้ไม่เคยถูกอ่านที่ไหนเลยทั้งแอป (grep ทั้ง Code.gs + stock-check.html
+  // ไม่เจอจุดอ่านเลยสักที่) เท่ากับทุกคลิก "สั่งของ" เสียเวลาอ่าน+เขียนทั้งตาราง StockLogs ที่โตขึ้นเรื่อยๆ
+  // ตามอายุร้านไปฟรีๆ — ลบทิ้งทั้งบล็อก (คอลัมน์ OrderTriggered ในชีต StockLogs ยังอยู่เหมือนเดิม เผื่อมีใคร
+  // อยากใช้ในอนาคต แค่ไม่ต้องคำนวณ/เขียนทับมันจากจุดนี้อีกต่อไป)
 
   cacheClear('analytics_7d');
   cacheClear('analytics_30d');
@@ -879,6 +890,23 @@ function getConfirmedToday() {
   const result = { supplierIds: [...new Set(rows.map(r => String(r.SupplierID).trim()))] };
   cacheSet(cacheKey, result, CACHE_TTL.confirmedToday);
   return result;
+}
+
+/* ============ getOrderPageData ============ */
+// หน้า "สั่งของ" ฝั่งเจ้าของเดิมยิง 4 คำขอ (stockStatus/orderedToday/confirmedToday/orderedItemsToday)
+// พร้อมกันทุกครั้งที่เปิดหน้า (Promise.all) — เจอ 10 ก.ย. 69 ว่าตอนมีคำขอชนกันหลายตัว (เช่น เปิดหน้าซ้อนกัน
+// หลายแท็บ/หลายคน) Apps Script executions ที่ควรยิงพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาที
+// (สัญญาณของคิว/serialize ฝั่ง Apps Script) รวมเป็น endpoint เดียวตัดจำนวนคำขอพร้อมกันต่อการเปิดหน้า 1 ครั้ง
+// จาก 4 เหลือ 1 ลดโอกาสชนคิว — แต่ละฟังก์ชันข้างในยังมีแคชของตัวเองเหมือนเดิมทุกอย่าง (ไม่ได้เปลี่ยน logic
+// หรือ TTL ของฟังก์ชันย่อยเลย แค่ห่อรวมผลลัพธ์เป็นก้อนเดียวตอนส่งกลับ) หน้าเว็บที่เรียก action เดิม 4 ตัวแยก
+// (ถ้ามี debug/หน้าอื่นเผลอเรียกอยู่) ยังใช้งานได้ปกติ ไม่ได้ถูกลบทิ้ง
+function getOrderPageData() {
+  return {
+    stockStatus: getStockStatus(),
+    ordered: getOrderedToday(),
+    confirmed: getConfirmedToday(),
+    orderedItems: getOrderedItemsToday()
+  };
 }
 
 // body = { supplierId, confirmed, staffName } — confirmed:true เพิ่มแถวยืนยัน (ถ้ายังไม่มีของวันนี้)
@@ -1289,492 +1317,6 @@ function syncProductUnits() {
     cacheClear('bootstrap'); // เคลียร์แคชทันที ไม่ต้องรอครบ 5 นาที
     Logger.log(`sync: สร้างครบให้ ${createdBoth} สินค้า, เติมหน่วยเล็กให้ ${upgradedOne} สินค้า`);
   }
-}
-
-/* ============ รับของ — ถ่ายบิล: analyzeBillPhoto / savePurchaseReceipt ============ */
-// เรียก Gemini (multimodal) อ่านรูปบิลที่ลูกจ้างถ่ายมา แล้วแยกเป็นรายการสินค้า — ไม่เขียนอะไรลงชีตเลย
-// (pure read + เรียก API ภายนอก) จับคู่ล่วงหน้ากับ ProductAlias ที่เคยบันทึกไว้ให้ด้วยถ้าเจอ
-// body = { supplierId, photos: [dataURL, ...] }
-function analyzeBillPhoto(body) {
-  if (!body.supplierId || !body.photos || !body.photos.length) {
-    throw new Error('ข้อมูลไม่ครบ (supplierId หรือรูปบิลหายไป)');
-  }
-  const suppliers = readTable('Suppliers');
-  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
-  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
-
-  const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
-  const promptText = 'คุณกำลังอ่านใบส่งของ/ใบวางบิลจากซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
-    (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
-    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"items": [...], "billHeader": {...} หรือ null, "supplierMismatchWarning": string หรือ null}\n' +
-    '"items": อ่านทุกบรรทัดรายการที่เห็นในรูป (อ่านตามที่เขียน/พิมพ์ไว้จริง ไม่ต้องพยายามจับคู่ชื่อกับระบบอื่นใด) แต่ละสมาชิกในรูปแบบ ' +
-    '{"billText": ชื่อรายการตามที่อ่านได้ (string), "qty": จำนวน (number), "unit": หน่วยที่เขียนไว้ ถ้าไม่มีให้ใส่ "หน่วย" (string), ' +
-    '"unitPrice": ราคาต่อหน่วย (number), "totalPrice": จำนวนเงินรวมของบรรทัดนั้น (number), "likelyNonProduct": true ถ้าบรรทัดนั้นดูไม่ใช่สินค้า เช่น ค่าขนส่ง/ส่วนลด/ยอดรวม ไม่งั้นใส่ false}. ' +
-    'ถ้าตัวเลขบางช่องอ่านไม่ออกให้เดาที่สมเหตุสมผลที่สุด อย่าข้ามรายการทิ้งไปเฉยๆ\n' +
-    '"billHeader": ใส่เฉพาะเมื่อบิลนี้เป็นเอกสารของบริษัทที่จดทะเบียนจริง (มีเลขประจำตัวผู้เสียภาษี/Tax ID พิมพ์ไว้ หรือเลขที่เอกสารรันเป็นชุดแบบพิมพ์ ไม่ใช่เขียนมือ) ' +
-    'รูปแบบ {"billDate": วันที่บนบิล เป็น string ตามที่เขียน (string), "billNumber": เลขที่เอกสาร/ใบกำกับภาษี (string), ' +
-    '"subtotal": ยอดรวมก่อนภาษี (number), "vat": ยอดภาษีมูลค่าเพิ่ม (number, ใส่ 0 ถ้าบิลนี้ไม่มี VAT แต่ยังเป็นเอกสารบริษัท), "total": ยอดรวมสุทธิ (number)}. ' +
-    'ถ้าบิลนี้เป็นใบส่งของ/ใบเก็บเงินเขียนมือที่ไม่มีข้อมูลพวกนี้จริงๆ ให้ใส่ billHeader เป็น null เฉยๆ อย่าเดาตัวเลขขึ้นมาเอง\n' +
-    '"supplierMismatchWarning": เช็คว่ารูปนี้น่าจะเป็นบิลจากซัพพลายเออร์ "' + sup.Name + '" ตามที่ระบุไว้ข้างบนจริงไหม โดยเทียบกับข้อมูลอ้างอิงรูปแบบบิลที่ให้ไว้ (โลโก้/ชื่อบริษัท/ที่อยู่/รูปแบบเอกสาร) ' +
-    'ถ้าเห็นชัดเจนว่าไม่ตรง (เช่น ชื่อบริษัท/โลโก้บนบิลเป็นคนละเจ้ากับที่ระบุไว้ชัดๆ) ให้ใส่คำอธิบายสั้นๆ ว่าทำไมถึงคิดว่าไม่ตรง (string) ' +
-    'ถ้าดูตรงกันดี หรือไม่มีข้อมูลอ้างอิงให้เทียบ หรือไม่แน่ใจ (เช่นบิลเขียนมือไม่มีชื่อบริษัทให้เทียบเลย) ให้ใส่เป็น null เฉยๆ อย่าฟันธงมั่วถ้าไม่มีหลักฐานชัดเจนพอ';
-
-  const parts = [{ text: promptText }];
-  body.photos.forEach(dataUrl => {
-    const base64 = String(dataUrl).split(',').pop();
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64 } });
-  });
-
-  const result = callGemini(parts);
-  if (!result || !Array.isArray(result.items)) throw new Error('อ่านบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
-  const items = result.items;
-  const billHeader = sanitizeBillHeader(result.billHeader);
-  // เตือนตอนเลือกซัพพลายเออร์ผิด (ไม่ตรงกับหัวบิลจริง) — เดิมไม่มีการเช็คนี้เลย เจอผู้ใช้ถามหลัง backlog
-  // session ว่า "ถ้าเลือกเจ้าผิดจะรู้ไหม" คำตอบเดิมคือไม่รู้เลย (จับคู่สินค้าจะพังเงียบๆ เพราะดึงสินค้าผิดเจ้า
-  // มาให้เลือก) — ใช้ string ว่างเป็น null เพื่อกัน AI ส่งค่าประหลาด (false/0/whitespace) มาปนแล้วโค้ด/
-  // หน้าเว็บพัง เหมือน pattern ของ sanitizeBillHeader ด้านบน
-  const supplierMismatchWarning = String(result.supplierMismatchWarning || '').trim() || null;
-
-  const aliases = getProductAliasIndex(body.supplierId);
-  const normalized = items.map(it => {
-    const billText = String(it.billText || '').trim();
-    const match = findAliasMatch(aliases, billText);
-    return {
-      billText, qty: Number(it.qty) || 0,
-      unit: String(it.unit || 'หน่วย').trim(),
-      unitPrice: Number(it.unitPrice) || 0,
-      likelyNonProduct: !!it.likelyNonProduct,
-      productId: match ? match.ProductID : null,
-      conversionFactor: match ? (Number(match.ConversionFactor) || 1) : null,
-      // 'exact': ข้อความตรงกับที่เคยยืนยันไว้เป๊ะๆ (หลัง normalize) จับคู่ให้ทันทีไม่ต้องถามซ้ำ
-      // 'fuzzy': ใกล้เคียงแต่ไม่เป๊ะ (เทียบด้วย Levenshtein ในโค้ดเอง ไม่ใช่ให้ AI เดาแล้วเชื่อเลย) — ต้องให้
-      // คนกดยืนยันเองก่อนเสมอ กันเคสจับคู่ผิดหลุดผ่านไปโดยไม่มีใครสังเกต (ดู renderBillReview ฝั่งเว็บ)
-      matchType: match ? match.matchType : null,
-      // ข้อความ alias เดิมที่ทำให้เกิด fuzzy match — ใช้โชว์ในหน้าเว็บว่า "เจอคำนี้ใกล้เคียงกับคำนี้ที่เคยยืนยันไว้"
-      matchedAliasText: (match && match.matchType === 'fuzzy') ? match.BillText : null
-    };
-  });
-
-  return { items: normalized, billHeader, supplierMismatchWarning };
-}
-
-// ============ โหมดใหม่: อัปโหลดรูปหลายบิลพร้อมกัน ให้ AI แยกขอบเขตเอกสารเอง (7 ก.ย. 69) ============
-// จงใจแยก action ต่างหากจาก analyzeBillPhoto ข้างบน — ไม่แก้ analyzeBillPhoto แม้แต่บรรทัดเดียว กันไม่ให้
-// ฟีเจอร์ใหม่ที่ยังไม่ผ่านการใช้งานจริงกระทบเส้นทางที่พนักงานถ่ายบิลปกติทุกวันอยู่แล้ว (ดูสรุปเหตุผลใน
-// CLAUDE.md หัวข้อ "แยกบิลอัตโนมัติ") ใช้ตอนซัพพลายเออร์เอาบิลตกหล่นจากรอบก่อนมาพร้อมบิลวันนี้
-// สำคัญ: ฟังก์ชันนี้แค่ "เสนอ" การแบ่งกลุ่ม ไม่เขียนอะไรลงชีตเลยเหมือน analyzeBillPhoto — ฝั่งเว็บ
-// (renderBillBatchReview) ต้องให้คนตรวจ/แก้กลุ่มก่อนเสมอ แล้วค่อยเรียก submitBillForReview ทีละบิลปกติ
-// ทุกประการ ไม่มี action ใหม่ไหนเขียน PurchaseReceipts/PendingBillReceipts ตรงๆ จากฟังก์ชันนี้เลย
-//
-// อัปเดต 7 ก.ย. 69: เดิมฟังก์ชันนี้ให้ Gemini ทั้งแยกกลุ่ม + อ่านรายการสินค้าทุกบิลพร้อมกันในคำขอเดียว
-// พบจริงจาก Executions log ว่าคำขอแบบนั้นกินเวลาถึง ~104 วิ (เทียบกับ analyzeBillPhoto บิลเดี่ยวที่ 45-49 วิ
-// ผ่านทุกครั้ง) ทำให้หน้าเว็บเจอ "Load failed" ซ้ำๆ ทุกรอบที่ทดสอบจริง (การเชื่อมต่อทนคำขอยาวขนาดนั้นไม่ไหว)
-// แก้โดยตัดขอบเขตงานของฟังก์ชันนี้ให้เหลือแค่ "แยกกลุ่มรูป" อย่างเดียว (เร็วขึ้นมากเพราะไม่ต้องถอดรายการ
-// สินค้าทีละบรรทัดในทุกรูป) แล้วให้ฝั่งเว็บเรียก analyzeBillPhoto ตัวเดิม (ที่พิสูจน์แล้วว่าไหว) แยกทีละบิล
-// เป็นคำขอสั้นๆ หลายครั้งแทน ดู renderBillBatchAnalyzing ในฝั่งเว็บ
-function analyzeBillBatch(body) {
-  if (!body.supplierId || !body.photos || body.photos.length < 2) {
-    throw new Error('ข้อมูลไม่ครบ (supplierId หรือรูปน้อยกว่า 2 รูป — โหมดแยกหลายบิลใช้เมื่อมีตั้งแต่ 2 รูปขึ้นไปเท่านั้น)');
-  }
-  const suppliers = readTable('Suppliers');
-  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
-  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
-
-  const hint = BILL_TEMPLATE_HINTS[body.supplierId] || '';
-  const n = body.photos.length;
-  const promptText = 'คุณกำลังดูรูปทั้งหมด ' + n + ' รูป (เรียงตามลำดับ index 0 ถึง ' + (n - 1) + ' ตามลำดับที่ให้มา) ที่ถ่ายจากใบส่งของ/ใบวางบิลของซัพพลายเออร์ "' + sup.Name + '" (รหัส ' + body.supplierId + ') ที่ส่งให้ร้านขายไส้กรอกแห่งหนึ่ง\n' +
-    (hint ? 'ข้อมูลอ้างอิงรูปแบบบิลของเจ้านี้: ' + hint + '\n' : '') +
-    'รูปเหล่านี้อาจเป็น "เอกสารคนละใบ" ปนกันมา (เช่น ซัพพลายเออร์เอาบิลตกหล่นจากวันก่อนมาพร้อมบิลวันนี้) ' +
-    'หรือบางรูปอาจเป็นแค่หน้าต่อของเอกสารเดียวกัน (บิลใบเดียวถ่ายหลายรูปเพราะรายการเยอะ) ' +
-    'งานของคุณคือแค่แยกกลุ่มรูปตามเอกสารจริงเท่านั้น — **ห้ามอ่าน/ถอดรายการสินค้าในรูปเลย** (มีขั้นตอนแยกอ่านรายการทีหลัง) ' +
-    'ดูจากเลขที่เอกสาร/วันที่/ยอดรวม/รูปแบบหัวกระดาษที่ปรากฏบนแต่ละรูปเพื่อตัดสินใจแยกกลุ่มพอ ' +
-    '(รูปที่เป็นหน้าต่อกันของบิลเดียวกันมักไม่มีหัวบิล/เลขที่ซ้ำในหน้าถัดไป ส่วนบิลคนละใบมักมีเลขที่/วันที่ต่างกันชัดเจน) ' +
-    'ถ้าไม่แน่ใจว่าควรแยกหรือรวม ให้เอนเอียงไปทาง "แยกเป็นคนละเอกสาร" ไว้ก่อนเสมอ เพราะฝั่งเว็บจะให้คนตรวจแก้ไขการแบ่งกลุ่มได้อยู่แล้ว\n' +
-    'ตอบกลับเป็น JSON object เดียวเท่านั้น รูปแบบ {"groups": [ {"photoIndices": [...]}, {...} ] } — แต่ละสมาชิกใน "groups" คือเอกสาร 1 ใบ ' +
-    '"photoIndices" คือ array ของเลข index (0-based ตรงกับลำดับรูปที่ให้มา) ของรูปทั้งหมดที่เป็นของเอกสารใบนี้ (number[]) — ทุกรูปต้องถูกจัดอยู่ในกลุ่มใดกลุ่มหนึ่งเสมอ ห้ามตกหล่นรูปไหนไป';
-
-  const parts = [{ text: promptText }];
-  body.photos.forEach(dataUrl => {
-    const base64 = String(dataUrl).split(',').pop();
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64 } });
-  });
-
-  const result = callGemini(parts);
-  if (!result || !Array.isArray(result.groups) || !result.groups.length) throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
-
-  const groups = result.groups.map(g => ({
-    photoIndices: Array.isArray(g.photoIndices)
-      ? g.photoIndices.map(Number).filter(i => Number.isInteger(i) && i >= 0 && i < n)
-      : []
-  }));
-
-  // กันรูปซ้ำ (Gemini อาจใส่ index เดียวกันไว้ในสองกลุ่มพร้อมกันโดยไม่ได้ตั้งใจ) — ให้กลุ่มแรกที่อ้างถึง
-  // รูปนั้นเป็นเจ้าของไปเลย ตัดออกจากกลุ่มถัดๆ ไป กันรูปเดียวกันถูกอ่าน/ส่งซ้ำสองบิลทีหลัง
-  const covered = {};
-  groups.forEach(g => {
-    g.photoIndices = g.photoIndices.filter(i => {
-      if (covered[i]) return false;
-      covered[i] = true;
-      return true;
-    });
-  });
-
-  // กันรูปตกหล่น (Gemini อาจลืมใส่ index บางรูปไว้ในกลุ่มไหนเลย ทั้งที่บอกไว้ในพรอมต์ว่าห้าม) — โยนรูปที่
-  // ไม่มีกลุ่มไปรวมเป็นเอกสารเดี่ยวท้ายสุดแทนที่จะปล่อยหายไปเงียบๆ ให้คนตรวจที่หน้ารีวิวเห็น/จัดการเอง
-  const missing = [];
-  for (let i = 0; i < n; i++) if (!covered[i]) missing.push(i);
-  if (missing.length) groups.push({ photoIndices: missing });
-
-  return { groups };
-}
-
-// ทำความสะอาดผลลัพธ์ billHeader จาก Gemini ให้เป็น null หรือ object ที่มี field ครบเสมอ — กัน AI ส่งค่า
-// ประหลาด (string ว่าง, field ขาดหาย, ตัวเลขเป็น string ฯลฯ) มาปนแล้วโค้ดฝั่งเว็บ/การเขียนชีตพัง
-// คืน null ถ้าไม่มีข้อมูลอะไรเลย (บิลเขียนมือ) — renderBillReview ฝั่งเว็บจะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
-function sanitizeBillHeader(h) {
-  if (!h || typeof h !== 'object') return null;
-  const billDate = String(h.billDate || '').trim();
-  const billNumber = String(h.billNumber || '').trim();
-  const subtotal = Number(h.subtotal) || 0;
-  const vat = Number(h.vat) || 0;
-  const total = Number(h.total) || 0;
-  if (!billDate && !billNumber && !subtotal && !vat && !total) return null;
-  return { billDate, billNumber, subtotal, vat, total };
-}
-
-// พยายามแปลง billHeader.billDate (string อิสระที่ AI อ่านมาจากบิล เช่น "26/06/2569") ให้เป็น yyyy-MM-dd
-// แบบเดียวกับ todayStr() — รองรับทั้งปี พ.ศ. (ลบ 543 ถ้าปี > 2400) และปี ค.ศ. ตรงๆ, ตัวคั่น / - .
-// คืน null ถ้า parse ไม่ได้ (เช่น บิลเขียนมือไม่มี billHeader เลย หรือ AI อ่านรูปแบบวันที่แปลกไป) —
-// ผู้เรียก (finalizePurchaseReceipt) ต้อง fallback ไป todayStr() เอง กันแถวไม่มีวันที่เลย
-function parseBillDateToSheetFormat(raw) {
-  const m = String(raw || '').match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-  if (!m) return null;
-  let d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  if (y > 2400) y -= 543; // พ.ศ. -> ค.ศ.
-  if (y < 1900 || y > 2200) return null; // กันปีเพี้ยนหลุดผ่านมา
-  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-}
-
-// Levenshtein distance ธรรมดา (dynamic programming) — ใช้หาความคล้ายของข้อความบิลแบบ deterministic
-// ไม่ใช่ให้ AI ตัดสินเองว่า "คล้ายกันไหม" เพราะอยากให้ตรวจสอบ/อธิบายได้ว่าทำไมถึงจับคู่ให้
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  const dp = [];
-  for (let i = 0; i <= m; i++) dp[i] = [i];
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
-function textSimilarity(a, b) {
-  const d = levenshtein(a, b);
-  const len = Math.max(a.length, b.length) || 1;
-  return 1 - d / len;
-}
-// ปรับได้ทีหลังถ้าเจอ false positive (จับคู่มั่วเกินไป) หรือ false negative (ควรจับคู่ได้แต่ไม่จับ) จากการใช้งานจริง
-const FUZZY_MATCH_THRESHOLD = 0.75;
-
-// หา alias ที่ตรง/ใกล้เคียงที่สุดของซัพพลายเออร์นี้ (aliases ต้อง filter เฉพาะ supplier นี้มาก่อนแล้ว)
-// คืน {..alias, matchType:'exact'|'fuzzy'} หรือ null ถ้าไม่เจออะไรใกล้เคียงพอ
-function findAliasMatch(aliases, billText) {
-  const key = normalizeAliasKey(billText);
-  const exact = aliases.find(a => normalizeAliasKey(a.BillText) === key);
-  if (exact) return Object.assign({}, exact, { matchType: 'exact' });
-  let best = null, bestScore = 0;
-  aliases.forEach(a => {
-    const score = textSimilarity(key, normalizeAliasKey(a.BillText));
-    if (score > bestScore) { bestScore = score; best = a; }
-  });
-  if (best && bestScore >= FUZZY_MATCH_THRESHOLD) return Object.assign({}, best, { matchType: 'fuzzy' });
-  return null;
-}
-
-// เรียก Gemini API (generateContent) แบบ multimodal — บังคับให้ตอบเป็น JSON ล้วนๆ ผ่าน responseMimeType
-// กันปัญหาโมเดลตอบเป็นข้อความอธิบายปนโค้ด/markdown fence ที่ parse ต่อไม่ได้
-// ลองเรียก Gemini ครั้งเดียว — แยกออกมาจาก callGemini() เพื่อให้ retry wrapper เรียกซ้ำได้สะอาดๆ
-function callGeminiOnce(url, payload) {
-  const res = UrlFetchApp.fetch(url, {
-    method: 'post', contentType: 'application/json', payload: JSON.stringify(payload), muteHttpExceptions: true
-  });
-  const code = res.getResponseCode();
-  let json;
-  try { json = JSON.parse(res.getContentText()); } catch (e) { throw new Error('Gemini ตอบกลับมาไม่ใช่ JSON ที่ใช้ได้'); }
-  if (code !== 200) throw new Error('Gemini API error (' + code + '): ' + (json.error && json.error.message || res.getContentText()));
-  const text = json.candidates && json.candidates[0] && json.candidates[0].content &&
-    json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
-  if (!text) throw new Error('Gemini ไม่ส่งผลลัพธ์ที่ใช้ได้กลับมา');
-  return JSON.parse(text);
-}
-// เจอจริงคืนวันที่ 6 ก.ย. 69 ว่า Gemini คืน 503 "high demand" เป็นระยะ (ข้อความเองบอกว่า "usually
-// temporary") และบางรอบคืน 200 แต่ไม่มีข้อความ/items ให้ parse เลย (น่าจะอาการเดียวกันจากโหลดสูง
-// แค่ไม่ error ชัดเจน) — ลองซ้ำอัตโนมัติ 1 ครั้งหลังรอ 3 วิ ก่อนค่อยโยน error จริงให้ผู้ใช้เห็น ทำใน
-// ฝั่ง backend (ไม่ใช่ client auto-retry) เพราะเป็นแค่การอ่าน ยังไม่เขียนอะไรลงชีตเลยตอนนี้ ปลอดภัย
-// ไม่ทำให้ข้อมูลซ้ำซ้อนแบบ action ที่สร้างแถวใหม่ — analyzeBillPhoto ฝั่งเว็บต้องขยาย timeout ตามด้วย
-// (ดู 150000 → 270000 ใน stock-check.html) กันกรณีแย่สุดที่ทั้ง 2 รอบใช้เวลานานพอกัน
-function callGemini(parts) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!apiKey) throw new Error('ยังไม่ได้ตั้งค่า GEMINI_API_KEY ใน Script Properties (Project Settings)');
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + apiKey;
-  const payload = {
-    contents: [{ parts }],
-    generationConfig: { responseMimeType: 'application/json' }
-  };
-  try {
-    return callGeminiOnce(url, payload);
-  } catch (firstErr) {
-    Utilities.sleep(3000);
-    try {
-      return callGeminiOnce(url, payload);
-    } catch (secondErr) {
-      throw secondErr; // โยน error ของรอบสอง (มักมีข้อมูลใหม่กว่า/ตรงกว่ารอบแรก)
-    }
-  }
-}
-
-// normalize ชื่อบิลก่อนเทียบ/ใช้เป็น key จับคู่ ProductAlias — ตัดช่องว่างหัวท้าย + รวมช่องว่างซ้ำ + ตัวพิมพ์เล็ก
-// ทั้งหมด กัน alias เดิมไม่ auto-match แค่เพราะ AI อ่านช่องว่าง/ตัวพิมพ์ใหญ่เล็กมาไม่เป๊ะเท่าครั้งก่อน
-function normalizeAliasKey(text) {
-  return String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-// ============ ลูกจ้างส่งบิลให้เจ้าของตรวจ (ไม่เขียน PurchaseReceipts เลย — แค่คิวรอตรวจ) ============
-// สร้างแถวใหม่ + อัปโหลดรูปทุกครั้งที่เรียก (ไม่ idempotent ห้ามใส่ retryOnTimeout ฝั่งเว็บเด็ดขาด)
-// body = { supplierId, staffName, photos:[dataURL,...], items:[{billText, unit, qty, receivedQty,
-//          unitPrice, likelyNonProduct, skip, productId, factor, fromAlias}] } — เก็บทุกรายการรวมที่ข้ามไว้
-// ด้วย (ต่างจาก finalizePurchaseReceipt) เพราะเจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
-function submitBillForReview(body) {
-  if (!body.supplierId || !body.staffName || !body.items || !body.items.length) {
-    throw new Error('ข้อมูลไม่ครบ (supplierId, staffName หรือรายการสินค้าหายไป)');
-  }
-  const suppliers = readTable('Suppliers');
-  const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
-  if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
-
-  const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
-  if (!sh) throw new Error('ไม่พบชีต ' + PENDING_BILL_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: BatchID, Date, SupplierID, StaffName, PhotoURL, ItemsJSON, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
-
-  // เดิม timestamp ละเอียดแค่ระดับวินาที (MMdd-HHmmss) — เพียงพอตอนออกแบบครั้งแรกเพราะแต่ละครั้งที่เรียก
-  // มาจากคนถ่ายบิลทีละใบ ห่างกันหลายวินาทีเสมอ แต่โหมด "หลายบิลรวมกัน" (renderBillBatchReview) เรียกฟังก์ชัน
-  // นี้วนหลายรอบติดกันเร็วๆ ให้ซัพพลายเออร์เดียวกัน เสี่ยง BatchID ชนกันถ้าสอง request จบภายในวินาทีเดียวกัน
-  // (ทำให้ finalizePurchaseReceipt จับคู่แถว PendingBillReceipts ผิดใบ + อีกใบค้างอยู่ในคิวตลอดไป) เพิ่ม
-  // มิลลิวินาที (SSS) ให้ละเอียดพอจะไม่ชนกันจริงในทางปฏิบัติ — BatchID ยังเป็นแค่ string key เทียบตรงๆ
-  // เหมือนเดิมทุกที่ที่ใช้ (PendingBillReceipts/PurchaseReceipts/ชื่อไฟล์รูป) ไม่มีที่ไหน parse รูปแบบนี้อยู่
-  const batchId = 'RB' + Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss-SSS');
-  const photoUrl = (body.photos && body.photos.length) ? saveBillPhotosOrganized(body.photos, batchId, body.supplierId, sup.Name) : '';
-  // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — มีเฉพาะบิลบริษัทจดทะเบียนที่ Gemini อ่านได้ (ดู analyzeBillPhoto)
-  // เขียนเป็นค่าว่างไปเลยถ้าไม่มี ไม่ต้องเก็บ null/undefined ลงชีต
-  const bh = body.billHeader || {};
-
-  appendRowByHeaders(PENDING_BILL_SHEET, {
-    BatchID: batchId, Date: todayStr(), SupplierID: body.supplierId, StaffName: body.staffName,
-    PhotoURL: photoUrl, ItemsJSON: JSON.stringify(body.items),
-    BillDate: bh.billDate || '', BillNumber: bh.billNumber || '', BillSubtotal: bh.subtotal || '',
-    BillVat: bh.vat || '', BillTotal: bh.total || '', Timestamp: new Date().toISOString()
-  });
-
-  return { ok: true, batchId };
-}
-
-// สร้าง billHeader object จากแถวชีต (PendingBillReceipts หรือ PurchaseReceipts) — คืน null ถ้าไม่มีข้อมูล
-// อะไรเลย (บิลเขียนมือ) ใช้ normDate() กับ BillDate เผื่อ Sheets auto-convert เป็น Date object ไปเงียบๆ
-// เหมือนที่เคยเจอบั๊กนี้กับคอลัมน์วันที่อื่นในไฟล์นี้ (ดู normalizeSkipDatesCell/isActiveFlag)
-function buildBillHeaderFromRow(r) {
-  const billDate = normDate(r.BillDate);
-  const billNumber = String(r.BillNumber || '').trim();
-  const subtotal = Number(r.BillSubtotal) || 0;
-  const vat = Number(r.BillVat) || 0;
-  const total = Number(r.BillTotal) || 0;
-  if (!billDate && !billNumber && !subtotal && !vat && !total) return null;
-  return { billDate, billNumber, subtotal, vat, total };
-}
-
-// รายการบิลที่ยังรอเจ้าของตรวจ — ใช้กับหน้า "บิลรอตรวจสอบ" ฝั่งเจ้าของ
-// แปลงลิงก์ Drive แบบเก่า (https://drive.google.com/file/d/ID/view... — หน้า "ดูไฟล์" ของ Drive ใช้เป็น
-// <img src> ไม่ได้) ให้เป็นลิงก์ thumbnail ที่ embed เป็นรูปได้จริงเสมอ (ดูเหตุผลเต็มๆ ที่คอมเมนต์
-// saveBillPhotosOrganized) — ทำตอนอ่านแทนที่จะไปแก้ข้อมูลเก่าในชีตตรงๆ (self-healing pattern เดียวกับ
-// normalizeSkipDatesCell) กันบิลที่ submitBillForReview ไปแล้วก่อนแก้บั๊กนี้ยังโชว์รูปไม่ขึ้นค้างอยู่
-// รับได้ทั้ง URL เดียวหรือหลายอันคั่นด้วย , (รูปแบบเดียวกับที่ saveBillPhotosOrganized คืนมา)
-function toEmbeddableDriveUrl(urlStr) {
-  return String(urlStr || '').split(',').map(u => {
-    u = u.trim();
-    const m = u.match(/drive\.google\.com\/file\/d\/([^/]+)\//);
-    return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w2000' : u;
-  }).filter(Boolean).join(',');
-}
-
-function getPendingBillReceipts() {
-  const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
-  if (!sh) return { batches: [] };
-  return {
-    batches: readTable(PENDING_BILL_SHEET).map(r => ({
-      batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
-      photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
-    }))
-  };
-}
-
-// ============ เจ้าของตรวจ+กดบันทึกจริง — จุดเดียวในระบบที่เขียนลง PurchaseReceipts ============
-// ไม่ idempotent (สร้างแถวใหม่ทุกครั้ง) ห้ามใส่ retryOnTimeout ฝั่งเว็บ — รูปถูกอัปโหลดไปแล้วตอน
-// submitBillForReview ไม่ต้องอัปโหลดซ้ำ แค่ลบแถวออกจาก PENDING_BILL_SHEET หลังบันทึกจริงสำเร็จ
-// body = { batchId, supplierId, staffName, items:[{productId, billText, billQty, billUnit, receivedQty,
-//          conversionFactor, unitPrice, saveAlias}] } — ไม่รวมรายการที่ข้าม (ไม่ใช่สินค้า) แล้ว
-function finalizePurchaseReceipt(body) {
-  if (!body.batchId || !body.supplierId || !body.staffName || !body.items || !body.items.length) {
-    throw new Error('ข้อมูลไม่ครบ (batchId, supplierId, staffName หรือรายการสินค้าหายไป)');
-  }
-  const sh = SHEET.getSheetByName(PURCHASE_RECEIPTS_SHEET);
-  if (!sh) throw new Error('ไม่พบชีต ' + PURCHASE_RECEIPTS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: ReceiptID, BatchID, Date, SupplierID, ProductID, BillText, BillQty, ReceivedQty, BillUnit, ConversionFactor, ConvertedQty, UnitPrice, TotalPrice, PhotoURL, StaffName, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
-  // อ่านหัวคอลัมน์จริงจากชีต ไม่ hardcode ลำดับ — กันกรณีผู้ใช้สร้างชีตเรียงคอลัมน์ไม่ตรงที่แนะนำเป๊ะๆ
-  // (เหมือน appendRowByHeaders() ต่างกันตรงที่นี่ต้องเขียนหลายแถวพร้อมกันด้วย setValues() เพื่อความเร็ว
-  // เลย map เองแทนที่จะเรียก appendRowByHeaders() วนทีละแถว)
-  const headers = sh.getDataRange().getValues()[0];
-
-  // หา PhotoURL เดิมจากแถว pending (รูปอัปโหลดไปแล้วตอน submit ไม่ต้องอัปใหม่)
-  const pendingSh = SHEET.getSheetByName(PENDING_BILL_SHEET);
-  let photoUrl = '';
-  let pendingRowIdx = -1;
-  if (pendingSh) {
-    const pData = pendingSh.getDataRange().getValues();
-    const pHeaders = pData[0];
-    const batchCol = pHeaders.indexOf('BatchID'), photoCol = pHeaders.indexOf('PhotoURL');
-    for (let i = 1; i < pData.length; i++) {
-      if (String(pData[i][batchCol]).trim() === String(body.batchId).trim()) { pendingRowIdx = i; photoUrl = pData[i][photoCol]; break; }
-    }
-  }
-
-  const ts = new Date().toISOString();
-  const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
-  // หัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — เจ้าของอาจแก้ไขมาจากที่ AI อ่านได้ตอน analyzeBillPhoto แล้ว
-  // เขียนซ้ำลงทุกแถวของ batch นี้ (denormalized ตั้งใจ) เพื่อให้แต่ละแถว PurchaseReceipts มีบริบทครบในตัว
-  // เอง พร้อมต่อยอดทำรายงานต้นทุน/บัญชีในอนาคตโดยไม่ต้อง join กลับไปหา PendingBillReceipts ที่ถูกลบไปแล้ว
-  const billHeader = body.billHeader || {};
-  // Date = วันที่บนบิลจริง (BillDate) ถ้า AI อ่านออกมาเป็นรูปแบบที่ parse ได้ — ใช้วันนี้แค่ตอน parse ไม่ได้
-  // (บิลเขียนมือไม่มี billHeader เลย, หรือ AI อ่านวันที่มาเป็นข้อความแปลกๆ) เดิม hardcode เป็นวันนี้เสมอ
-  // ทำให้บิลเก่าที่เพิ่งมาลง (backlog) ไปกองอยู่ที่ "วันนี้" ทั้งหมด รายงานยอดซื้อรายวัน/เดือนพังได้
-  const date = parseBillDateToSheetFormat(billHeader.billDate) || todayStr();
-  const newRows = body.items.map((item, i) => {
-    const factor = Number(item.conversionFactor) || 1;
-    const receivedQty = Number(item.receivedQty != null ? item.receivedQty : item.billQty);
-    const obj = {
-      ReceiptID: 'PR' + stamp + '-' + (i + 1), BatchID: body.batchId, Date: date, SupplierID: body.supplierId,
-      ProductID: item.productId, BillText: item.billText, BillQty: item.billQty, ReceivedQty: receivedQty,
-      BillUnit: item.billUnit, ConversionFactor: factor, ConvertedQty: receivedQty * factor,
-      UnitPrice: item.unitPrice, TotalPrice: Number(item.billQty) * Number(item.unitPrice),
-      PhotoURL: photoUrl, StaffName: body.staffName,
-      BillDate: billHeader.billDate || '', BillNumber: billHeader.billNumber || '',
-      BillSubtotal: billHeader.subtotal || '', BillVat: billHeader.vat || '', BillTotal: billHeader.total || '',
-      Timestamp: ts
-    };
-    return headers.map(h => obj[h] !== undefined ? obj[h] : '');
-  });
-  sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
-
-  const toLearn = body.items.filter(it => it.saveAlias && it.productId);
-  const learnedCount = toLearn.length ? batchUpsertProductAlias(body.supplierId, toLearn, body.staffName, ts) : 0;
-
-  if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
-
-  return { ok: true, learnedCount };
-}
-
-// หาโฟลเดอร์ลูกชื่อ name ใต้ parent ถ้ายังไม่มีให้สร้างใหม่ — ใช้ทำโครงสร้าง [ปี พ.ศ.]/[ซัพพลายเออร์]
-function findOrCreateFolder(parent, name) {
-  const it = parent.getFoldersByName(name);
-  return it.hasNext() ? it.next() : parent.createFolder(name);
-}
-// จัดเก็บรูปบิลเป็น BILL_PHOTOS_FOLDER_ID/[ปี พ.ศ. เช่น 2569]/[รหัส+ชื่อซัพพลายเออร์]/ — เลือกจัดกลุ่มตาม
-// ซัพพลายเออร์ (ไม่ใช่ตามวัน) เพราะการใช้งานจริงของฟีเจอร์นี้คือ "เปิดดูประวัติ/ราคาของเจ้านี้ย้อนหลัง"
-// เป็นหลัก ไม่ใช่ "ดูของที่เข้าร้านวันนี้ทั้งหมด" (มีหน้าเช็คสต๊อกทำหน้าที่นั้นอยู่แล้ว) — ชื่อไฟล์ขึ้นต้นด้วย
-// วันที่เสมอ พอ Drive เรียงชื่อไฟล์ (ค่า default) ก็ได้ลำดับตามวันที่อัตโนมัติในตัว ไม่ต้องมีโฟลเดอร์ย่อยระดับวันอีกชั้น
-function getBillPhotoFolderForSupplier(supplierId, supplierName) {
-  const root = DriveApp.getFolderById(BILL_PHOTOS_FOLDER_ID);
-  const beYear = Number(Utilities.formatDate(new Date(), TZ, 'yyyy')) + 543;
-  const yearFolder = findOrCreateFolder(root, String(beYear));
-  return findOrCreateFolder(yearFolder, supplierId + ' ' + supplierName);
-}
-function saveBillPhotosOrganized(photos, batchId, supplierId, supplierName) {
-  const folder = getBillPhotoFolderForSupplier(supplierId, supplierName);
-  const datePrefix = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
-  const urls = photos.map((dataUrl, i) => {
-    const base64 = String(dataUrl).split(',').pop();
-    const blob = Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', datePrefix + '_' + batchId + '-' + (i + 1) + '.jpg');
-    const file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    // เจอบั๊กจริง 7 ก.ย. 69: file.getUrl() คืนลิงก์หน้า "ดูไฟล์" ของ Drive (https://drive.google.com/
-    // file/d/ID/view) ซึ่งเป็นหน้า HTML ไม่ใช่ไฟล์รูปตรงๆ — ใช้เป็น <img src="..."> ไม่ได้เลย รูปเลย
-    // ไม่ขึ้น (เจอฝั่งเจ้าของเปิดบิลค้างจาก PendingBillReceipts มาดู เพราะฝั่งพนักงานถ่ายบิลใหม่ใช้
-    // base64 data URL ตรงๆ ไม่เคยพึ่งค่านี้เลยจนถึงตอนนี้ ไม่มีใครเจอบั๊กนี้มาก่อน) เปลี่ยนเป็น endpoint
-    // thumbnail ของ Drive ที่ตั้งใจให้ embed เป็นรูปได้ตรงๆ แทน
-    return 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w2000';
-  });
-  return urls.join(',');
-}
-
-// อ่าน ProductAlias ของซัพพลายเออร์เดียว ผ่านแคช (10 นาที, แยก key ต่อเจ้า) — เดิม analyzeBillPhoto
-// อ่านทั้งชีต ProductAlias ทุกซัพพลายเออร์ใหม่ทุกครั้งที่มีคนถ่ายบิล ยิ่งชีตโตยิ่งช้าขึ้นเรื่อยๆ
-// invalidate ทันทีใน batchUpsertProductAlias() ตอนมีการเรียนรู้ alias ใหม่ของเจ้านั้น กันข้อมูลค้าง
-function getProductAliasIndex(supplierId) {
-  const key = 'productAlias_' + supplierId;
-  const cached = cacheGet(key);
-  if (cached) return cached;
-  const sh = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
-  const aliases = sh ? readTable(PRODUCT_ALIAS_SHEET).filter(a => String(a.SupplierID).trim() === String(supplierId).trim()) : [];
-  cacheSet(key, aliases, CACHE_TTL.productAlias);
-  return aliases;
-}
-function invalidateProductAliasCache(supplierId) {
-  cacheClear('productAlias_' + supplierId);
-}
-
-// เพิ่ม/แก้ไข ProductAlias หลายแถวพร้อมกันในการอ่าน/เขียนชีตครั้งเดียว (เดิม upsertProductAlias() อ่าน
-// ทั้งชีตซ้ำทุกรายการในบิล — บิลนึงมี 10-20 รายการก็อ่านทั้งชีต 10-20 รอบ) คืนจำนวนแถวที่เป็นการเรียนรู้
-// ใหม่จริง (ไว้ให้ finalizePurchaseReceipt นับ "จดจำเพิ่มกี่รายการ" ไปโชว์ผู้ใช้)
-function batchUpsertProductAlias(supplierId, items, staffName, ts) {
-  const sh = SHEET.getSheetByName(PRODUCT_ALIAS_SHEET);
-  if (!sh) throw new Error('ไม่พบชีต ' + PRODUCT_ALIAS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: AliasID, SupplierID, BillText, ProductID, ConversionFactor, BillUnit, UpdatedBy, Timestamp)');
-  const data = sh.getDataRange().getValues();
-  const headers = data[0]; // อ่านหัวคอลัมน์จริง ไม่ hardcode ลำดับ (เหตุผลเดียวกับ savePurchaseReceipt)
-  const supCol = headers.indexOf('SupplierID'), textCol = headers.indexOf('BillText');
-  if (supCol === -1 || textCol === -1) throw new Error('ไม่พบคอลัมน์ SupplierID หรือ BillText ในชีต ' + PRODUCT_ALIAS_SHEET);
-
-  // index แถวเดิมของซัพพลายเออร์นี้ไว้ในหน่วยความจำครั้งเดียว แทนที่จะ scan ทั้งชีตซ้ำทุกรายการ
-  const rowByKey = {};
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][supCol]).trim() === String(supplierId).trim()) {
-      rowByKey[normalizeAliasKey(data[i][textCol])] = i; // index ในตัวแปร data (ตรงกับแถวชีตจริงคือ +1)
-    }
-  }
-
-  const stamp = Utilities.formatDate(new Date(), TZ, 'MMdd-HHmmss');
-  let seq = 0, learnedCount = 0;
-  const newRows = [];
-
-  items.forEach(item => {
-    const key = normalizeAliasKey(item.billText);
-    const obj = {
-      AliasID: 'AL' + stamp + '-' + (seq++), // ใส่ seq กันชนกันเวลา upsert หลายแถวในวินาทีเดียวกัน (เดิมทำทีละแถวไม่มีปัญหานี้)
-      SupplierID: supplierId, BillText: item.billText, ProductID: item.productId,
-      ConversionFactor: Number(item.conversionFactor) || 1, BillUnit: item.billUnit,
-      UpdatedBy: staffName, Timestamp: ts
-    };
-    const rowIdx = rowByKey[key];
-    if (rowIdx === undefined) {
-      newRows.push(headers.map(h => obj[h] !== undefined ? obj[h] : ''));
-      learnedCount++;
-    } else {
-      headers.forEach((h, ci) => { if (h !== 'AliasID') sh.getRange(rowIdx + 1, ci + 1).setValue(obj[h]); });
-    }
-  });
-
-  if (newRows.length) {
-    sh.getRange(sh.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
-  }
-  invalidateProductAliasCache(supplierId);
-  return learnedCount;
 }
 
 /* ============ เรียงเลข SupplierID ใหม่ให้ตรงกับลำดับแถวในชีต Suppliers ============ */
