@@ -320,6 +320,31 @@ function getThaiHolidays(year) {
 }
 
 /**
+ * ===== Keep-warm — กัน cold start (เพิ่ม 13 ก.ย. 69) =====
+ * ปัญหา: Apps Script "หลับ" เองถ้าไม่มีใครเรียกใช้สักพัก คำขอแรกหลังจากนั้น (เช่นแอดมินเปิดหน้าตอนเช้า)
+ * มักช้าผิดปกติจนชน timeout ฝั่งเว็บ (เจอจริง `initAdmin:getAdminOrders: หมดเวลาเชื่อมต่อ` 13 ก.ย. 69 —
+ * reload อีกรอบเดียวก็หายเพราะสคริปต์ตื่นแล้ว) ไม่เกี่ยวกับโค้ด `updateOrder`/fix อื่นๆ ที่เพิ่งแก้ไปเลย
+ *
+ * แก้โดยตั้ง time-driven trigger ให้เรียกฟังก์ชันนี้ทุก 5-10 นาที (ทำเอง — ดูวิธีด้านล่าง) เพื่อไม่ให้สคริปต์
+ * มีโอกาส "หลับ" ตั้งแต่แรก แทนที่จะรอให้ผู้ใช้จริงเป็นคนปลุกแล้วต้องรอ/เจอ error
+ *
+ * ตั้งใจให้เบาที่สุด — ไม่แตะ Sheet/Cache/Lock ใดๆ เลย แค่ทำให้ runtime ของ Apps Script ยังทำงานอยู่
+ * กินโควต้า execution time แทบเป็น 0 วิ/ครั้ง เทียบกับโควต้าฟรีของ Google (หลักชั่วโมง/วัน) ไม่มีนัยสำคัญ
+ *
+ * วิธีตั้ง trigger (ทำครั้งเดียว ทำเองใน Apps Script Editor เท่านั้น ผมตั้งจากตรงนี้ไม่ได้):
+ * 1. เปิด Apps Script Editor ของโปรเจกต์นี้ → คลิกไอคอนนาฬิกา "Triggers" ทางซ้าย
+ * 2. กด "+ Add Trigger" มุมขวาล่าง
+ * 3. Choose which function to run: keepWarm
+ * 4. Select event source: Time-driven
+ * 5. Select type of time based trigger: Minutes timer
+ * 6. Select minute interval: Every 5 minutes (หรือ 10 นาทีก็พอ)
+ * 7. กด Save
+ */
+function keepWarm() {
+  Logger.log('keepWarm ping: ' + new Date());
+}
+
+/**
  * ฟังก์ชันทดสอบ — ใช้สำหรับกด Run มือใน Apps Script Editor ครั้งแรก
  * เพื่อ trigger popup "Authorize access" (ขอสิทธิ์เรียก URL ภายนอก)
  * เลือกฟังก์ชันนี้จาก dropdown แล้วกด Run ▶ ครั้งเดียวพอ ไม่ต้อง error เหมือน doGet
