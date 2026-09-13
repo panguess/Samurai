@@ -2377,30 +2377,24 @@ function renderBillSuccess(app){
 }
 
 /* ---- 7) เจ้าของ: บิลรอตรวจสอบ ---- */
+// เจอจริง 13 ก.ย. 69: หน้านี้ยิงไปที่โปรเจกต์ Apps Script "BillCapture" แยกต่างหาก (BILL_API_URL) ซึ่งถูก
+// เรียกใช้ห่างๆ กว่าโปรเจกต์หลักมาก (มีแค่ 5 action ใช้งาน) ทำให้เจอ "cold start" ของสคริปต์บ่อย — ไม่ error
+// ไม่ค้างตาย แค่ช้ากว่าปกติมากตอนเปิดครั้งแรกของรอบ (แคช 30 วิที่ backend มีอยู่แล้วช่วยเฉพาะเปิดซ้ำถี่ๆ
+// เท่านั้น) แก้ด้วย client-side cache แบบเดียวกับ bootstrap(): โชว์รายการล่าสุดที่เคยโหลดได้ทันทีจาก
+// sessionStorage ระหว่างรอของจริงมาแทนที่เงียบๆ เบื้องหลัง ผู้ใช้จะรู้สึกว่าเร็วขึ้นทันทีแม้ backend ยังช้าอยู่
+const PENDING_BILLS_CACHE_KEY = 'samurai_pending_bills_cache_v1';
+function readPendingBillsCache(){
+  try{ return JSON.parse(sessionStorage.getItem(PENDING_BILLS_CACHE_KEY)); }catch(e){ return null; }
+}
+function writePendingBillsCache(batches){
+  try{ sessionStorage.setItem(PENDING_BILLS_CACHE_KEY, JSON.stringify(batches)); }catch(e){}
+}
 async function renderBillPendingList(app){
   app.appendChild(topbar('บิลรอตรวจสอบ', {back:()=>go('ownerMenu')}));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
   app.appendChild(c);
 
-  // เจอจริง 7 ก.ย. 69: หน้านี้เคย apiGet('pendingBills') ครั้งเดียวจบ ไม่มี retry เลย (ต่างจาก
-  // bootstrap() ที่ retry เงียบๆ ให้อยู่แล้ว) พอเจอการเชื่อมต่อหลุดแวบเดียว (Executions log ยืนยันว่า
-  // backend สำเร็จเร็วทุกครั้ง <3 วิ) ก็ขึ้น "หมดเวลาเชื่อมต่อ" ทันทีโดยไม่มีแม้แต่ปุ่ม "ลองใหม่" ให้กด
-  // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — ใส่ retry แบบเดียวกับ bootstrap (สั้นก่อน แล้วเต็มอีกรอบ) +
-  // เพิ่มปุ่มลองใหม่ไว้เผื่อพังทั้งสองรอบจริงๆ
-  async function load(){
-    c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
-    let data;
-    try{
-      try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
-      catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
-    }catch(err){
-      c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
-        <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
-      c.querySelector('#retryPending').onclick = load;
-      return;
-    }
-    const { batches } = data;
+  function drawList(batches){
     if(!batches.length){ c.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
     c.innerHTML = batches.map(b=>{
       const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
@@ -2426,7 +2420,32 @@ async function renderBillPendingList(app){
       });
     });
   }
-  load();
+
+  // เจอจริง 7 ก.ย. 69: หน้านี้เคย apiGet('pendingBills') ครั้งเดียวจบ ไม่มี retry เลย (ต่างจาก
+  // bootstrap() ที่ retry เงียบๆ ให้อยู่แล้ว) พอเจอการเชื่อมต่อหลุดแวบเดียว (Executions log ยืนยันว่า
+  // backend สำเร็จเร็วทุกครั้ง <3 วิ) ก็ขึ้น "หมดเวลาเชื่อมต่อ" ทันทีโดยไม่มีแม้แต่ปุ่ม "ลองใหม่" ให้กด
+  // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — ใส่ retry แบบเดียวกับ bootstrap (สั้นก่อน แล้วเต็มอีกรอบ) +
+  // เพิ่มปุ่มลองใหม่ไว้เผื่อพังทั้งสองรอบจริงๆ
+  async function load(silent){
+    if(!silent) c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
+    let data;
+    try{
+      try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
+      catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
+    }catch(err){
+      if(silent) return; // มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังไม่ต้องรบกวนหน้าจอ ลองใหม่รอบหน้าแทน
+      c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
+        <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
+      c.querySelector('#retryPending').onclick = ()=> load(false);
+      return;
+    }
+    writePendingBillsCache(data.batches);
+    drawList(data.batches);
+  }
+
+  const cached = readPendingBillsCache();
+  if(cached){ drawList(cached); load(true); }
+  else{ c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`; load(false); }
 }
 
 /* ============ STAFF: supplier list (all suppliers always shown) ============ */
