@@ -1076,13 +1076,24 @@ let adminRefreshFailCount=0;
 // โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
 // (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
 // เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
+/**
+ * ===== ลูกค้าที่ไม่ต้องนับในภาพรวม/แดชบอร์ด (เพิ่ม 14 ก.ย. 69) =====
+ * เช่น "ซูโม่ Sausage" — จริงๆ เป็นร้านของเจ้าของเองอีกร้าน เอามาใช้ order web app นี้แค่ทำบิลระหว่างร้าน
+ * ไม่ใช่ลูกค้าจริง ต้องยังเห็น/จัดของ/ติดตามสถานะได้ปกติทุกอย่าง (ไม่แตะ allAdminOrders ที่ใช้ในแท็บ
+ * รอจัด/กำลังจัด/เสร็จสมบูรณ์เลย) แค่ไม่ต้องเอายอดไปรวมคำนวณในหน้า "ภาพรวม" (ยอดขาย/กราฟ/เทียบเดือน) เท่านั้น
+ * กรองตรงจุดเดียวที่นี่ (ต้นทางของ allAdminOrdersFull ซึ่งเป็นแหล่งข้อมูลเดียวที่ทุกฟังก์ชันในหน้าภาพรวมใช้
+ * ร่วมกัน — renderAdminOverview/ov_doneOrdersInRange/db_doneOrders/getAvailableOverviewMonths) แทนที่จะ
+ * ไปกรองซ้ำทีละฟังก์ชัน ถ้ามีลูกค้าลักษณะนี้เพิ่มอีกในอนาคต เพิ่มชื่อเข้า array นี้ได้เลย
+ */
+const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage'];
+
 async function fetchFullAdminOrders(silent){
   const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',20000,1,silent);
   if(data===null) return false;
   const text=JSON.stringify(data);
   if(text===lastAdminOrdersFullHash) return false;
   lastAdminOrdersFullHash=text;
-  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
   return true;
 }
 
