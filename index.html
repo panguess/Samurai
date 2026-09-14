@@ -2629,6 +2629,13 @@ async function markDone(orderId){
           return;
         }
         order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+        // [แก้ 14 ก.ย. 69] เดิมพอบันทึกจำนวนที่แก้เสร็จ ไหลต่อไปจัดเสร็จ (updateDelivery done) ทันทีในคลิกเดียว
+        // ไม่มีจังหวะให้แอดมินทวนดูว่าตัวเลข/โน้ตเหตุผลที่เพิ่งแก้ถูกต้องไหมก่อน — ผู้ใช้ยืนยันว่าไม่ต้องการแบบนั้น
+        // แยกเป็น 2 จังหวะ: คลิกนี้บันทึกแค่การแก้ไข ยังอยู่แท็บ "กำลังจัด" เห็นตัวเลขที่แก้แล้วให้ทวนก่อน ต้องกด
+        // "จัดเสร็จแล้ว" อีกครั้ง (ตอนนั้นจะไม่มี diff แล้ว เลยไม่ถามเหตุผลซ้ำ) ถึงจะจัดเสร็จจริง
+        renderAdminOrders();
+        showToast('บันทึกการแก้ไขแล้ว — กด "จัดเสร็จแล้ว" อีกครั้งเพื่อยืนยัน ✓');
+        return;
       }
     }
     const doneResult=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'},'markDone:updateDelivery');
