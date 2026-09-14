@@ -354,20 +354,22 @@
       <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
     </div>
   </div>
-  <!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด) -->
-  <div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:flex-end;justify-content:center">
-    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;padding:1.25rem 1.1rem 1.5rem">
-      <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขออเดอร์</h3>
-      <div id="reasonDiffLine" style="color:#888;font-size:13px;margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <div id="reasonChipOut" onclick="selectEditReasonChip('หมด')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">หมด</div>
-        <div id="reasonChipOther" onclick="selectEditReasonChip('')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">อื่นๆ (พิมพ์เอง)</div>
-      </div>
-      <textarea id="reasonTextInput" placeholder="ระบุเหตุผล เช่น ลูกค้าขอเปลี่ยน / ของเสีย" style="width:100%;min-height:56px;border:1px solid #ddd;border-radius:10px;padding:9px;font-size:14px;box-sizing:border-box;font-family:inherit"></textarea>
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <button onclick="cancelEditReason()" style="flex:1;padding:11px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;font-weight:600">ยกเลิก</button>
-        <button onclick="confirmEditReason()" style="flex:1;padding:11px;border-radius:10px;border:none;background:#2f7d4f;color:#fff;font-size:14px;font-weight:600">ยืนยัน</button>
-      </div>
+</div>
+
+<!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด)
+     ต้องอยู่นอก #app เพราะ show('adminApp') จะตั้ง #app เป็น display:none ทับ ถ้า modal นี้ซ้อนอยู่ข้างในจะไม่มีวันโผล่ตอนอยู่หน้าแอดมิน -->
+<div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:flex-end;justify-content:center">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;padding:1.25rem 1.1rem 1.5rem">
+    <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขออเดอร์</h3>
+    <div id="reasonDiffLine" style="color:#888;font-size:13px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div id="reasonChipOut" onclick="selectEditReasonChip('หมด')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">หมด</div>
+      <div id="reasonChipOther" onclick="selectEditReasonChip('')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">อื่นๆ (พิมพ์เอง)</div>
+    </div>
+    <textarea id="reasonTextInput" placeholder="ระบุเหตุผล เช่น ลูกค้าขอเปลี่ยน / ของเสีย" style="width:100%;min-height:56px;border:1px solid #ddd;border-radius:10px;padding:9px;font-size:14px;box-sizing:border-box;font-family:inherit"></textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button onclick="cancelEditReason()" style="flex:1;padding:11px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;font-weight:600">ยกเลิก</button>
+      <button onclick="confirmEditReason()" style="flex:1;padding:11px;border-radius:10px;border:none;background:#2f7d4f;color:#fff;font-size:14px;font-weight:600">ยืนยัน</button>
     </div>
   </div>
 </div>
