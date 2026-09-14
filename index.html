@@ -358,8 +358,8 @@
 
 <!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด)
      ต้องอยู่นอก #app เพราะ show('adminApp') จะตั้ง #app เป็น display:none ทับ ถ้า modal นี้ซ้อนอยู่ข้างในจะไม่มีวันโผล่ตอนอยู่หน้าแอดมิน -->
-<div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:flex-end;justify-content:center">
-  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column">
+<div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:center;justify-content:center;padding:24px 16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25)">
     <div style="padding:1.25rem 1.1rem 0">
       <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขแต่ละรายการ</h3>
       <div style="color:#888;font-size:12.5px;margin-bottom:8px">แต่ละรายการอาจมีเหตุผลไม่เหมือนกัน (เช่นตัวนึงหมด อีกตัวลูกค้าขอเปลี่ยน) เลือก/พิมพ์แยกทีละรายการได้</div>
@@ -1066,6 +1066,7 @@ function confirmEditReason(){
 }
 
 let adminRefreshInterval=null;
+let adminEditBusy=false; // true ตลอดช่วง markDone/saveAdminEdit ที่มีการแก้จำนวน กันไม่ให้ auto-refresh ชิงทับข้อมูลกลางทาง (ดู setInterval ด้านล่าง)
 let lastAdminOrdersHash='';
 let lastAdminOrdersFullHash='';
 let adminRefreshFailCount=0;
@@ -1138,7 +1139,14 @@ async function initAdmin(){
   adminRefreshInterval=setInterval(async()=>{
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
-    if(reorderOpen||editOpen) return;
+    const reasonOpen=document.getElementById('reasonModal')&&document.getElementById('reasonModal').style.display==='flex';
+    // [แก้ 14 ก.ย. 69] เดิมไม่เช็ค reasonModal/adminEditBusy เลย — ถ้า auto-refresh (ทุก 30 วิ) ดันดึงข้อมูล
+    // เก่าจากเซิร์ฟเวอร์มาทับ allAdminOrders ระหว่างที่แอดมินกำลังกรอกเหตุผล/กำลังบันทึกการแก้ไขจำนวนอยู่พอดี
+    // (ใช้เวลานานกว่าจุดอื่นเพราะต้องรอคนพิมพ์) หน้าสรุปตอนจบจะไปอ่าน allAdminOrders ที่ถูกข้อมูลเก่าทับไปแล้ว
+    // ทำให้ยอด/จำนวนที่โชว้ตอนจบดูเหมือน "ย้อนกลับ" ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่ดี — เพิ่ม adminEditBusy
+    // (ตั้งจาก markDone/saveAdminEdit ตลอดช่วงแก้ไข ไม่ใช่แค่ตอน modal เปิดอยู่) กันไว้อีกชั้น เผื่อ request
+    // ค้างอยู่ก่อน modal จะเปิดด้วย (ดูจุดเช็คซ้ำก่อน apply ผลด้านล่าง)
+    if(reorderOpen||editOpen||reasonOpen||adminEditBusy) return;
     const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
     if(data===null){
       adminRefreshFailCount++;
@@ -1147,6 +1155,7 @@ async function initAdmin(){
       }
       return;
     }
+    if(adminEditBusy) return; // request นี้อาจค้างอยู่ตั้งแต่ก่อนแอดมินเริ่มแก้ไข -> ผลที่ได้กลับมาอาจเก่ากว่าที่กำลังแก้อยู่ ทิ้งไปอย่าเอามาทับ
     adminRefreshFailCount=0;
     const text=JSON.stringify(data);
     if(text!==lastAdminOrdersHash){
@@ -2576,9 +2585,11 @@ async function saveAdminEdit(orderId){
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
-  const itemReasons=await promptEditReason(order.items,itemsText);
-  if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> เลิกบันทึกทั้งหมด
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
   try{
+    const itemReasons=await promptEditReason(order.items,itemsText);
+    if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> เลิกบันทึกทั้งหมด
     const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'saveAdminEdit');
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
@@ -2587,11 +2598,16 @@ async function saveAdminEdit(orderId){
     order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{adminEditBusy=false;}
 }
 
 async function markDone(orderId){
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก — เดิมไม่มีการกันตรงนี้เลย
+  // ทำให้บางครั้งข้อมูลที่เพิ่งแก้ (เช่นจำนวนที่เพิ่ม/ลด) ถูก auto-refresh ทับด้วยของเก่าก่อนจะโชว้หน้าสรุป
+  // ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่แล้ว (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
   try{
-    const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
       const items=parseItems(order.items);
       const qtyChanged=items.some((item,i)=>adminQtys[orderId][i]!==item.qty);
@@ -2624,6 +2640,7 @@ async function markDone(orderId){
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{adminEditBusy=false;}
 }
 
 async function markPacking(orderId){
@@ -2981,7 +2998,77 @@ function showError(isNetwork){
 }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
+/**
+ * ===== ดึงหน้าจอลงเพื่อรีเฟรช (Pull-to-refresh, เพิ่ม 14 ก.ย. 69) =====
+ * เลียนแบบ pattern ของ Facebook/IG — ดึงจอลงจากด้านบนสุดขณะยังไม่ scroll ไปไหน ปล่อยแล้วรีเฟรชข้อมูลของ
+ * หน้าที่กำลังดูอยู่ทันที ไม่ต้องกดปุ่ม/กลับเข้าหน้าใหม่ ใช้ touch events ธรรมดา ไม่พึ่ง library ภายนอก
+ * ทำงานเฉพาะตอน scrollY===0 เท่านั้น (กันชนกับการ scroll ปกติในหน้า) และปิดใช้งานขณะมี modal ใดๆ เปิดอยู่
+ * (editModal/reorderModal/reasonModal/confirmScreen/successScreen) กันดึงจอชนกับการเลื่อนดูเนื้อหาใน modal
+ */
+(function initPullToRefresh(){
+  const THRESHOLD=68;
+  let startY=null,pulling=false,refreshing=false;
+  const indicator=document.createElement('div');
+  indicator.id='pullRefreshIndicator';
+  indicator.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#D64109;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);z-index:9999;transition:height .12s ease-out';
+  indicator.textContent='↓ ดึงลงเพื่อรีเฟรช';
+  document.body.appendChild(indicator);
 
+  function anyModalOpen(){
+    return ['editModal','reorderModal','reasonModal','confirmScreen','successScreen'].some(id=>{
+      const el=document.getElementById(id);
+      return el&&getComputedStyle(el).display!=='none';
+    });
+  }
+
+  document.addEventListener('touchstart',e=>{
+    if(refreshing||anyModalOpen()||window.scrollY>0){startY=null;pulling=false;return;}
+    startY=e.touches[0].clientY;
+    pulling=true;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!pulling||startY===null||refreshing) return;
+    if(window.scrollY>0||anyModalOpen()){pulling=false;indicator.style.height='0px';return;}
+    const dy=e.touches[0].clientY-startY;
+    if(dy<=0){indicator.style.height='0px';return;}
+    const h=Math.min(dy*0.5,THRESHOLD+20);
+    indicator.style.height=h+'px';
+    indicator.textContent=h>=THRESHOLD?'↑ ปล่อยเพื่อรีเฟรช':'↓ ดึงลงเพื่อรีเฟรช';
+  },{passive:true});
+
+  document.addEventListener('touchend',async()=>{
+    if(!pulling||refreshing){pulling=false;return;}
+    const h=parseInt(indicator.style.height,10)||0;
+    pulling=false;
+    if(h<THRESHOLD){indicator.style.height='0px';return;}
+    refreshing=true;
+    indicator.textContent='กำลังรีเฟรช...';
+    indicator.style.height='40px';
+    try{await runPullRefresh();}catch(e){/* ปล่อยผ่าน ไม่ต้อง alert ผู้ใช้ระหว่างรีเฟรชเงียบๆ */}
+    indicator.style.height='0px';
+    refreshing=false;
+  });
+
+  // เลือกฟังก์ชันรีเฟรชตามหน้าที่กำลังแสดงอยู่จริง — ใช้ getComputedStyle แทน inline style เพราะบางหน้า
+  // (เช่น #app/#adminApp) ไม่เคยตั้ง inline style display มาก่อนจนกว่า show() จะถูกเรียกครั้งแรก
+  async function runPullRefresh(){
+    const adminVisible=getComputedStyle(document.getElementById('adminApp')).display!=='none';
+    if(adminVisible){
+      if(adminCurrentTab==='overview'){allAdminOrdersFull=null;await fetchFullAdminOrders();renderAdminOverview();}
+      else{await loadAdminOrders();}
+      await loadBusinessNotes();
+      return;
+    }
+    const appVisible=getComputedStyle(document.getElementById('app')).display!=='none';
+    if(appVisible){
+      const trackVisible=getComputedStyle(document.getElementById('trackSection')).display!=='none';
+      const shopVisible=getComputedStyle(document.getElementById('shopSection')).display!=='none';
+      if(trackVisible){await loadTrackSection();return;}
+      if(shopVisible){await loadProducts();return;}
+    }
+  }
+})();
 </script>
 <!-- Confirm Screen (outside app) -->
 <div id="confirmScreen" style="display:none;min-height:100vh;background:#f5f3f0;flex-direction:column">

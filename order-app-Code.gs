@@ -720,13 +720,18 @@ function createOrder(data) {
  * total_before, items_after, total_after — ถ้ายังไม่มีชีตนี้ ฟังก์ชันนี้จะข้ามการ log เงียบๆ (ไม่ทำให้
  * updateOrder ทั้งฟังก์ชันพังไปด้วยแค่เพราะยังไม่ได้สร้างชีต log)
  *
- * [เพิ่ม 14 ก.ย. 69] เพิ่ม 2 คอลัมน์ทางเลือก: change_summary (สรุปรายการที่เปลี่ยน เช่น
- * "ปลาระเบิดกลม ห้าดาว x2→x1"), reason (เหตุผลที่แอดมินเลือก/พิมพ์ตอนแก้ เช่น "หมด") — ใช้ pattern
- * เดียวกับคอลัมน์เดิม (`h in rowObj` ตามหัวคอลัมน์จริงในชีต) ถ้าชีตยังไม่มี 2 คอลัมน์นี้ จะแค่ไม่เขียนค่าลงไป
- * ไม่ทำให้ log พังหรือขาดคอลัมน์เดิมไป — ต้องเพิ่มหัวคอลัมน์ 'change_summary' และ 'reason' ใน sheet
- * OrderEditLog เองก่อนถึงจะเห็นข้อมูล 2 ค่านี้จริง
+ * [เพิ่ม 14 ก.ย. 69] เพิ่มคอลัมน์ทางเลือก change_summary (สรุปรายการที่เปลี่ยนพร้อมเหตุผลผูกไว้ต่อรายการ
+ * เช่น "ปลาระเบิดกลม ห้าดาว x2→x1 (หมด)") — ใช้ pattern เดียวกับคอลัมน์เดิม (`h in rowObj` ตามหัวคอลัมน์จริง
+ * ในชีต) ถ้าชีตยังไม่มีคอลัมน์นี้ จะแค่ไม่เขียนค่าลงไป ไม่ทำให้ log พังหรือขาดคอลัมน์เดิมไป
+ *
+ * [แก้ 14 ก.ย. 69 — ต่อ] เดิมมีคอลัมน์ 'reason' แยกอีกตัวเก็บเหตุผลที่ไม่ซ้ำกันคั่นด้วย ';' — ซ้ำซ้อนกับ
+ * change_summary ที่ผูกเหตุผลไว้ต่อรายการอยู่แล้ว เลิกเขียนคอลัมน์นั้นแล้ว (เหลือไว้เฉยๆ เผื่อมีข้อมูลเก่า
+ * ไม่ลบคอลัมน์ทิ้งเพื่อไม่ให้แถวเก่าเลื่อน) เปลี่ยนไปเขียน total_diff แทน (ยอดหลังแก้ลบยอดก่อนแก้ เช่น
+ * -650 หรือ +200) ให้เห็นส่วนต่างตรงๆ ไม่ต้องเอา total_after ลบ total_before เองทุกครั้ง — ต้องเพิ่มหัวคอลัมน์
+ * 'total_diff' ใน sheet OrderEditLog เองก่อนถึงจะเห็นค่านี้จริง (ลบคอลัมน์ 'reason' ทิ้งเองได้ถ้าต้องการ
+ * ไม่กระทบโค้ด เพราะเขียนตามหัวคอลัมน์จริงอยู่แล้ว ไม่ใช่ตามตำแหน่ง)
  */
-function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter, changeSummary, reason) {
+function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter, changeSummary) {
   try {
     const sheet = getSheet('OrderEditLog');
     if (!sheet) {
@@ -745,7 +750,7 @@ function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, t
       items_after: itemsAfter,
       total_after: totalAfter,
       change_summary: changeSummary || '',
-      reason: reason || ''
+      total_diff: (Number(totalAfter) || 0) - (Number(totalBefore) || 0)
     };
     const row = headers.map(h => (h in rowObj) ? rowObj[h] : '');
     sheet.appendRow(row);
@@ -841,10 +846,7 @@ function updateOrder(data) {
     // เพื่อให้ getOrderEditSummary แยกกลับเป็นคนละบูลเล็ตได้ตอนสรุปใส่ Telegram — อ่านง่ายกว่าตอนแก้หลายรายการ
     const diffs = diffItemsText(itemsBefore, data.items);
     const changeSummary = formatItemsDiffWithReasons(diffs, data.itemReasons).join('\n');
-    // คอลัมน์ reason แยกต่างหาก เก็บแค่เหตุผลที่ไม่ซ้ำกันทั้งหมดของการแก้ครั้งนี้ (คั่นด้วย ; ) ไว้กรอง/ค้นหาเร็วๆ
-    // ส่วนรายละเอียดจริงว่าเหตุผลไหนคู่กับรายการไหนอยู่ใน change_summary ที่ผูกไว้ต่อรายการแล้ว
-    const uniqueReasons = data.itemReasons ? [...new Set(Object.values(data.itemReasons))] : [];
-    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary, uniqueReasons.join('; '));
+    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary);
 
     return response({ success: true });
   } catch (e) {
@@ -917,7 +919,12 @@ function updateDelivery(data) {
         // กันความสับสนตอนยอด "สั่ง" กับยอด "จัดเสร็จ" ไม่ตรงกัน (ดู comment ของ getOrderEditSummary ด้านบน)
         const editSummary = getOrderEditSummary(data.order_id);
         if (editSummary) {
-          notifyMessage += '\n\n⚠️ มีการแก้ไขก่อนจัดเสร็จ (ยอดเดิม ฿' + formatMoney(editSummary.originalTotal) + '):\n- ' +
+          // [แก้ 14 ก.ย. 69] เดิมโชว์แค่ "ยอดเดิม" อย่างเดียว ต้องเอา ยอดจัดเสร็จ ลบเองถึงจะรู้ว่าต่างกันเท่าไหร่
+          // เพิ่มส่วนต่างให้ตรงๆ พร้อมเครื่องหมาย +/- (ลด = ติดลบ, เพิ่ม = บวก) ไม่ต้องคำนวณเอง
+          const totalDiff = (Number(total) || 0) - (Number(editSummary.originalTotal) || 0);
+          const diffText = (totalDiff >= 0 ? '+' : '-') + formatMoney(Math.abs(totalDiff));
+          notifyMessage += '\n\n⚠️ มีการแก้ไขก่อนจัดเสร็จ (ยอดเดิม ฿' + formatMoney(editSummary.originalTotal) +
+            ' → ยอดนี้ ฿' + formatMoney(total) + ', ต่างกัน ' + diffText + ' บาท):\n- ' +
             editSummary.lines.join('\n- ');
         }
       }
