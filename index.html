@@ -243,6 +243,8 @@
     .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
     .admin-item-name{font-size:17px;font-weight:500;flex:1}
     .admin-item-price{font-size:12.5px;color:#aaa;margin-top:2px;font-weight:400}
+    .admin-item-reason{font-size:11.5px;color:#aaa;margin-top:2px;font-style:italic}
+    .admin-item-reason b{font-weight:600;font-style:normal}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
     .admin-qty-num{font-size:16px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
@@ -1222,8 +1224,23 @@ function buildAdminItemsHtml(o,canAdjustQty){
     const unitPrice=Number(prod.price)||0;
     const lineTotal=unitPrice*item.qty;
     const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
-    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+    const reasonHtml=buildItemEditNoteHtml(o,item.name);
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
   }).join('');
+}
+
+/**
+ * ===== โน้ตเหตุผลแก้ไขใต้รายการที่เพิ่งแก้ (เพิ่ม 14 ก.ย. 69) =====
+ * โชว์เฉพาะรายการที่ถูกแก้จำนวนในรอบล่าสุด (ตั้งแต่คลิก "จัดเสร็จแล้ว" ครั้งแรกที่บันทึกการแก้ไข — ดู markDone)
+ * เก็บไว้แค่ใน memory (o.itemEditNotes) ไม่ได้บันทึกถาวรในหน้านี้ — พอ auto-refresh ดึงข้อมูลใหม่จาก
+ * เซิร์ฟเวอร์มาแทนที่ orders array (ไม่มีฟิลด์นี้ติดมาด้วย เพราะไม่ใช่คอลัมน์ในชีต) โน้ตนี้จะหายไปเอง
+ * ตั้งใจให้เป็นแบบนั้น เพราะจุดประสงค์คือให้แอดมินทวนดูทันทีก่อนกดจัดเสร็จรอบสอง ไม่ใช่ประวัติถาวร
+ * (ประวัติถาวรจริงๆ อยู่ใน Google Sheet "OrderEditLog" อยู่แล้ว)
+ */
+function buildItemEditNoteHtml(o,itemName){
+  const note=o.itemEditNotes&&o.itemEditNotes[itemName];
+  if(!note) return '';
+  return `<div class="admin-item-reason">แก้จาก x${note.before} → <b>x${note.after}</b> — ${escapeHtml(note.reason)}</div>`;
 }
 
 let openAdminPendingCards=new Set();
@@ -1337,7 +1354,8 @@ function renderAdminOrders(){
       const unitPrice=Number(prod.price)||0;
       const lineTotal=unitPrice*item.qty;
       const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      const reasonHtml=buildItemEditNoteHtml(o,item.name);
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
@@ -2596,6 +2614,13 @@ async function saveAdminEdit(orderId){
       return;
     }
     order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
+    const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+    const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+    order.itemEditNotes=order.itemEditNotes||{};
+    Object.keys(itemReasons).forEach(name=>{
+      order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+    });
+    renderAdminOrders();
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
   finally{adminEditBusy=false;}
@@ -2629,6 +2654,15 @@ async function markDone(orderId){
           return;
         }
         order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+        // [เพิ่ม 14 ก.ย. 69] เก็บ before/after/เหตุผลของแต่ละรายการที่เพิ่งแก้ไว้ใน order เอง (ไม่ใช่คอลัมน์ในชีต
+        // แค่ใน memory ของหน้านี้) ให้ buildAdminItemsHtml/รายการในแท็บกำลังจัดโชว์โน้ตเล็กๆ ใต้ราคาทันที ทวนดูได้
+        // ก่อนกด "จัดเสร็จแล้ว" รอบสอง — หายไปเองตอน auto-refresh ครั้งถัดไปได้ข้อมูลจริงจากเซิร์ฟเวอร์มาแทน
+        const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+        const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+        order.itemEditNotes=order.itemEditNotes||{};
+        Object.keys(itemReasons).forEach(name=>{
+          order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+        });
         // [แก้ 14 ก.ย. 69] เดิมพอบันทึกจำนวนที่แก้เสร็จ ไหลต่อไปจัดเสร็จ (updateDelivery done) ทันทีในคลิกเดียว
         // ไม่มีจังหวะให้แอดมินทวนดูว่าตัวเลข/โน้ตเหตุผลที่เพิ่งแก้ถูกต้องไหมก่อน — ผู้ใช้ยืนยันว่าไม่ต้องการแบบนั้น
         // แยกเป็น 2 จังหวะ: คลิกนี้บันทึกแค่การแก้ไข ยังอยู่แท็บ "กำลังจัด" เห็นตัวเลขที่แก้แล้วให้ทวนก่อน ต้องกด
