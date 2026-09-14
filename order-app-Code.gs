@@ -508,6 +508,30 @@ function computeOrderTotal(itemsText, customerGroup) {
   return items.reduce((sum, item) => sum + item.qty * (priceMap[item.name] || 0), 0);
 }
 
+/**
+ * ===== สรุปรายการที่เปลี่ยนตอนแก้ไขออเดอร์ (เพิ่ม 14 ก.ย. 69) =====
+ * เทียบ items ก่อน/หลังแก้ (string format เดียวกับ parseItemsServer) แล้วคืนเฉพาะรายการที่จำนวนเปลี่ยนจริง
+ * (เพิ่มใหม่, ตัดออกทั้งอัน, หรือลดจำนวน) ใช้ทั้งเก็บลง OrderEditLog และสรุปใส่ข้อความ Telegram ตอนจัดเสร็จ
+ */
+function diffItemsText(itemsBeforeText, itemsAfterText) {
+  const before = {};
+  parseItemsServer(itemsBeforeText).forEach(i => { before[i.name] = i.qty; });
+  const after = {};
+  parseItemsServer(itemsAfterText).forEach(i => { after[i.name] = i.qty; });
+  const names = new Set(Object.keys(before).concat(Object.keys(after)));
+  const diffs = [];
+  names.forEach(name => {
+    const b = before[name] || 0;
+    const a = after[name] || 0;
+    if (b !== a) diffs.push({ name: name, before: b, after: a });
+  });
+  return diffs;
+}
+
+function formatItemsDiff(diffs) {
+  return diffs.map(d => d.name + ' x' + d.before + '→x' + d.after).join(', ');
+}
+
 function getOrders(customer_id) {
   // ประวัติลูกค้าอาจมี order ข้ามปี (คนละ sheet) -> ต้อง merge ทุก sheet เสมอ
   // ใช้เฉพาะหน้า "ประวัติทั้งหมด" (loadHistory ฝั่ง index.html) ที่ตั้งใจให้เห็นทุกออเดอร์จริงๆ เท่านั้น —
@@ -677,8 +701,14 @@ function createOrder(data) {
  * ต้องมีชีตชื่อ 'OrderEditLog' พร้อมหัวคอลัมน์: log_id, order_id, timestamp, edited_by, items_before,
  * total_before, items_after, total_after — ถ้ายังไม่มีชีตนี้ ฟังก์ชันนี้จะข้ามการ log เงียบๆ (ไม่ทำให้
  * updateOrder ทั้งฟังก์ชันพังไปด้วยแค่เพราะยังไม่ได้สร้างชีต log)
+ *
+ * [เพิ่ม 14 ก.ย. 69] เพิ่ม 2 คอลัมน์ทางเลือก: change_summary (สรุปรายการที่เปลี่ยน เช่น
+ * "ปลาระเบิดกลม ห้าดาว x2→x1"), reason (เหตุผลที่แอดมินเลือก/พิมพ์ตอนแก้ เช่น "หมด") — ใช้ pattern
+ * เดียวกับคอลัมน์เดิม (`h in rowObj` ตามหัวคอลัมน์จริงในชีต) ถ้าชีตยังไม่มี 2 คอลัมน์นี้ จะแค่ไม่เขียนค่าลงไป
+ * ไม่ทำให้ log พังหรือขาดคอลัมน์เดิมไป — ต้องเพิ่มหัวคอลัมน์ 'change_summary' และ 'reason' ใน sheet
+ * OrderEditLog เองก่อนถึงจะเห็นข้อมูล 2 ค่านี้จริง
  */
-function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter) {
+function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter, changeSummary, reason) {
   try {
     const sheet = getSheet('OrderEditLog');
     if (!sheet) {
@@ -695,13 +725,48 @@ function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, t
       items_before: itemsBefore,
       total_before: totalBefore,
       items_after: itemsAfter,
-      total_after: totalAfter
+      total_after: totalAfter,
+      change_summary: changeSummary || '',
+      reason: reason || ''
     };
     const row = headers.map(h => (h in rowObj) ? rowObj[h] : '');
     sheet.appendRow(row);
   } catch (e) {
     // ไม่ throw ต่อ — log ล้มเหลวต้องไม่ทำให้การแก้ไขออเดอร์จริงพังไปด้วย
     console.error('logOrderEdit ล้มเหลว: ' + e);
+  }
+}
+
+/**
+ * ===== รวมประวัติแก้ไขของออเดอร์หนึ่งๆ เพื่อสรุปใส่ Telegram ตอนจัดเสร็จ (เพิ่ม 14 ก.ย. 69) =====
+ * อ่านทุกแถวใน OrderEditLog ที่เป็น order_id นี้ เรียงตามเวลา คืน { originalTotal, lines }
+ * originalTotal = total_before ของแถวแรกสุด (ยอดตอนสร้างออเดอร์ ก่อนถูกแก้ครั้งใดเลย)
+ * lines = array ของ "change_summary (reason)" ทุกครั้งที่มีการแก้ไข (ข้ามแถวที่ไม่มี change_summary)
+ * ถ้าไม่มีชีต/ไม่มีประวัติแก้ไขเลย คืน null (แปลว่าไม่ต้องแสดงอะไรเพิ่มในข้อความแจ้งเตือน)
+ */
+function getOrderEditSummary(orderId) {
+  try {
+    const sheet = getSheet('OrderEditLog');
+    if (!sheet) return null;
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) return null;
+    const headers = rows[0];
+    const entries = [];
+    for (let i = 1; i < rows.length; i++) {
+      const obj = rowToObj(headers, rows[i]);
+      if (obj['order_id'] === orderId) entries.push(obj);
+    }
+    if (!entries.length) return null;
+    entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const originalTotal = entries[0]['total_before'];
+    const lines = entries
+      .filter(e => e['change_summary'])
+      .map(e => e['change_summary'] + (e['reason'] ? ' (' + e['reason'] + ')' : ''));
+    if (!lines.length) return null;
+    return { originalTotal: originalTotal, lines: lines };
+  } catch (e) {
+    console.error('getOrderEditSummary ล้มเหลว: ' + e);
+    return null;
   }
 }
 
@@ -746,7 +811,10 @@ function updateOrder(data) {
     invalidateOrderCache();
 
     const editedBy = isAdminCall ? 'admin' : ('customer:' + ownerCustomerId);
-    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total);
+    // data.editReason (ถ้ามี) มาจากแอดมินเลือก/พิมพ์ตอนแก้ไข (เช่น "หมด") — ดู renderAdminOrders/markDone
+    // ฝั่ง index.html เดียวกับ diffItemsText ด้านล่าง เอาไว้สรุปใส่ Telegram ตอนจัดเสร็จ
+    const changeSummary = formatItemsDiff(diffItemsText(itemsBefore, data.items));
+    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary, data.editReason);
 
     return response({ success: true });
   } catch (e) {
@@ -814,6 +882,14 @@ function updateDelivery(data) {
           'รหัส: ' + data.order_id + '\n' +
           'ลูกค้า: ' + customerName + '\n' +
           'ยอดรวม: ฿' + formatMoney(total);
+
+        // [เพิ่ม 14 ก.ย. 69] ถ้าออเดอร์นี้เคยถูกแก้ไขมาก่อน (เช่น ของหมดตอนจัด) ต่อท้ายด้วยสรุปว่าแก้อะไรไปทำไม
+        // กันความสับสนตอนยอด "สั่ง" กับยอด "จัดเสร็จ" ไม่ตรงกัน (ดู comment ของ getOrderEditSummary ด้านบน)
+        const editSummary = getOrderEditSummary(data.order_id);
+        if (editSummary) {
+          notifyMessage += '\n\n⚠️ มีการแก้ไขก่อนจัดเสร็จ (ยอดเดิม ฿' + formatMoney(editSummary.originalTotal) + '):\n- ' +
+            editSummary.lines.join('\n- ');
+        }
       }
 
     return response({ success: true });

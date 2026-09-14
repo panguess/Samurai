@@ -354,6 +354,22 @@
       <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
     </div>
   </div>
+  <!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด) -->
+  <div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:flex-end;justify-content:center">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;padding:1.25rem 1.1rem 1.5rem">
+      <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขออเดอร์</h3>
+      <div id="reasonDiffLine" style="color:#888;font-size:13px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div id="reasonChipOut" onclick="selectEditReasonChip('หมด')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">หมด</div>
+        <div id="reasonChipOther" onclick="selectEditReasonChip('')" style="padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer">อื่นๆ (พิมพ์เอง)</div>
+      </div>
+      <textarea id="reasonTextInput" placeholder="ระบุเหตุผล เช่น ลูกค้าขอเปลี่ยน / ของเสีย" style="width:100%;min-height:56px;border:1px solid #ddd;border-radius:10px;padding:9px;font-size:14px;box-sizing:border-box;font-family:inherit"></textarea>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="cancelEditReason()" style="flex:1;padding:11px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;font-weight:600">ยกเลิก</button>
+        <button onclick="confirmEditReason()" style="flex:1;padding:11px;border-radius:10px;border:none;background:#2f7d4f;color:#fff;font-size:14px;font-weight:600">ยืนยัน</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="adminApp">
@@ -989,6 +1005,51 @@ async function saveEdit(){
 }
 
 function closeEditModal(){document.getElementById('editModal').style.display='none';}
+
+/**
+ * ===== เหตุผลแก้ไขออเดอร์ (เพิ่ม 14 ก.ย. 69) — เฉพาะแอดมิน =====
+ * แสดงถามเหตุผลเฉพาะตอนมีรายการสินค้าถูกตัด/ลดจำนวนจริง (diff.length>0) เท่านั้น ไม่รบกวนถ้าไม่มีอะไรเปลี่ยน
+ * คืน Promise<string|null> — null แปลว่าแอดมินกด "ยกเลิก" (ผู้เรียกต้องเลิกบันทึกด้วย ไม่ใช่แค่ข้ามเหตุผล)
+ * ปุ่ม "หมด" กดแล้วกรอกให้อัตโนมัติจบเลย ไม่ต้องพิมพ์ ส่วน "อื่นๆ" ให้พิมพ์เหตุผลเองในช่องข้างล่าง
+ */
+let editReasonResolver=null;
+function buildItemsDiffLine(itemsBeforeText,itemsAfterText){
+  const before={};parseItems(itemsBeforeText).forEach(i=>{before[i.name]=i.qty;});
+  const after={};parseItems(itemsAfterText).forEach(i=>{after[i.name]=i.qty;});
+  const names=new Set([...Object.keys(before),...Object.keys(after)]);
+  const diffs=[];
+  names.forEach(name=>{
+    const b=before[name]||0,a=after[name]||0;
+    if(b!==a) diffs.push(`${name} x${b}→x${a}`);
+  });
+  return diffs;
+}
+function promptEditReason(itemsBeforeText,itemsAfterText){
+  const diffs=buildItemsDiffLine(itemsBeforeText,itemsAfterText);
+  if(!diffs.length) return Promise.resolve(''); // ไม่มีอะไรเปลี่ยนเลย -> ไม่ต้องถาม ส่งค่าว่างกลับไปตรงๆ
+  document.getElementById('reasonDiffLine').textContent=diffs.join(', ');
+  document.getElementById('reasonTextInput').value='';
+  document.getElementById('reasonChipOut').style.cssText='padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer';
+  document.getElementById('reasonChipOther').style.cssText='padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer';
+  document.getElementById('reasonModal').style.display='flex';
+  return new Promise(resolve=>{editReasonResolver=resolve;});
+}
+function selectEditReasonChip(val){
+  const outChip=document.getElementById('reasonChipOut'),otherChip=document.getElementById('reasonChipOther');
+  const selectedStyle='padding:8px 14px;border-radius:20px;border:1px solid #2f7d4f;background:#2f7d4f;color:#fff;font-size:13px;cursor:pointer';
+  const normalStyle='padding:8px 14px;border-radius:20px;border:1px solid #ddd;font-size:13px;cursor:pointer';
+  if(val==='หมด'){outChip.style.cssText=selectedStyle;otherChip.style.cssText=normalStyle;document.getElementById('reasonTextInput').value='หมด';}
+  else{otherChip.style.cssText=selectedStyle;outChip.style.cssText=normalStyle;document.getElementById('reasonTextInput').value='';document.getElementById('reasonTextInput').focus();}
+}
+function cancelEditReason(){
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(null);editReasonResolver=null;}
+}
+function confirmEditReason(){
+  const reason=document.getElementById('reasonTextInput').value.trim();
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(reason||'(ไม่ระบุเหตุผล)');editReasonResolver=null;}
+}
 
 let adminRefreshInterval=null;
 let lastAdminOrdersHash='';
@@ -2501,8 +2562,10 @@ async function saveAdminEdit(orderId){
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
+  const editReason=await promptEditReason(order.items,itemsText);
+  if(editReason===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> เลิกบันทึกทั้งหมด
   try{
-    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp},'saveAdminEdit');
+    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp,editReason},'saveAdminEdit');
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
       return;
@@ -2528,7 +2591,9 @@ async function markDone(orderId){
         const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
-        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp},'markDone:updateOrder');
+        const editReason=await promptEditReason(order.items,itemsStr);
+        if(editReason===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> ยังไม่จัดเสร็จ ยังไม่บันทึกจำนวนใหม่
+        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp,editReason},'markDone:updateOrder');
         if(!updateResult||updateResult.success===false){
           alert('บันทึกจำนวนที่แก้ไขไม่สำเร็จ: '+(updateResult&&updateResult.error?updateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ ยังไม่ได้บันทึกสถานะจัดเสร็จ');
           return;
