@@ -532,6 +532,24 @@ function formatItemsDiff(diffs) {
   return diffs.map(d => d.name + ' x' + d.before + '→x' + d.after).join(', ');
 }
 
+/**
+ * [แก้ 14 ก.ย. 69] เดิมมีเหตุผลเดียวรวมกันทั้งการแก้ไข — พบว่าผิด เพราะแก้หลายรายการพร้อมกันอาจคนละเหตุผล
+ * (เช่นตัวนึงหมด อีกตัวลูกค้าขอเปลี่ยน) รวมเป็นเหตุผลเดียวจะไม่ตรงกับความจริง เปลี่ยนเป็นรับ itemReasons
+ * เป็น object {ชื่อสินค้า: เหตุผล} จาก frontend (ดู promptEditReason ฝั่ง index.html) ผูกเหตุผลเข้ากับ
+ * รายการนั้นๆ ตรงๆ
+ *
+ * [แก้ 14 ก.ย. 69 — ต่อ] เดิม join(', ') รวมทุกรายการเป็นบรรทัดเดียวคั่นด้วยจุลภาค อ่านยากเวลามีหลาย
+ * รายการ (โดยเฉพาะใน Telegram ที่จะกลายเป็นข้อความยาวพืดบรรทัดเดียว) เปลี่ยนเป็นคืน array แยกทีละรายการ
+ * แทน ให้ผู้เรียก join('\n') เองตอนเก็บลง cell เดียวของ OrderEditLog (ยังอยู่ในเซลล์เดิม ไม่เพิ่มคอลัมน์)
+ * แล้ว getOrderEditSummary จะแยก \n กลับเป็นบรรทัดย่อยตอนสร้างข้อความ Telegram ให้แต่ละรายการขึ้นบูลเล็ตของตัวเอง
+ */
+function formatItemsDiffWithReasons(diffs, itemReasons) {
+  return diffs.map(d => {
+    const reason = itemReasons && itemReasons[d.name];
+    return d.name + ' x' + d.before + '→x' + d.after + (reason ? ' (' + reason + ')' : '');
+  });
+}
+
 function getOrders(customer_id) {
   // ประวัติลูกค้าอาจมี order ข้ามปี (คนละ sheet) -> ต้อง merge ทุก sheet เสมอ
   // ใช้เฉพาะหน้า "ประวัติทั้งหมด" (loadHistory ฝั่ง index.html) ที่ตั้งใจให้เห็นทุกออเดอร์จริงๆ เท่านั้น —
@@ -759,9 +777,15 @@ function getOrderEditSummary(orderId) {
     if (!entries.length) return null;
     entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     const originalTotal = entries[0]['total_before'];
-    const lines = entries
-      .filter(e => e['change_summary'])
-      .map(e => e['change_summary'] + (e['reason'] ? ' (' + e['reason'] + ')' : ''));
+    // change_summary ผูกเหตุผลไว้ต่อรายการอยู่แล้ว (ดู formatItemsDiffWithReasons) ไม่ต้องต่อคอลัมน์ reason
+    // ซ้ำอีกรอบ — คอลัมน์ reason แยกไว้แค่เผื่อกรอง/ค้นหาเร็วๆ ในชีตเท่านั้น
+    // แต่ละ entry อาจมีหลายรายการรวมกันคั่นด้วย \n (ดู updateOrder) -> split ให้แต่ละรายการเป็นบูลเล็ตของ
+    // ตัวเองตอนสรุปใส่ Telegram แทนที่จะรวมทุกรายการของทุกครั้งแก้ไว้บรรทัดเดียวยาวๆ
+    const lines = [];
+    entries.forEach(e => {
+      if (!e['change_summary']) return;
+      String(e['change_summary']).split('\n').forEach(line => { if (line) lines.push(line); });
+    });
     if (!lines.length) return null;
     return { originalTotal: originalTotal, lines: lines };
   } catch (e) {
@@ -811,10 +835,16 @@ function updateOrder(data) {
     invalidateOrderCache();
 
     const editedBy = isAdminCall ? 'admin' : ('customer:' + ownerCustomerId);
-    // data.editReason (ถ้ามี) มาจากแอดมินเลือก/พิมพ์ตอนแก้ไข (เช่น "หมด") — ดู renderAdminOrders/markDone
-    // ฝั่ง index.html เดียวกับ diffItemsText ด้านล่าง เอาไว้สรุปใส่ Telegram ตอนจัดเสร็จ
-    const changeSummary = formatItemsDiff(diffItemsText(itemsBefore, data.items));
-    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary, data.editReason);
+    // data.itemReasons (ถ้ามี) เป็น object {ชื่อสินค้า: เหตุผล} มาจากแอดมินเลือก/พิมพ์ทีละรายการตอนแก้ไข
+    // (เช่นตัวนึง "หมด" อีกตัว "ลูกค้าขอเปลี่ยน") — ดู promptEditReason ฝั่ง index.html ผูกเหตุผลเข้ากับรายการ
+    // นั้นตรงๆ เก็บลง change_summary หนึ่ง cell แต่แยกบรรทัดด้วย \n ต่อรายการ (ไม่ join(', ') รวมบรรทัดเดียว)
+    // เพื่อให้ getOrderEditSummary แยกกลับเป็นคนละบูลเล็ตได้ตอนสรุปใส่ Telegram — อ่านง่ายกว่าตอนแก้หลายรายการ
+    const diffs = diffItemsText(itemsBefore, data.items);
+    const changeSummary = formatItemsDiffWithReasons(diffs, data.itemReasons).join('\n');
+    // คอลัมน์ reason แยกต่างหาก เก็บแค่เหตุผลที่ไม่ซ้ำกันทั้งหมดของการแก้ครั้งนี้ (คั่นด้วย ; ) ไว้กรอง/ค้นหาเร็วๆ
+    // ส่วนรายละเอียดจริงว่าเหตุผลไหนคู่กับรายการไหนอยู่ใน change_summary ที่ผูกไว้ต่อรายการแล้ว
+    const uniqueReasons = data.itemReasons ? [...new Set(Object.values(data.itemReasons))] : [];
+    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary, uniqueReasons.join('; '));
 
     return response({ success: true });
   } catch (e) {
