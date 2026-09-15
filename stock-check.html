@@ -3115,6 +3115,297 @@ async function renderOrderPage(app){
     `;
   }
 
+  // สร้างการ์ดของเจ้าเดียว (ใช้ทั้งตอน render ทั้งหน้าใน renderGroups() และตอน rebuildCard() แพตช์เจ้าเดียว)
+  // คืน null ถ้าเจ้านี้ไม่มีสินค้า หรือสินค้าทั้งหมดถูกกรองออกด้วยคำค้นหา (filter)
+  function buildSupplierCard(s, filter){
+    const allItems = productsOf(s.id);
+    if(!allItems.length) return null;
+    const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
+    if(!items.length) return null;
+    const stockupNote = supplierStockupNote(s);
+
+    const { checkedCount, isOrdered, isConfirmed } = supplierStats(s);
+    const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
+    const open = expandedSuppliers.has(s.id);
+
+    // เดิมบังคับให้เช็คสต๊อกครบทุกรายการก่อนถึงจะขึ้นสถานะ "สั่งแล้ว" — แต่ในทางปฏิบัติ
+    // บางเจ้ามีของหลายสิบรายการ แต่วันนี้อยากสั่งแค่ 1-2 อย่างโดยไม่ต้องไล่เช็คสต๊อกทั้งหมด
+    // จึงตัดเงื่อนไข fullyChecked ออก ขอแค่มีการสร้างข้อความสั่งของไปแล้วก็พอ (isOrdered)
+    const orderDone = isOrdered;
+    // Single combined status per supplier — one line, one color, states an action
+    // rather than two badges (stock-check count vs order status) that read as unrelated.
+    // นับตามจำนวนสินค้าที่ลูกจ้างกดติ๊กว่าเช็คแล้วจริงๆ เท่านั้น — สินค้าที่ลูกจ้างเช็คแล้วแต่ไม่มีของ
+    // (กรอกคงเหลือเป็น 0) ก็นับว่า "เช็คแล้ว" เหมือนกัน เพราะติ๊กผ่านการเช็คสต๊อกไปแล้วจริง
+    const checkedRatio = `${checkedCount}/${allItems.length}`;
+    let stateClass, statusText, subText;
+    if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกแล้ว ${checkedRatio} รายการ`; }
+    else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (${checkedRatio} รายการ)`; }
+    else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
+    else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
+
+    // จำนวนรายการที่เจ้าของกดเลือกจะสั่งจริง (orderQty > 0) — นับจากที่กรอกเองล้วนๆ
+    // ไม่เกี่ยวกับคงเหลือ/เช็คสต๊อก เพื่อไม่ให้ปนกับความไม่แน่นอนว่า "คงเหลือ 0" หมายถึงหมดจริงหรือลูกจ้างข้าม
+    const baseSubText = subText;
+    function countSelected(){ return allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).length; }
+    function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · เลือกไว้ ${n} รายการ` : ''; }
+    subText = baseSubText + selectedSuffix();
+
+    // data-supplier-card ใช้ให้ rebuildCard() หาการ์ดเดิมใน DOM มาแทนที่ด้วยตัวใหม่ตรงตำแหน่งเดิม
+    const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
+    card.dataset.supplierCard = s.id;
+    const strip = document.createElement('div'); strip.className = 'ord-card-strip';
+    card.appendChild(strip);
+    const main = document.createElement('div'); main.className = 'ord-card-main';
+
+    const head = document.createElement('div'); head.className = 'ord-card-head';
+    head.innerHTML = `
+      <i class="ti ti-chevron-down chev"></i>
+      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>
+      <span class="ord-card-name">${s.name}</span>
+      <div class="ord-card-status">
+        <div class="status-top-row">
+          ${stockupNote ? `<span class="stockup-tag">${stockupNote}</span>` : ''}
+          <span class="status-line ${stateClass}">${statusText}</span>
+        </div>
+        <span class="status-sub">${subText}</span>
+      </div>
+    `;
+    head.onclick = ()=>{
+      if(expandedSuppliers.has(s.id)) expandedSuppliers.delete(s.id); else expandedSuppliers.add(s.id);
+      rebuildCard(s);
+    };
+    main.appendChild(head);
+
+    // วงกลม "✓" หน้าชื่อเจ้า — โผล่ทุกเจ้าเสมอ (ไม่ผูกกับ orderDone อีกต่อไป) เพราะบางทีเจ้าของ
+    // สั่งของเองนอกแอปโดยไม่ผ่านการสร้างข้อความในระบบเลย ก็ยังต้องกดยืนยันว่าสั่งไปแล้วได้
+    // ใช้เป็นปุ่มกดยืนยันด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว": วงว่าง = ยังไม่ได้ส่ง, วงเขียวมี ✓ = ส่งแล้ว
+    // แยกจากสถานะ "สร้างข้อความแล้ว" (statusText ด้านขวา) ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น
+    // ไม่ได้รู้ว่าข้อความถูกส่งออกไปหา supplier จริงหรือยัง
+    const confirmBtn = head.querySelector('.order-done-check');
+    if(confirmBtn){
+      // เก็บสถานะปัจจุบันไว้แยกในตัวแปรนี้ (ไม่ใช้ isConfirmed ตรงๆ) เพราะไม่ได้ renderGroups() ใหม่
+      // ทั้งหน้าหลังกดสำเร็จอีกต่อไป (เพื่อความไว) — ถ้ายังอิง isConfirmed เดิม กดสลับซ้ำสองครั้ง
+      // ในการ์ดเดียวกันโดยไม่รีเฟรชหน้า ครั้งที่สองจะยังอ่านค่าตั้งต้นเก่าอยู่ ผิดสถานะจริง
+      let confirmedNow = isConfirmed;
+      confirmBtn.onclick = async (e)=>{
+        e.stopPropagation();
+        const checked = !confirmedNow;
+        // อัปเดตหน้าจอให้เห็นผลทันที ไม่รอ apiPost เสร็จก่อน (Apps Script มัก 1-3 วิ กว่าจะตอบ
+        // กดแล้วรอเห็นผลช้าจะรู้สึกเหมือนกดไม่ติด) ค่อยยิงไปบันทึกจริงเบื้องหลัง แล้วเด้งกลับ
+        // สถานะเดิมพร้อมแจ้งเตือนถ้าบันทึกไม่สำเร็จ
+        confirmedNow = checked;
+        confirmBtn.classList.toggle('confirmed', checked);
+        confirmBtn.textContent = checked ? '✓' : '';
+        if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
+        renderStats();
+        try{
+          await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName }, true);
+        }catch(err){
+          confirmedNow = !checked;
+          confirmBtn.classList.toggle('confirmed', !checked);
+          confirmBtn.textContent = !checked ? '✓' : '';
+          if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
+          renderStats();
+          alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
+        }
+      };
+    }
+
+    const body = document.createElement('div'); body.className = 'ord-card-body';
+
+    const allSelected = items.length > 0 && items.every(p=> (state.orderQty[p.id] ?? 0) > 0);
+    const selectRow = document.createElement('div'); selectRow.className = 'select-all-row';
+    selectRow.innerHTML = `<button type="button" class="link-btn" data-selecttoggle>${allSelected ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด'}</button>`;
+    selectRow.querySelector('[data-selecttoggle]').onclick = ()=>{
+      if(allSelected) items.forEach(p=> state.orderQty[p.id] = 0);
+      else items.forEach(p=>{ state.orderQty[p.id] = state.orderQty[p.id] > 0 ? state.orderQty[p.id] : 1; });
+      rebuildCard(s);
+    };
+    body.appendChild(selectRow);
+
+    const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
+
+    items.forEach(p=>{
+      const itemChecked = !!statusByProduct[p.id];
+      if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
+      const qty = state.orderQty[p.id];
+      // สินค้าที่มีหลายหน่วย (เล็ก→ใหญ่ เรียงตาม SortOrder) แสดงคงเหลือของทุกหน่วย
+      // แต่สั่งของเป็นหน่วยใหญ่สุดเสมอ
+      const uLabel = orderUnitLabel(p);
+      const remainEntry = statusByEntry[p.id];
+      const remainParts = p.units.map(u=>{
+        const v = remainEntry ? remainEntry.remain[u.id] : null;
+        return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
+      }).filter(Boolean);
+      const remainValues = p.units.map(u=> remainEntry ? remainEntry.remain[u.id] : null);
+      // เช็คแล้ว + ทุกหน่วยคงเหลือ 0 = "หมด" จริง (ไม่ใช่แค่ยังไม่ได้เช็ค) — ไม่ต้องมี flag พิเศษเก็บแยก
+      // เพราะข้อมูลนี้แยกออกจากกันอยู่แล้ว: ไม่เช็คเลย = remain เป็น null, เช็คแล้วคงเหลือ 0 = remain เป็น 0
+      const isOutOfStock = itemChecked && remainValues.length && remainValues.every(v=> v===0);
+      const remainDisplay = isOutOfStock ? `<span class="oos-badge">หมด</span>`
+        : (itemChecked && remainParts.length ? remainParts.join(' ') : '–');
+
+      const skipDates = upcomingSkipDates(p);
+      const isSkipSet = skipDates.length > 0;
+
+      const row = document.createElement('div');
+      row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
+      row.innerHTML = `
+        <div class="prow-top">
+          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
+          <div class="prow-name-wrap">
+            <div class="prow-name">${p.name}</div>
+            ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
+          </div>
+          <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
+        </div>
+        <div class="prow-bottom">
+          <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
+          <div class="stepper">
+            <button type="button" data-step="-1">−</button>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
+            <button type="button" data-step="1">+</button>
+            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
+          </div>
+        </div>
+      `;
+      groupBox.appendChild(row);
+
+      row.querySelector('[data-unit-edit]').onclick = async (e)=>{
+        e.stopPropagation();
+        const unit = p.units[p.units.length-1];
+        const current = unit.orderLabel || unit.label;
+        // แก้แค่ป้ายที่ใช้ตอนสั่งของกับซัพพลายเออร์ — ไม่กระทบป้ายที่ลูกจ้างใช้เช็คสต๊อก (unit.label)
+        const newLabel = prompt('แก้ชื่อหน่วยที่ใช้ตอนสั่งของกับซัพพลายเออร์ของ "' + p.name + '"\n(ไม่กระทบหน่วยที่ลูกจ้างใช้เช็คสต๊อก)', current);
+        if(newLabel===null) return; // ยกเลิก
+        const trimmed = newLabel.trim();
+        if(!trimmed || trimmed===current) return;
+        const oldOrderLabel = unit.orderLabel;
+        unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
+        rebuildCard(s);
+        try{
+          await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed }, true);
+        }catch(err){
+          unit.orderLabel = oldOrderLabel;
+          rebuildCard(s);
+          alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
+        }
+      };
+
+      row.querySelector('[data-skiptoggle]').onclick = (e)=>{
+        e.stopPropagation();
+        if(isSkipSet){
+          // ยกเลิกทุกวันที่ตั้งงดไว้ล่วงหน้าของสินค้าตัวนี้ในครั้งเดียว ไม่ใช่แค่วันล่าสุดวันเดียว —
+          // เผื่อเคสที่เจ้าของตั้งงดไว้หลายวันไม่ติดกัน (เช่น งดทั้งวันนี้และอีก 3 วันข้างหน้าแยกกัน)
+          const msg = skipDates.length > 1
+            ? `ยกเลิกงดสั่ง "${p.name}" ทั้งหมด ${skipDates.length} วันที่ตั้งไว้?`
+            : `ยกเลิกงดสั่ง "${p.name}"?`;
+          if(!confirm(msg)) return;
+          (async ()=>{
+            try{
+              // เดิมยิง Promise.all พร้อมกันทุกวันที่ในครั้งเดียว — pattern เดียวกับที่เคยเจอปัญหาคิว/
+              // serialize ของ Apps Script ตอนหน้านี้เองเคยยิง 4 คำขอพร้อมกัน (ดู ensureOrderPageData
+              // ด้านบน) สินค้าที่งดไว้หลายวันไม่ติดกันจะยิงหลายคำขอพร้อมกันโดยไม่จำเป็น เปลี่ยนเป็นยิง
+              // ทีละคำขอแทน (ส่วนใหญ่มีแค่ 1 วันอยู่แล้ว ไม่กระทบเคสปกติ)
+              for(const date of skipDates){
+                await apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true);
+              }
+              p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
+              rebuildCard(s);
+            }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
+          })();
+        }else{
+          openSkipDatePicker(p, async (date)=>{
+            try{
+              await apiPost('setProductSkipDate', { productId: p.id, date, skip: true }, true);
+              p.skipDates = [...(p.skipDates||[]), date];
+              rebuildCard(s);
+            }catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
+          });
+        }
+      };
+
+      const qtyInput = row.querySelector(`[data-qty="${p.id}"]`);
+      function setQty(v){
+        state.orderQty[p.id] = Math.max(0, Math.round(v));
+        qtyInput.value = state.orderQty[p.id];
+        row.querySelector('[data-check]').checked = state.orderQty[p.id] > 0;
+        const subEl = head.querySelector('.status-sub');
+        if(subEl) subEl.textContent = baseSubText + selectedSuffix();
+      }
+      row.querySelector('[data-check]').onchange = (e)=>{
+        setQty(e.target.checked ? 1 : 0);
+      };
+      qtyInput.oninput = (e)=> setQty(parseFloat(e.target.value||0));
+      row.querySelectorAll('[data-step]').forEach(btn=>{
+        btn.onclick = ()=> setQty(state.orderQty[p.id] + Number(btn.dataset.step));
+      });
+    });
+    body.appendChild(groupBox);
+
+    {
+      const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
+      const hasOrderedItemsToday = allItems.some(p=> orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty > 0);
+      if(hasOrderedItemsToday){
+        const viewBtn = document.createElement('button');
+        viewBtn.type = 'button';
+        viewBtn.className = 'btn'; viewBtn.style.fontSize='12px'; viewBtn.style.padding='6px 10px';
+        viewBtn.innerHTML = '<i class="ti ti-message-2" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ดูข้อความที่สั่งไปอีกครั้ง';
+        viewBtn.onclick = (e)=>{
+          e.stopPropagation();
+          viewHistorySupplierId = s.id;
+          go('orderMessage');
+        };
+        btnRow.appendChild(viewBtn);
+      }
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
+      btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : 'สั่งของเจ้านี้';
+      btn.onclick = async (e)=>{
+        e.stopPropagation();
+        const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
+          return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: orderUnitLabel(p) };
+        });
+        if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
+        const originalLabel = btn.textContent;
+        btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+        try{
+          await apiPost('createOrderBatch', { items: supItems });
+          supItems.forEach(it=>{
+            orderedProductIds.add(it.productId);
+            orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit };
+          });
+          // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
+          // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
+          // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
+          lastOrderMessageSnapshot = {};
+          supItems.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
+          go('orderMessage');
+        }catch(err){
+          btn.disabled = false; btn.textContent = originalLabel;
+          alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
+        }
+      };
+      btnRow.appendChild(btn);
+      body.appendChild(btnRow);
+    }
+
+    main.appendChild(body);
+    card.appendChild(main);
+    return card;
+  }
+
+  // แทนที่การ์ดเจ้าเดียวใน DOM ด้วยเวอร์ชันล่าสุด แทนการเรียก renderGroups() ที่รื้อสร้างทั้ง 24 เจ้าใหม่หมด —
+  // เจอจริง 15 ก.ย. 69: ลุงทวี (รายการเยอะสุดในร้าน ~50-60 แถวรวมหน่วย) หน่วงเห็นได้ชัดเวลากดขยาย/เลือกทั้งหมด/
+  // งด/แก้ชื่อหน่วย เพราะทุกครั้งต้อง rebuild การ์ดของอีก 23 เจ้าที่ไม่เกี่ยวข้องไปด้วยทุกที — ช่องค้นหา (มี debounce
+  // อยู่แล้ว) ยังคงเรียก renderGroups() เต็มรูปแบบตามเดิม เพราะต้องกรอง/จัดกลุ่มใหม่ทุกเจ้าจริงๆ ไม่เกี่ยวกับจุดนี้
+  function rebuildCard(s){
+    const filter = c.querySelector('#search').value;
+    const oldCard = groups.querySelector(`[data-supplier-card="${s.id}"]`);
+    const newCard = buildSupplierCard(s, filter);
+    if(!oldCard || !newCard){ renderGroups(filter); return; } // fallback ปลอดภัย เผื่อหาการ์ดเดิมไม่เจอ
+    oldCard.replaceWith(newCard);
+  }
+
   function renderGroups(filter){
     groups.innerHTML='';
     // เจ้าที่ถึงรอบสั่งวันนี้ (ตาม OrderDays) ขึ้นก่อนเสมอ แยกเป็นเซกชัน "ต้องสั่งวันนี้" ด้านบน
@@ -3145,280 +3436,14 @@ async function renderOrderPage(app){
     sortedSuppliers.forEach(s=>{
       const allItems = productsOf(s.id);
       if(!allItems.length) return;
-      const items = allItems.filter(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
-      if(!items.length) return;
+      const hasMatch = allItems.some(p=>p.name.includes(filter||'') || s.name.includes(filter||''));
+      if(!hasMatch) return;
       const dueToday = supplierDueToday(s);
-      const stockupNote = supplierStockupNote(s);
       // เจ้ากลุ่มแรกที่ไม่ถึงรอบวันนี้ (ตามลำดับที่ sort ไว้แล้ว) คือจุดเริ่มเซกชัน "เจ้าอื่นทั้งหมด"
       if(!dueToday && !restLabelInserted){ groups.appendChild(restLabel); groups.appendChild(otherSection); restLabelInserted = true; }
       const renderTarget = dueToday ? groups : otherSection;
-
-      const { checkedCount, isOrdered, isConfirmed } = supplierStats(s);
-      const fullyChecked = allItems.length > 0 && checkedCount === allItems.length;
-      const open = expandedSuppliers.has(s.id);
-
-      // เดิมบังคับให้เช็คสต๊อกครบทุกรายการก่อนถึงจะขึ้นสถานะ "สั่งแล้ว" — แต่ในทางปฏิบัติ
-      // บางเจ้ามีของหลายสิบรายการ แต่วันนี้อยากสั่งแค่ 1-2 อย่างโดยไม่ต้องไล่เช็คสต๊อกทั้งหมด
-      // จึงตัดเงื่อนไข fullyChecked ออก ขอแค่มีการสร้างข้อความสั่งของไปแล้วก็พอ (isOrdered)
-      const orderDone = isOrdered;
-      // Single combined status per supplier — one line, one color, states an action
-      // rather than two badges (stock-check count vs order status) that read as unrelated.
-      // นับตามจำนวนสินค้าที่ลูกจ้างกดติ๊กว่าเช็คแล้วจริงๆ เท่านั้น — สินค้าที่ลูกจ้างเช็คแล้วแต่ไม่มีของ
-      // (กรอกคงเหลือเป็น 0) ก็นับว่า "เช็คแล้ว" เหมือนกัน เพราะติ๊กผ่านการเช็คสต๊อกไปแล้วจริง
-      const checkedRatio = `${checkedCount}/${allItems.length}`;
-      let stateClass, statusText, subText;
-      if(orderDone){ stateClass='ordered'; statusText='✓ สั่งของแล้ววันนี้'; subText=`เช็คสต๊อกแล้ว ${checkedRatio} รายการ`; }
-      else if(checkedCount === 0){ stateClass='wait'; statusText='⏳ รอเช็คสต๊อก'; subText=`ลูกจ้างยังไม่เริ่มเช็ค (${checkedRatio} รายการ)`; }
-      else if(!fullyChecked){ stateClass='partial'; statusText='⏳ เช็คสต๊อกค้างอยู่'; subText=`เช็คแล้ว ${checkedRatio} รายการ`; }
-      else{ stateClass='wait'; statusText='✓ เช็คสต๊อกครบแล้ว'; subText=`พร้อมเลือกรายการที่จะสั่ง (${checkedRatio})`; }
-
-      // จำนวนรายการที่เจ้าของกดเลือกจะสั่งจริง (orderQty > 0) — นับจากที่กรอกเองล้วนๆ
-      // ไม่เกี่ยวกับคงเหลือ/เช็คสต๊อก เพื่อไม่ให้ปนกับความไม่แน่นอนว่า "คงเหลือ 0" หมายถึงหมดจริงหรือลูกจ้างข้าม
-      const baseSubText = subText;
-      function countSelected(){ return allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).length; }
-      function selectedSuffix(){ const n = countSelected(); return n > 0 ? ` · เลือกไว้ ${n} รายการ` : ''; }
-      subText = baseSubText + selectedSuffix();
-
-      const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
-      const strip = document.createElement('div'); strip.className = 'ord-card-strip';
-      card.appendChild(strip);
-      const main = document.createElement('div'); main.className = 'ord-card-main';
-
-      const head = document.createElement('div'); head.className = 'ord-card-head';
-      head.innerHTML = `
-        <i class="ti ti-chevron-down chev"></i>
-        <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>
-        <span class="ord-card-name">${s.name}</span>
-        <div class="ord-card-status">
-          <div class="status-top-row">
-            ${stockupNote ? `<span class="stockup-tag">${stockupNote}</span>` : ''}
-            <span class="status-line ${stateClass}">${statusText}</span>
-          </div>
-          <span class="status-sub">${subText}</span>
-        </div>
-      `;
-      head.onclick = ()=>{
-        if(expandedSuppliers.has(s.id)) expandedSuppliers.delete(s.id); else expandedSuppliers.add(s.id);
-        renderGroups(c.querySelector('#search').value);
-      };
-      main.appendChild(head);
-
-      // วงกลม "✓" หน้าชื่อเจ้า — โผล่ทุกเจ้าเสมอ (ไม่ผูกกับ orderDone อีกต่อไป) เพราะบางทีเจ้าของ
-      // สั่งของเองนอกแอปโดยไม่ผ่านการสร้างข้อความในระบบเลย ก็ยังต้องกดยืนยันว่าสั่งไปแล้วได้
-      // ใช้เป็นปุ่มกดยืนยันด้วยมือว่า "ส่งออเดอร์ให้ร้านจริงแล้ว": วงว่าง = ยังไม่ได้ส่ง, วงเขียวมี ✓ = ส่งแล้ว
-      // แยกจากสถานะ "สร้างข้อความแล้ว" (statusText ด้านขวา) ซึ่งแค่บอกว่าแอปบันทึกคำสั่งซื้อให้เท่านั้น
-      // ไม่ได้รู้ว่าข้อความถูกส่งออกไปหา supplier จริงหรือยัง
-      const confirmBtn = head.querySelector('.order-done-check');
-      if(confirmBtn){
-        // เก็บสถานะปัจจุบันไว้แยกในตัวแปรนี้ (ไม่ใช้ isConfirmed ตรงๆ) เพราะไม่ได้ renderGroups() ใหม่
-        // ทั้งหน้าหลังกดสำเร็จอีกต่อไป (เพื่อความไว) — ถ้ายังอิง isConfirmed เดิม กดสลับซ้ำสองครั้ง
-        // ในการ์ดเดียวกันโดยไม่รีเฟรชหน้า ครั้งที่สองจะยังอ่านค่าตั้งต้นเก่าอยู่ ผิดสถานะจริง
-        let confirmedNow = isConfirmed;
-        confirmBtn.onclick = async (e)=>{
-          e.stopPropagation();
-          const checked = !confirmedNow;
-          // อัปเดตหน้าจอให้เห็นผลทันที ไม่รอ apiPost เสร็จก่อน (Apps Script มัก 1-3 วิ กว่าจะตอบ
-          // กดแล้วรอเห็นผลช้าจะรู้สึกเหมือนกดไม่ติด) ค่อยยิงไปบันทึกจริงเบื้องหลัง แล้วเด้งกลับ
-          // สถานะเดิมพร้อมแจ้งเตือนถ้าบันทึกไม่สำเร็จ
-          confirmedNow = checked;
-          confirmBtn.classList.toggle('confirmed', checked);
-          confirmBtn.textContent = checked ? '✓' : '';
-          if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
-          renderStats();
-          try{
-            await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName }, true);
-          }catch(err){
-            confirmedNow = !checked;
-            confirmBtn.classList.toggle('confirmed', !checked);
-            confirmBtn.textContent = !checked ? '✓' : '';
-            if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
-            renderStats();
-            alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
-          }
-        };
-      }
-
-      const body = document.createElement('div'); body.className = 'ord-card-body';
-
-      const allSelected = items.length > 0 && items.every(p=> (state.orderQty[p.id] ?? 0) > 0);
-      const selectRow = document.createElement('div'); selectRow.className = 'select-all-row';
-      selectRow.innerHTML = `<button type="button" class="link-btn" data-selecttoggle>${allSelected ? 'ไม่เลือกเลย' : 'เลือกทั้งหมด'}</button>`;
-      selectRow.querySelector('[data-selecttoggle]').onclick = ()=>{
-        if(allSelected) items.forEach(p=> state.orderQty[p.id] = 0);
-        else items.forEach(p=>{ state.orderQty[p.id] = state.orderQty[p.id] > 0 ? state.orderQty[p.id] : 1; });
-        renderGroups(c.querySelector('#search').value);
-      };
-      body.appendChild(selectRow);
-
-      const groupBox = document.createElement('div'); groupBox.className='acc-group'; groupBox.style.borderRadius='0'; groupBox.style.border='none';
-
-      items.forEach(p=>{
-        const itemChecked = !!statusByProduct[p.id];
-        if(state.orderQty[p.id]===undefined) state.orderQty[p.id] = 0;
-        const qty = state.orderQty[p.id];
-        // สินค้าที่มีหลายหน่วย (เล็ก→ใหญ่ เรียงตาม SortOrder) แสดงคงเหลือของทุกหน่วย
-        // แต่สั่งของเป็นหน่วยใหญ่สุดเสมอ
-        const uLabel = orderUnitLabel(p);
-        const remainEntry = statusByEntry[p.id];
-        const remainParts = p.units.map(u=>{
-          const v = remainEntry ? remainEntry.remain[u.id] : null;
-          return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
-        }).filter(Boolean);
-        const remainValues = p.units.map(u=> remainEntry ? remainEntry.remain[u.id] : null);
-        // เช็คแล้ว + ทุกหน่วยคงเหลือ 0 = "หมด" จริง (ไม่ใช่แค่ยังไม่ได้เช็ค) — ไม่ต้องมี flag พิเศษเก็บแยก
-        // เพราะข้อมูลนี้แยกออกจากกันอยู่แล้ว: ไม่เช็คเลย = remain เป็น null, เช็คแล้วคงเหลือ 0 = remain เป็น 0
-        const isOutOfStock = itemChecked && remainValues.length && remainValues.every(v=> v===0);
-        const remainDisplay = isOutOfStock ? `<span class="oos-badge">หมด</span>`
-          : (itemChecked && remainParts.length ? remainParts.join(' ') : '–');
-
-        const skipDates = upcomingSkipDates(p);
-        const isSkipSet = skipDates.length > 0;
-
-        const row = document.createElement('div');
-        row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
-        row.innerHTML = `
-          <div class="prow-top">
-            <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
-            <div class="prow-name-wrap">
-              <div class="prow-name">${p.name}</div>
-              ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
-            </div>
-            <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
-          </div>
-          <div class="prow-bottom">
-            <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
-            <div class="stepper">
-              <button type="button" data-step="-1">−</button>
-              <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
-              <button type="button" data-step="1">+</button>
-              <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
-            </div>
-          </div>
-        `;
-        groupBox.appendChild(row);
-
-        row.querySelector('[data-unit-edit]').onclick = async (e)=>{
-          e.stopPropagation();
-          const unit = p.units[p.units.length-1];
-          const current = unit.orderLabel || unit.label;
-          // แก้แค่ป้ายที่ใช้ตอนสั่งของกับซัพพลายเออร์ — ไม่กระทบป้ายที่ลูกจ้างใช้เช็คสต๊อก (unit.label)
-          const newLabel = prompt('แก้ชื่อหน่วยที่ใช้ตอนสั่งของกับซัพพลายเออร์ของ "' + p.name + '"\n(ไม่กระทบหน่วยที่ลูกจ้างใช้เช็คสต๊อก)', current);
-          if(newLabel===null) return; // ยกเลิก
-          const trimmed = newLabel.trim();
-          if(!trimmed || trimmed===current) return;
-          const oldOrderLabel = unit.orderLabel;
-          unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
-          renderGroups(c.querySelector('#search').value);
-          try{
-            await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed }, true);
-          }catch(err){
-            unit.orderLabel = oldOrderLabel;
-            renderGroups(c.querySelector('#search').value);
-            alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
-          }
-        };
-
-        row.querySelector('[data-skiptoggle]').onclick = (e)=>{
-          e.stopPropagation();
-          if(isSkipSet){
-            // ยกเลิกทุกวันที่ตั้งงดไว้ล่วงหน้าของสินค้าตัวนี้ในครั้งเดียว ไม่ใช่แค่วันล่าสุดวันเดียว —
-            // เผื่อเคสที่เจ้าของตั้งงดไว้หลายวันไม่ติดกัน (เช่น งดทั้งวันนี้และอีก 3 วันข้างหน้าแยกกัน)
-            const msg = skipDates.length > 1
-              ? `ยกเลิกงดสั่ง "${p.name}" ทั้งหมด ${skipDates.length} วันที่ตั้งไว้?`
-              : `ยกเลิกงดสั่ง "${p.name}"?`;
-            if(!confirm(msg)) return;
-            (async ()=>{
-              try{
-                // เดิมยิง Promise.all พร้อมกันทุกวันที่ในครั้งเดียว — pattern เดียวกับที่เคยเจอปัญหาคิว/
-                // serialize ของ Apps Script ตอนหน้านี้เองเคยยิง 4 คำขอพร้อมกัน (ดู ensureOrderPageData
-                // ด้านบน) สินค้าที่งดไว้หลายวันไม่ติดกันจะยิงหลายคำขอพร้อมกันโดยไม่จำเป็น เปลี่ยนเป็นยิง
-                // ทีละคำขอแทน (ส่วนใหญ่มีแค่ 1 วันอยู่แล้ว ไม่กระทบเคสปกติ)
-                for(const date of skipDates){
-                  await apiPost('setProductSkipDate', { productId: p.id, date, skip: false }, true);
-                }
-                p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
-                renderGroups(c.querySelector('#search').value);
-              }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
-            })();
-          }else{
-            openSkipDatePicker(p, async (date)=>{
-              try{
-                await apiPost('setProductSkipDate', { productId: p.id, date, skip: true }, true);
-                p.skipDates = [...(p.skipDates||[]), date];
-                renderGroups(c.querySelector('#search').value);
-              }catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
-            });
-          }
-        };
-
-        const qtyInput = row.querySelector(`[data-qty="${p.id}"]`);
-        function setQty(v){
-          state.orderQty[p.id] = Math.max(0, Math.round(v));
-          qtyInput.value = state.orderQty[p.id];
-          row.querySelector('[data-check]').checked = state.orderQty[p.id] > 0;
-          const subEl = head.querySelector('.status-sub');
-          if(subEl) subEl.textContent = baseSubText + selectedSuffix();
-        }
-        row.querySelector('[data-check]').onchange = (e)=>{
-          setQty(e.target.checked ? 1 : 0);
-        };
-        qtyInput.oninput = (e)=> setQty(parseFloat(e.target.value||0));
-        row.querySelectorAll('[data-step]').forEach(btn=>{
-          btn.onclick = ()=> setQty(state.orderQty[p.id] + Number(btn.dataset.step));
-        });
-      });
-      body.appendChild(groupBox);
-
-      {
-        const btnRow = document.createElement('div'); btnRow.className = 'sup-order-btn-row';
-        const hasOrderedItemsToday = allItems.some(p=> orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty > 0);
-        if(hasOrderedItemsToday){
-          const viewBtn = document.createElement('button');
-          viewBtn.type = 'button';
-          viewBtn.className = 'btn'; viewBtn.style.fontSize='12px'; viewBtn.style.padding='6px 10px';
-          viewBtn.innerHTML = '<i class="ti ti-message-2" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ดูข้อความที่สั่งไปอีกครั้ง';
-          viewBtn.onclick = (e)=>{
-            e.stopPropagation();
-            viewHistorySupplierId = s.id;
-            go('orderMessage');
-          };
-          btnRow.appendChild(viewBtn);
-        }
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
-        btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : 'สั่งของเจ้านี้';
-        btn.onclick = async (e)=>{
-          e.stopPropagation();
-          const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
-            return { productId:p.id, forecast: 0, orderQty: state.orderQty[p.id], rateUsed: 1, orderUnit: orderUnitLabel(p) };
-          });
-          if(!supItems.length){ alert('ยังไม่ได้เลือกรายการที่จะสั่งของเจ้านี้'); return; }
-          const originalLabel = btn.textContent;
-          btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-          try{
-            await apiPost('createOrderBatch', { items: supItems });
-            supItems.forEach(it=>{
-              orderedProductIds.add(it.productId);
-              orderedItemsTodayMap[it.productId] = { qty: it.orderQty, unit: it.orderUnit };
-            });
-            // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
-            // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
-            // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
-            lastOrderMessageSnapshot = {};
-            supItems.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
-            go('orderMessage');
-          }catch(err){
-            btn.disabled = false; btn.textContent = originalLabel;
-            alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
-          }
-        };
-        btnRow.appendChild(btn);
-        body.appendChild(btnRow);
-      }
-
-      main.appendChild(body);
-      card.appendChild(main);
-      renderTarget.appendChild(card);
+      const card = buildSupplierCard(s, filter);
+      if(card) renderTarget.appendChild(card);
     });
     if(!dueCount && !restCount) groups.innerHTML = '<p class="empty-state">ไม่พบสินค้าที่ค้นหา</p>';
   }
