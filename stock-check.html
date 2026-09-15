@@ -2917,13 +2917,20 @@ function renderOwnerPin(app){
     if(val.length < 4) return;
     checking = true;
     input.disabled = true; errEl.textContent = 'กำลังตรวจสอบ...'; errEl.style.color = 'var(--text-secondary)';
-    try{
-      const res = await apiGet('checkPin', {pin: val});
-      if(res && res.valid){ go('ownerMenu'); return; }
-      errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; errEl.style.color = 'var(--danger)';
-      input.value='';
-    }catch(err){
-      errEl.textContent = 'ตรวจสอบรหัสไม่สำเร็จ: ' + err.message; errEl.style.color = 'var(--danger)';
+    // เจอจริง 15 ก.ย. 69: เดิม catch แล้วโชว์ error ทันที ("ตรวจสอบรหัสไม่สำเร็จ: หมดเวลาเชื่อมต่อ...") ทั้งที่
+    // backend มักสำเร็จจริงแค่ช้ากว่าที่แอปยอมรอ (เหตุผลเดียวกับที่แก้ bootstrap() ไปแล้ว) — error จาก
+    // apiGet('checkPin') ที่นี่มีแต่กรณีเชื่อมต่อไม่สำเร็จเท่านั้น (รหัสผิดไม่ throw error แต่คืน valid:false
+    // แยกต่างหากอยู่แล้ว) จึงปลอดภัยที่จะวนลองใหม่เงียบๆ ไม่จำกัดรอบเหมือนกัน
+    for(;;){
+      try{
+        const res = await apiGet('checkPin', {pin: val});
+        if(res && res.valid){ go('ownerMenu'); return; }
+        errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; errEl.style.color = 'var(--danger)';
+        input.value='';
+        break;
+      }catch(err){
+        await new Promise(r=> setTimeout(r, 3000));
+      }
     }
     checking = false; input.disabled = false; input.focus();
   }
