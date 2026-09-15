@@ -1138,6 +1138,26 @@ function writeAdminOrdersFullCache(text){
   try{ localStorage.setItem(ADMIN_ORDERS_FULL_CACHE_KEY,text); }catch(e){}
 }
 
+// [แก้ 15 ก.ย. 69 — ต่อ 2] เจอจริง: หลังแก้ให้ orders cache ทันด้วย localStorage แล้ว รูป/ราคาสินค้ายังหาย
+// ตอนเปิดแอปจากไอคอนหน้าจอ iOS ทุกรอบอยู่ดี (ต้องรอ 20-30 วิเหมือนเดิมกว่าจะโผล่) สาเหตุ: ตอน seed
+// `products` ก่อน render จาก cache (ดู initAdmin ด้านล่าง) ยังอิงจาก `cacheGet('products_ALL')` ซึ่งเป็น
+// sessionStorage ตัวเดิม (เจตนาให้ short-lived ต่อ tab) — sessionStorage หายไปทุกรอบที่เปิดแอปจากไอคอนใหม่
+// เหมือนที่เจอกับ order cache ตอนแรกเป๊ะ (ดู comment ด้านบนสุดของไฟล์นี้) เลยไม่เคยมีอะไรให้ seed ได้จริงบน
+// มือถือเลยสักครั้ง เพิ่ม localStorage cache แยกต่างหากสำหรับสินค้าฝั่งแอดมินโดยเฉพาะ (ไม่ยุ่งกับ
+// cacheGet/cacheSet('products_ALL',...) เดิมที่ยังเก็บคู่ขนานไปเหมือนเดิม เผื่อจุดอื่นในอนาคตอยากใช้
+// short-lived แบบเดิม) ให้ seed ได้จริงข้ามการเปิดแอปทุกรอบ
+const ADMIN_PRODUCTS_CACHE_KEY='samurai_admin_products_cache_v1';
+function readAdminProductsCache(){
+  try{ const d=JSON.parse(localStorage.getItem(ADMIN_PRODUCTS_CACHE_KEY)); return Array.isArray(d)?d:null; }catch(e){ return null; }
+}
+function writeAdminProductsCache(products){
+  try{
+    const text=JSON.stringify(products);
+    if(text.length>ADMIN_CACHE_MAX_CHARS) return;
+    localStorage.setItem(ADMIN_PRODUCTS_CACHE_KEY,text);
+  }catch(e){}
+}
+
 // โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
 // (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
 // เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
@@ -1199,8 +1219,17 @@ async function initAdmin(){
   // ไอคอนถุงช้อปปิ้ง placeholder หมด และราคา/หน่วยโชว้ ฿0.00 ทุกรายการ (ยอดรวมออเดอร์ยังถูกเพราะมาจาก
   // o.total ตรงๆ ไม่ผ่าน products) ถ้า products_ALL ยังมี cache (sessionStorage, TTL 30 วิ) จากรอบก่อนหน้า
   // ของ session เดียวกันอยู่ ให้ดึงมาใช้ก่อนโชว์ผลจาก cache เลย ลดโอกาสเจอปัญหานี้ไปได้เยอะ
-  const adminProdCachedEarly=cacheGet('products_ALL');
-  if(adminProdCachedEarly&&adminProdCachedEarly.length) products=adminProdCachedEarly;
+  //
+  // [แก้ 15 ก.ย. 69 — ต่อ 2] เจอจริงอีกรอบ: เปิดแอปจากไอคอนหน้าจอ iOS รูป/ราคายังหายทุกครั้งอยู่ดี (รอ
+  // 20-30 วิเหมือนเดิม) เพราะ cacheGet('products_ALL') ข้างบนเป็น sessionStorage — หายไปทุกรอบที่เปิดแอป
+  // จากไอคอนใหม่เหมือนที่เจอกับ order cache ตอนแรกเป๊ะ เลยไม่มีอะไรให้ seed ได้จริงบนมือถือเลยสักครั้ง
+  // เพิ่ม localStorage cache แยกสำหรับสินค้า (ดู ADMIN_PRODUCTS_CACHE_KEY ด้านบน) เป็นตัวสำรองรอง — ใช้
+  // sessionStorage ก่อนถ้ามี (การันตีสดไม่เกิน 30 วิ พอจะ "ข้าม" การยิง fetch จริงได้เลย) ถ้าไม่มีค่อย fallback
+  // มาที่ localStorage (อาจเก่ากว่านั้น แต่ดีกว่าไม่มีเลย) — ใช้แค่ "seed ตอนแรก" เท่านั้น ไม่ข้าม fetch จริง
+  const adminProdSessionCached=cacheGet('products_ALL');
+  const adminProdPersistedCached=adminProdSessionCached?null:readAdminProductsCache();
+  const adminProdEarlySeed=adminProdSessionCached||adminProdPersistedCached;
+  if(adminProdEarlySeed&&adminProdEarlySeed.length) products=adminProdEarlySeed;
   if(cachedOrders&&cachedOrders.length){
     allAdminOrders=cachedOrders.filter(o=>o&&o.order_id);
     lastAdminOrdersHash=JSON.stringify(cachedOrders);
@@ -1212,7 +1241,9 @@ async function initAdmin(){
   // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
   // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
   // แก้ด้วยการยิงทั้งสอง request พร้อมกัน (ไม่ต้องรอกัน) แล้วค่อยประมวลผลรวมทีเดียว
-  const adminProdCached=adminProdCachedEarly;
+  // ตั้งใจใช้แค่ adminProdSessionCached (ไม่ใช่ adminProdEarlySeed) ตรงนี้ — คือตัวเดียวที่การันตีความสดพอ
+  // จะข้ามการยิง fetch จริงได้ ส่วน localStorage อาจเก่าเกินไป ต้องยิง fetch จริงเสมอเพื่อความถูกต้องราคา
+  const adminProdCached=adminProdSessionCached;
   const productsPromise=adminProdCached
     ? Promise.resolve(adminProdCached)
     : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
@@ -1221,7 +1252,10 @@ async function initAdmin(){
   const[productsResult,ordersData]=await Promise.all([productsPromise,ordersPromise]);
 
   products=Array.isArray(productsResult)?productsResult:[];
-  if(!adminProdCached&&products.length) cacheSet('products_ALL',products,30000);
+  if(!adminProdCached&&products.length){
+    cacheSet('products_ALL',products,30000);
+    writeAdminProductsCache(products);
+  }
 
   if(ordersData===null){
     // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — เปลี่ยนเป็นเรียก loadAdminOrders() ที่วนลองใหม่
@@ -1231,7 +1265,7 @@ async function initAdmin(){
     if(!cachedOrders||!cachedOrders.length) await loadAdminOrders();
     // [แก้บั๊กรูป/ราคาหาย] products อาจเพิ่งโหลดเสร็จตรงนี้ (คนละ path จาก ordersData) ต้อง re-render รายการ
     // ที่โชว้จาก cache ไปก่อนหน้าซ้ำอีกที ไม่งั้นรูป/ราคาจะค้างว่างเปล่าเหมือนเดิมแม้ products จะมาแล้วก็ตาม
-    else if(!adminProdCachedEarly) renderAdminOrders();
+    else if(!adminProdSessionCached) renderAdminOrders();
   }else{
     const text=JSON.stringify(ordersData);
     writeAdminOrdersCache(text);
@@ -1241,10 +1275,10 @@ async function initAdmin(){
       allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
     }
     // [แก้บั๊กรูป/ราคาหาย] เดิม render เฉพาะตอนออเดอร์เปลี่ยน — ถ้าออเดอร์ไม่เปลี่ยนเลย (hash ตรงกับ cache
-    // เป๊ะ) จะไม่ re-render อีกรอบ ทั้งที่ตอนโชว้จาก cache ไปก่อนหน้านั้น products ยังว่างอยู่ (ดู comment
-    // ด้านบน) รูป/ราคาเลยค้างว่างเปล่าตลอดไปจนกว่าจะมีอะไรอื่นมา trigger re-render เอง ต้องบังคับ re-render
-    // อีกครั้งเสมอถ้าเพิ่งโชว้จาก cache แบบไม่มี products (adminProdCachedEarly ว่าง) ไปก่อนหน้า
-    if(ordersChanged||(cachedOrders&&cachedOrders.length&&!adminProdCachedEarly)) renderAdminOrders();
+    // เป๊ะ) จะไม่ re-render อีกรอบ ทั้งที่ตอนโชว้จาก cache ไปก่อนหน้านั้น products อาจว่าง/เป็นข้อมูลเก่าจาก
+    // localStorage อยู่ (ดู comment ด้านบน) ต้องบังคับ re-render ด้วยข้อมูลสดเสมอถ้าตอน seed แรกไม่ได้ใช้
+    // sessionStorage cache ที่การันตีความสด (adminProdSessionCached ว่าง)
+    if(ordersChanged||(cachedOrders&&cachedOrders.length&&!adminProdSessionCached)) renderAdminOrders();
   }
 
   loadBusinessNotes().then(()=>{ if(adminCurrentTab==='overview') renderAdminOverview(); });
@@ -2775,7 +2809,10 @@ async function markDone(orderId,btnEl){
       if(qtyChanged){
         const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
         products=freshProducts;
-        if(Array.isArray(freshProducts)&&freshProducts.length) cacheSet('products_ALL',freshProducts,30000);
+        if(Array.isArray(freshProducts)&&freshProducts.length){
+          cacheSet('products_ALL',freshProducts,30000);
+          writeAdminProductsCache(freshProducts);
+        }
         const prodMap=getOrderProdMap(order);
 
         const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]})).filter(i=>i.qty>0);
