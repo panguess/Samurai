@@ -1112,7 +1112,7 @@ let adminRefreshFailCount=0;
 const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage'];
 
 async function fetchFullAdminOrders(silent){
-  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',20000,1,silent);
+  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',35000,1,silent);
   if(data===null) return false;
   const text=JSON.stringify(data);
   if(text===lastAdminOrdersFullHash) return false;
