@@ -541,9 +541,20 @@ function getAdminOrders(key) {
 }
 
 // ข้อมูลเต็มทุกปี ไม่กรองช่วงวันที่ -> ใช้เฉพาะตอนแอดมินเปิดแท็บ "ภาพรวม" เท่านั้น ไม่ใช่ทุก auto-refresh
+// Cache ผลลัพธ์ไว้ 120 วิ (CacheService) กัน cold-start ของ Apps Script บวกกับ query ทั้งชีตทุกครั้งที่เปิดแท็บ
+// ทำให้ client (timeout 35 วิ) หลุด timeout บ่อย -- ข้อมูลอาจ delay ได้สูงสุด 2 นาทีเป็นการแลกเปลี่ยน
+const ADMIN_ORDERS_FULL_CACHE_KEY = 'adminOrdersFull_v1';
+const ADMIN_ORDERS_FULL_CACHE_TTL_SEC = 120;
 function getAdminOrdersFull(key) {
   if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
-  return response(getAllOrderRows().reverse());
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(ADMIN_ORDERS_FULL_CACHE_KEY);
+  if (cached) return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
+  const rows = getAllOrderRows().reverse();
+  const json = JSON.stringify(rows);
+  // CacheService จำกัดค่าละ 100KB -- ถ้าข้อมูลโตเกินนี้ (ร้านสะสมออเดอร์เยอะมาก) จะ cache ไม่ได้ ข้ามไปเงียบๆ ไม่ error
+  if (json.length < 100000) cache.put(ADMIN_ORDERS_FULL_CACHE_KEY, json, ADMIN_ORDERS_FULL_CACHE_TTL_SEC);
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
