@@ -2368,11 +2368,17 @@ function renderBillSuccess(app){
     </div>
     ${drifted.length ? `<div class="learned-note drift-note"><i class="ti ti-alert-triangle" aria-hidden="true"></i> พบส่วนต่างจากบิล ${drifted.length} รายการ — เช็คช่อง "รับจริง" ของแต่ละรายการด้านบนเพื่อดูว่าซัพพลายเออร์ส่งขาด/เกินตรงไหน</div>` : ''}
     ${state.billLearnedCount>0 ? `<div class="learned-note"><i class="ti ti-sparkles" aria-hidden="true"></i> จดจำการจับคู่ใหม่ ${state.billLearnedCount} รายการไว้แล้ว ครั้งหน้าเจอชื่อเดิมจาก ${sup.name} ระบบจะจับคู่ให้อัตโนมัติทันที</div>` : ''}
-    <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
-    <button class="btn-text-cancel" id="moreBtn">กลับไปดูบิลรอตรวจสอบใบอื่น</button>
+    <button class="btn btn-primary btn-block" id="moreBtn">จับคู่บิลเจ้าอื่นต่อ</button>
+    <button class="btn-text-cancel" id="doneBtn">เสร็จสิ้น กลับเมนู</button>
   `;
   app.appendChild(c);
-  c.querySelector('#doneBtn').onclick = ()=> go('home');
+  // เจอจริง 15 ก.ย. 69 (ต่อ): เดิมปุ่มหลักพา go('home') ซึ่งเป็นหน้าเลือกบทบาท (พนักงาน/เจ้าของ) — ต้องกด
+  // "จัดการร้าน" แล้วใส่รหัส PIN ใหม่ทุกครั้ง ทั้งที่เพิ่งยืนยันตัวตนไปแล้วตอนเข้าหน้านี้ครั้งแรก น่ารำคาญมาก
+  // เวลาต้องไล่จับคู่บิลค้างหลายเจ้าติดกัน — สลับให้ปุ่มหลักพากลับไปหน้า "บิลรอตรวจสอบ" ตรงๆ (ทำเจ้าถัดไปต่อ
+  // ได้ทันที ไม่ต้องผ่าน PIN เพราะ go() ไม่มีการเช็คสิทธิ์ซ้ำอยู่แล้ว) ส่วนปุ่ม "เสร็จสิ้น" เปลี่ยนเป็น
+  // go('ownerMenu') ตรงๆ แทน go('home') — ยังคงกลับไปยังเมนูเจ้าของแบบไม่ต้องใส่ PIN ซ้ำเหมือนกัน (pattern
+  // เดียวกับปุ่มย้อนกลับของหน้า "บิลรอตรวจสอบ" เองที่ใช้ go('ownerMenu') อยู่แล้ว)
+  c.querySelector('#doneBtn').onclick = ()=> go('ownerMenu');
   c.querySelector('#moreBtn').onclick = ()=> go('billPendingList');
 }
 
@@ -2424,23 +2430,25 @@ async function renderBillPendingList(app){
   // เจอจริง 7 ก.ย. 69: หน้านี้เคย apiGet('pendingBills') ครั้งเดียวจบ ไม่มี retry เลย (ต่างจาก
   // bootstrap() ที่ retry เงียบๆ ให้อยู่แล้ว) พอเจอการเชื่อมต่อหลุดแวบเดียว (Executions log ยืนยันว่า
   // backend สำเร็จเร็วทุกครั้ง <3 วิ) ก็ขึ้น "หมดเวลาเชื่อมต่อ" ทันทีโดยไม่มีแม้แต่ปุ่ม "ลองใหม่" ให้กด
-  // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — ใส่ retry แบบเดียวกับ bootstrap (สั้นก่อน แล้วเต็มอีกรอบ) +
-  // เพิ่มปุ่มลองใหม่ไว้เผื่อพังทั้งสองรอบจริงๆ
+  // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — เดิมแก้ด้วยปุ่ม "ลองใหม่" ก่อน (7 ก.ย. 69) ตอนนี้ (15 ก.ย. 69)
+  // เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทนที่จะโชว์ error ค้างรอให้กดเอง
+  // (silent=true ยังคงพฤติกรรมเดิม: มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังแค่ครั้งเดียวไม่ต้อง retry ซ้ำ)
   async function load(silent){
     if(!silent) c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
-    let data;
-    try{
-      try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
-      catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
-    }catch(err){
-      if(silent) return; // มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังไม่ต้องรบกวนหน้าจอ ลองใหม่รอบหน้าแทน
-      c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดไม่สำเร็จ: ${err.message}</p>
-        <button class="btn" id="retryPending" style="margin-top:12px;">ลองใหม่</button>`;
-      c.querySelector('#retryPending').onclick = ()=> load(false);
+    for(;;){
+      let data;
+      try{
+        try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
+        catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
+      }catch(err){
+        if(silent) return; // มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังไม่ต้องรบกวนหน้าจอ ลองใหม่รอบหน้าแทน
+        await new Promise(r=> setTimeout(r, 3000));
+        continue;
+      }
+      writePendingBillsCache(data.batches);
+      drawList(data.batches);
       return;
     }
-    writePendingBillsCache(data.batches);
-    drawList(data.batches);
   }
 
   const cached = readPendingBillsCache();
@@ -2567,15 +2575,21 @@ async function renderSupplierCheck(app){
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
 
   renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
-  try{
-    const statusList = await getStockStatus();
-    statusList.filter(s=>products.some(p=>p.id===s.productId)).forEach(s=>{
-      Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; });
-      if(s.checked) checkedProducts.add(s.productId);
-    });
-  }catch(err){
-    app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`; return;
+  // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที (ต้องกดย้อนกลับแล้วเข้าใหม่เอง) — เปลี่ยนเป็นวนลอง
+  // เงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทน
+  let statusList;
+  for(;;){
+    try{
+      statusList = await getStockStatus();
+      break;
+    }catch(err){
+      await new Promise(r=> setTimeout(r, 3000));
+    }
   }
+  statusList.filter(s=>products.some(p=>p.id===s.productId)).forEach(s=>{
+    Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; });
+    if(s.checked) checkedProducts.add(s.productId);
+  });
   app.innerHTML = '';
   supplierCheckDirty = false; // เข้าหน้านี้ใหม่ ยังไม่มีอะไรที่แก้แล้วยังไม่ได้บันทึกรอบนี้
 
@@ -2968,17 +2982,22 @@ async function renderOwnerStockAnalytics(app){
 
   tabs.querySelectorAll('.tab').forEach(t=> t.onclick = ()=>{ go('ownerStockAnalytics', {ownerTab:t.dataset.t}); });
 
-  try{
-    if(state.ownerTab === 'stock'){
-      const statusList = await getStockStatus();
-      statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
-      renderStockTab(body);
-    } else {
-      const analytics = await apiGet('analytics', {range:'7d'});
-      renderAnalyticsTab(body, analytics);
+  // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
+  // bootstrap()/checkPin() แทน
+  for(;;){
+    try{
+      if(state.ownerTab === 'stock'){
+        const statusList = await getStockStatus();
+        statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+        renderStockTab(body);
+      } else {
+        const analytics = await apiGet('analytics', {range:'7d'});
+        renderAnalyticsTab(body, analytics);
+      }
+      break;
+    }catch(err){
+      await new Promise(r=> setTimeout(r, 3000));
     }
-  }catch(err){
-    body.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
   }
 }
 
@@ -3067,11 +3086,15 @@ async function renderOrderPage(app){
   // เจอเพิ่ม 10 ก.ย. 69 (ต่อ): แค่รวมเป็น 1 คำขอยังไม่พอ — หน้านี้ถูกเข้าออกซ้ำๆ บ่อยมากระหว่างสั่งของ
   // หลายเจ้าในรอบเดียว (ดู ensureOrderPageData ด้านบนสำหรับรายละเอียดเต็ม) ใช้ cache TTL แทนการยิงคำขอใหม่
   // ทุกครั้งที่กลับมาหน้านี้
-  try{
-    await ensureOrderPageData();
-  }catch(err){
-    c.innerHTML = `<p class="empty-state" style="color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}</p>`;
-    return;
+  // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
+  // bootstrap()/checkPin() แทน
+  for(;;){
+    try{
+      await ensureOrderPageData();
+      break;
+    }catch(err){
+      await new Promise(r=> setTimeout(r, 3000));
+    }
   }
   const statusList = stockStatusCache;
   const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
