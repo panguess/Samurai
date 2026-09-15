@@ -1194,6 +1194,13 @@ async function initAdmin(){
   // fetch ก่อน — ถ้าไม่มี (เปิดเครื่องนี้ครั้งแรกสุด/เคย clear ข้อมูลเว็บไป) ค่อย fallback ไปโชว์จุดกระโดด
   // สามจุดเหมือนเดิมระหว่างรอของจริง
   const cachedOrders=readAdminOrdersCache();
+  // [แก้ 15 ก.ย. 69 — ต่อ] เจอบั๊กจริง: ตอนโชว์ cache ก่อนนี้ ยังไม่ทันโหลด products เลย (ตัวแปร products
+  // เป็น [] ว่างเปล่าตั้งแต่ประกาศตอนต้นไฟล์) ทำให้ getOrderProdFullMap หา prod ไม่เจอสักตัว รูปเลยกลายเป็น
+  // ไอคอนถุงช้อปปิ้ง placeholder หมด และราคา/หน่วยโชว้ ฿0.00 ทุกรายการ (ยอดรวมออเดอร์ยังถูกเพราะมาจาก
+  // o.total ตรงๆ ไม่ผ่าน products) ถ้า products_ALL ยังมี cache (sessionStorage, TTL 30 วิ) จากรอบก่อนหน้า
+  // ของ session เดียวกันอยู่ ให้ดึงมาใช้ก่อนโชว์ผลจาก cache เลย ลดโอกาสเจอปัญหานี้ไปได้เยอะ
+  const adminProdCachedEarly=cacheGet('products_ALL');
+  if(adminProdCachedEarly&&adminProdCachedEarly.length) products=adminProdCachedEarly;
   if(cachedOrders&&cachedOrders.length){
     allAdminOrders=cachedOrders.filter(o=>o&&o.order_id);
     lastAdminOrdersHash=JSON.stringify(cachedOrders);
@@ -1205,7 +1212,7 @@ async function initAdmin(){
   // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
   // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
   // แก้ด้วยการยิงทั้งสอง request พร้อมกัน (ไม่ต้องรอกัน) แล้วค่อยประมวลผลรวมทีเดียว
-  const adminProdCached=cacheGet('products_ALL');
+  const adminProdCached=adminProdCachedEarly;
   const productsPromise=adminProdCached
     ? Promise.resolve(adminProdCached)
     : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
@@ -1222,14 +1229,22 @@ async function initAdmin(){
     // ถ้ามี cache โชว์อยู่แล้วตั้งแต่ต้นฟังก์ชัน ปล่อยผ่านเงียบๆ ไม่ต้องเปลี่ยนหน้าจอไปโชว์ loading ทับ — auto-
     // refresh (setInterval ด้านล่าง ทุก 30 วิ) จะลองใหม่ให้เองอยู่แล้ว เหมือน background refresh ของ stock-check
     if(!cachedOrders||!cachedOrders.length) await loadAdminOrders();
+    // [แก้บั๊กรูป/ราคาหาย] products อาจเพิ่งโหลดเสร็จตรงนี้ (คนละ path จาก ordersData) ต้อง re-render รายการ
+    // ที่โชว้จาก cache ไปก่อนหน้าซ้ำอีกที ไม่งั้นรูป/ราคาจะค้างว่างเปล่าเหมือนเดิมแม้ products จะมาแล้วก็ตาม
+    else if(!adminProdCachedEarly) renderAdminOrders();
   }else{
     const text=JSON.stringify(ordersData);
     writeAdminOrdersCache(text);
-    if(text!==lastAdminOrdersHash){
+    const ordersChanged=text!==lastAdminOrdersHash;
+    if(ordersChanged){
       lastAdminOrdersHash=text;
       allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
-      renderAdminOrders();
     }
+    // [แก้บั๊กรูป/ราคาหาย] เดิม render เฉพาะตอนออเดอร์เปลี่ยน — ถ้าออเดอร์ไม่เปลี่ยนเลย (hash ตรงกับ cache
+    // เป๊ะ) จะไม่ re-render อีกรอบ ทั้งที่ตอนโชว้จาก cache ไปก่อนหน้านั้น products ยังว่างอยู่ (ดู comment
+    // ด้านบน) รูป/ราคาเลยค้างว่างเปล่าตลอดไปจนกว่าจะมีอะไรอื่นมา trigger re-render เอง ต้องบังคับ re-render
+    // อีกครั้งเสมอถ้าเพิ่งโชว้จาก cache แบบไม่มี products (adminProdCachedEarly ว่าง) ไปก่อนหน้า
+    if(ordersChanged||(cachedOrders&&cachedOrders.length&&!adminProdCachedEarly)) renderAdminOrders();
   }
 
   loadBusinessNotes().then(()=>{ if(adminCurrentTab==='overview') renderAdminOverview(); });
