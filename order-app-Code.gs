@@ -826,6 +826,18 @@ function updateOrder(data) {
     if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
       return response({ error: 'unauthorized' });
     }
+    // [เพิ่ม 15 ก.ย. 69] เดิมเช็คแค่ความเป็นเจ้าของออเดอร์ ไม่เคยเช็คสถานะเลย — ฝั่งเว็บซ่อนปุ่ม "แก้ไข" ไว้แล้ว
+    // ตอน delivery_status เป็น packing/done (ดู canEdit ใน index.html) แต่นั่นบังคับแค่ที่ UI เท่านั้น ถ้าลูกค้า
+    // เปิดหน้าค้างไว้ตั้งแต่ตอนออเดอร์ยัง pending (ปุ่มยังโชว์อยู่) แล้วแอดมินเพิ่งกด "เริ่มจัดสินค้า" พอดี ลูกค้า
+    // กดปุ่มเดิมที่ยังค้างอยู่จะยังยิง request เข้ามาได้อยู่ดี เพราะ backend ไม่เคยเช็คสถานะ — แก้โดยบล็อกฝั่งลูกค้า
+    // (ไม่ใช่ admin) ถ้าออเดอร์ไม่ใช่ pending แล้ว (กำลังจัด/จัดเสร็จ/ยกเลิกแล้ว) ตรงกับเจตนา "แก้ไขได้แค่ตอนร้าน
+    // ยังไม่เริ่มจัดของเท่านั้น" — ฝั่งแอดมินไม่ถูกบล็อก เพราะแก้ไขระหว่างจัดของ (เช่นของหมด) เป็น flow ปกติที่ตั้งใจไว้
+    if (!isAdminCall) {
+      const currentStatus = row[headers.indexOf('delivery_status')];
+      if (currentStatus && currentStatus !== 'pending') {
+        return response({ error: 'ร้านเริ่มจัดสินค้าแล้ว ไม่สามารถแก้ไขออเดอร์นี้ได้' });
+      }
+    }
     // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
     // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
     const orderGroup = row[headers.indexOf('customer_group')];
@@ -839,14 +851,21 @@ function updateOrder(data) {
     sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
     invalidateOrderCache();
 
-    const editedBy = isAdminCall ? 'admin' : ('customer:' + ownerCustomerId);
-    // data.itemReasons (ถ้ามี) เป็น object {ชื่อสินค้า: เหตุผล} มาจากแอดมินเลือก/พิมพ์ทีละรายการตอนแก้ไข
-    // (เช่นตัวนึง "หมด" อีกตัว "ลูกค้าขอเปลี่ยน") — ดู promptEditReason ฝั่ง index.html ผูกเหตุผลเข้ากับรายการ
-    // นั้นตรงๆ เก็บลง change_summary หนึ่ง cell แต่แยกบรรทัดด้วย \n ต่อรายการ (ไม่ join(', ') รวมบรรทัดเดียว)
-    // เพื่อให้ getOrderEditSummary แยกกลับเป็นคนละบูลเล็ตได้ตอนสรุปใส่ Telegram — อ่านง่ายกว่าตอนแก้หลายรายการ
-    const diffs = diffItemsText(itemsBefore, data.items);
-    const changeSummary = formatItemsDiffWithReasons(diffs, data.itemReasons).join('\n');
-    logOrderEdit(data.order_id, editedBy, itemsBefore, totalBefore, data.items, total, changeSummary);
+    // [แก้ 15 ก.ย. 69] เดิม log ทุกครั้งไม่ว่าใครแก้ (ตั้งใจไว้แบบนั้นตอนแรกเพื่อ audit ทั่วไป) — แต่พอมี
+    // ฟีเจอร์เหตุผล/สรุป Telegram ตอนจัดเสร็จ (getOrderEditSummary อ่านทุกแถวของ order_id นั้นไม่สนว่าใครแก้)
+    // ทำให้ลูกค้าแก้ไขออเดอร์ตัวเองก่อนแอดมินเริ่มจัด (สิทธิ์ปกติ ยังไม่ได้จัดของ เปลี่ยนใจได้ตลอด) ถูกดึงไป
+    // โผล่ในสรุป "มีการแก้ไขก่อนจัดเสร็จ" ผิดที่ผิดทาง ทั้งที่ควรมีแค่ตอนแอดมิน/ฝั่งร้านแก้เท่านั้น (เช่นของหมด)
+    // แก้โดย log เฉพาะตอน isAdminCall เท่านั้น — ลูกค้าแก้เองยังบันทึก items/total ปกติเหมือนเดิมทุกอย่าง
+    // (ดูโค้ดด้านบน) แค่ไม่ต่อ OrderEditLog/ไม่ไปโผล่ใน Telegram ตอนจัดเสร็จอีกต่อไป
+    if (isAdminCall) {
+      // data.itemReasons (ถ้ามี) เป็น object {ชื่อสินค้า: เหตุผล} มาจากแอดมินเลือก/พิมพ์ทีละรายการตอนแก้ไข
+      // (เช่นตัวนึง "หมด" อีกตัว "ลูกค้าขอเปลี่ยน") — ดู promptEditReason ฝั่ง index.html ผูกเหตุผลเข้ากับรายการ
+      // นั้นตรงๆ เก็บลง change_summary หนึ่ง cell แต่แยกบรรทัดด้วย \n ต่อรายการ (ไม่ join(', ') รวมบรรทัดเดียว)
+      // เพื่อให้ getOrderEditSummary แยกกลับเป็นคนละบูลเล็ตได้ตอนสรุปใส่ Telegram — อ่านง่ายกว่าตอนแก้หลายรายการ
+      const diffs = diffItemsText(itemsBefore, data.items);
+      const changeSummary = formatItemsDiffWithReasons(diffs, data.itemReasons).join('\n');
+      logOrderEdit(data.order_id, 'admin', itemsBefore, totalBefore, data.items, total, changeSummary);
+    }
 
     return response({ success: true });
   } catch (e) {
@@ -953,8 +972,19 @@ function cancelOrder(data) {
   if (!loc) return response({ error: 'not found' });
   const { sheet, headers, rowIndex, row } = loc;
   const ownerCustomerId = row[headers.indexOf('customer_id')];
-  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+  const isAdminCall = isValidAdminKey(data.key);
+  if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
     return response({ error: 'unauthorized' });
+  }
+  // [เพิ่ม 15 ก.ย. 69] ช่องโหว่เดียวกับ updateOrder (ดู comment ด้านบน) — ปุ่ม "ยกเลิก" ก็ซ่อนไว้แค่ที่ UI
+  // ตอน packing/done (canCancel=canEdit ใน index.html) ไม่เคยเช็คที่ backend เลย ลูกค้าเปิดหน้าค้างไว้ตั้งแต่
+  // ก่อนแอดมินเริ่มจัด แล้วกดยกเลิกตอนร้านเริ่มจัดไปแล้วพอดี จะยังยกเลิกได้อยู่ดี ทั้งที่ของอาจถูกจัดไปแล้ว —
+  // บล็อกฝั่งลูกค้า (ไม่ใช่ admin) เหมือนกัน ถ้าออเดอร์ไม่ใช่ pending แล้ว
+  if (!isAdminCall) {
+    const currentStatus = row[headers.indexOf('delivery_status')];
+    if (currentStatus && currentStatus !== 'pending') {
+      return response({ error: 'ร้านเริ่มจัดสินค้าแล้ว ไม่สามารถยกเลิกออเดอร์นี้เองได้ กรุณาติดต่อร้านค้าโดยตรง' });
+    }
   }
   const customerName = row[headers.indexOf('customer_name')];
   const total = row[headers.indexOf('total')];
