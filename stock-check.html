@@ -1068,37 +1068,26 @@ async function bootstrap(){
   loadingEl.className = 'content';
   loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>กำลังโหลดข้อมูลร้าน...</p></div>`;
   app.appendChild(loadingEl);
-  // การเชื่อมต่อ "เย็น" ครั้งแรกของ session (ไม่มีอะไรแคชไว้เลย เช่น เพิ่งปิดแท็บมาเปิดใหม่) มักช้ากว่า
-  // ปกติมาก เพราะต้อง DNS + TLS handshake ใหม่ทั้งกับ script.google.com และโดเมนที่มัน redirect ไปอีกที
-  // (script.googleusercontent.com) บวกกับ Apps Script อาจต้อง "ตื่น" จาก cold start — รวมกันแล้วหลุด
-  // เวลาที่ตั้งไว้ (API_TIMEOUT_MS) ได้ง่ายๆ ทั้งที่ backend ไม่ได้มีปัญหาอะไรเลย (ยืนยันจาก Executions log
-  // สะอาดหมดตอนไล่บั๊กนี้) พอกด "ลองใหม่" ครั้งที่สองจะติดทันทีเพราะ connection อุ่นแล้ว — ให้แอป retry
-  // ให้เองเงียบๆ 1 ครั้งก่อนถึงจะโชว์ error จริงให้ผู้ใช้เห็น แทนที่จะบังคับให้ต้องกดปุ่มเองทุกครั้ง
-  // รอบแรกให้ timeout สั้นกว่าปกติ (10 วิ แทน 25 วิ) เพราะถ้ามันจะพังจาก cold connection จริง รอนานกว่านี้
-  // ก็ไม่ช่วยอะไร แค่ทำให้ผู้ใช้รอ error เปล่าๆ นานขึ้น — ตัดใจ retry เร็วๆ ไปเลยดีกว่า รอบที่สอง (ซึ่ง
-  // connection น่าจะอุ่นแล้ว) ค่อยให้เวลาเต็ม 25 วิเผื่อไว้จริงๆ
-  try{
-    const data = await apiGet('bootstrap', null, 10000);
-    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
-    writeBootstrapCache(data);
-    _bootstrapRefreshTs = Date.now();
-    getStockStatus().catch(()=>{});
-    history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
-    render();
-    return;
-  }catch(firstErr){
-    // ไม่ต้องบอกผู้ใช้ว่ารอบแรกพลาด แค่ลองใหม่เงียบๆ ให้เลย
-  }
-  try{
-    const data = await apiGet('bootstrap');
-    SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
-    writeBootstrapCache(data);
-    _bootstrapRefreshTs = Date.now();
-    getStockStatus().catch(()=>{});
-    history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
-    render();
-  }catch(err){
-    loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 14px; color:var(--danger);">โหลดข้อมูลไม่สำเร็จ: ${err.message}<br><br><button class="btn" onclick="bootstrap()">ลองใหม่</button></div>`;
+  // เจอจริง 15 ก.ย. 69: เดิมจำกัดแค่ 2 รอบ (10วิ แล้ว 25วิ รวม ~35วิ) แล้วยอมแพ้โชว์ error ให้กดปุ่ม "ลองใหม่"
+  // เอง — แต่พบว่าเวลาทดสอบเปิด URL ของ backend ตรงๆ (เบราว์เซอร์ปกติไม่มี timeout ของตัวเอง รอได้ไม่จำกัด)
+  // กลับติดสำเร็จทุกครั้ง ทั้งที่แอปพังพอดี แปลว่า backend มักจะสำเร็จจริงอยู่แล้ว แค่ช้ากว่าที่แอปยอมรอ
+  // ไม่ใช่พังจริง (คล้าย cold start + DNS/TLS 2 โดเมนซ้อนกันที่เคยพบมาก่อน แต่รุนแรง/นานกว่าที่เคยเจอ) —
+  // เปลี่ยนแนวทางตามที่แอปสั่งของ (index.html) ทำสำเร็จมาแล้วเมื่อวันเดียวกัน: วนลองใหม่เงียบๆ ไม่จำกัด
+  // จำนวนรอบจนกว่าจะสำเร็จ แทนที่จะยอมแพ้แล้วบังคับให้ผู้ใช้กดปุ่มเอง — ไม่โชว์ error ระหว่างรอเลย ค้างแค่
+  // "กำลังโหลดข้อมูลร้าน..." ไว้ เว้นจังหวะสั้นๆ ระหว่างรอบกันยิงรัวจนซ้ำเติมปัญหาถ้าเน็ต/backend กำลังหนักอยู่แล้ว
+  for(;;){
+    try{
+      const data = await apiGet('bootstrap');
+      SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
+      writeBootstrapCache(data);
+      _bootstrapRefreshTs = Date.now();
+      getStockStatus().catch(()=>{});
+      history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
+      render();
+      return;
+    }catch(err){
+      await new Promise(r=> setTimeout(r, 3000));
+    }
   }
 }
 
