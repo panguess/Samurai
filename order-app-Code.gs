@@ -320,6 +320,31 @@ function getThaiHolidays(year) {
 }
 
 /**
+ * ===== Keep-warm — กัน cold start (เพิ่ม 13 ก.ย. 69) =====
+ * ปัญหา: Apps Script "หลับ" เองถ้าไม่มีใครเรียกใช้สักพัก คำขอแรกหลังจากนั้น (เช่นแอดมินเปิดหน้าตอนเช้า)
+ * มักช้าผิดปกติจนชน timeout ฝั่งเว็บ (เจอจริง `initAdmin:getAdminOrders: หมดเวลาเชื่อมต่อ` 13 ก.ย. 69 —
+ * reload อีกรอบเดียวก็หายเพราะสคริปต์ตื่นแล้ว) ไม่เกี่ยวกับโค้ด `updateOrder`/fix อื่นๆ ที่เพิ่งแก้ไปเลย
+ *
+ * แก้โดยตั้ง time-driven trigger ให้เรียกฟังก์ชันนี้ทุก 5-10 นาที (ทำเอง — ดูวิธีด้านล่าง) เพื่อไม่ให้สคริปต์
+ * มีโอกาส "หลับ" ตั้งแต่แรก แทนที่จะรอให้ผู้ใช้จริงเป็นคนปลุกแล้วต้องรอ/เจอ error
+ *
+ * ตั้งใจให้เบาที่สุด — ไม่แตะ Sheet/Cache/Lock ใดๆ เลย แค่ทำให้ runtime ของ Apps Script ยังทำงานอยู่
+ * กินโควต้า execution time แทบเป็น 0 วิ/ครั้ง เทียบกับโควต้าฟรีของ Google (หลักชั่วโมง/วัน) ไม่มีนัยสำคัญ
+ *
+ * วิธีตั้ง trigger (ทำครั้งเดียว ทำเองใน Apps Script Editor เท่านั้น ผมตั้งจากตรงนี้ไม่ได้):
+ * 1. เปิด Apps Script Editor ของโปรเจกต์นี้ → คลิกไอคอนนาฬิกา "Triggers" ทางซ้าย
+ * 2. กด "+ Add Trigger" มุมขวาล่าง
+ * 3. Choose which function to run: keepWarm
+ * 4. Select event source: Time-driven
+ * 5. Select type of time based trigger: Minutes timer
+ * 6. Select minute interval: Every 5 minutes (หรือ 10 นาทีก็พอ)
+ * 7. กด Save
+ */
+function keepWarm() {
+  Logger.log('keepWarm ping: ' + new Date());
+}
+
+/**
  * ฟังก์ชันทดสอบ — ใช้สำหรับกด Run มือใน Apps Script Editor ครั้งแรก
  * เพื่อ trigger popup "Authorize access" (ขอสิทธิ์เรียก URL ภายนอก)
  * เลือกฟังก์ชันนี้จาก dropdown แล้วกด Run ▶ ครั้งเดียวพอ ไม่ต้อง error เหมือน doGet
@@ -481,6 +506,48 @@ function computeOrderTotal(itemsText, customerGroup) {
   const priceMap = {};
   source.forEach(p => { priceMap[p['name']] = Number(p['price']) || 0; });
   return items.reduce((sum, item) => sum + item.qty * (priceMap[item.name] || 0), 0);
+}
+
+/**
+ * ===== สรุปรายการที่เปลี่ยนตอนแก้ไขออเดอร์ (เพิ่ม 14 ก.ย. 69) =====
+ * เทียบ items ก่อน/หลังแก้ (string format เดียวกับ parseItemsServer) แล้วคืนเฉพาะรายการที่จำนวนเปลี่ยนจริง
+ * (เพิ่มใหม่, ตัดออกทั้งอัน, หรือลดจำนวน) ใช้ทั้งเก็บลง OrderEditLog และสรุปใส่ข้อความ Telegram ตอนจัดเสร็จ
+ */
+function diffItemsText(itemsBeforeText, itemsAfterText) {
+  const before = {};
+  parseItemsServer(itemsBeforeText).forEach(i => { before[i.name] = i.qty; });
+  const after = {};
+  parseItemsServer(itemsAfterText).forEach(i => { after[i.name] = i.qty; });
+  const names = new Set(Object.keys(before).concat(Object.keys(after)));
+  const diffs = [];
+  names.forEach(name => {
+    const b = before[name] || 0;
+    const a = after[name] || 0;
+    if (b !== a) diffs.push({ name: name, before: b, after: a });
+  });
+  return diffs;
+}
+
+function formatItemsDiff(diffs) {
+  return diffs.map(d => d.name + ' x' + d.before + '→x' + d.after).join(', ');
+}
+
+/**
+ * [แก้ 14 ก.ย. 69] เดิมมีเหตุผลเดียวรวมกันทั้งการแก้ไข — พบว่าผิด เพราะแก้หลายรายการพร้อมกันอาจคนละเหตุผล
+ * (เช่นตัวนึงหมด อีกตัวลูกค้าขอเปลี่ยน) รวมเป็นเหตุผลเดียวจะไม่ตรงกับความจริง เปลี่ยนเป็นรับ itemReasons
+ * เป็น object {ชื่อสินค้า: เหตุผล} จาก frontend (ดู promptEditReason ฝั่ง index.html) ผูกเหตุผลเข้ากับ
+ * รายการนั้นๆ ตรงๆ
+ *
+ * [แก้ 14 ก.ย. 69 — ต่อ] เดิม join(', ') รวมทุกรายการเป็นบรรทัดเดียวคั่นด้วยจุลภาค อ่านยากเวลามีหลาย
+ * รายการ (โดยเฉพาะใน Telegram ที่จะกลายเป็นข้อความยาวพืดบรรทัดเดียว) เปลี่ยนเป็นคืน array แยกทีละรายการ
+ * แทน ให้ผู้เรียก join('\n') เองตอนเก็บลง cell เดียวของ OrderEditLog (ยังอยู่ในเซลล์เดิม ไม่เพิ่มคอลัมน์)
+ * แล้ว getOrderEditSummary จะแยก \n กลับเป็นบรรทัดย่อยตอนสร้างข้อความ Telegram ให้แต่ละรายการขึ้นบูลเล็ตของตัวเอง
+ */
+function formatItemsDiffWithReasons(diffs, itemReasons) {
+  return diffs.map(d => {
+    const reason = itemReasons && itemReasons[d.name];
+    return d.name + ' x' + d.before + '→x' + d.after + (reason ? ' (' + reason + ')' : '');
+  });
 }
 
 function getOrders(customer_id) {
@@ -653,26 +720,170 @@ function createOrder(data) {
   }
 }
 
-// เรียกได้ทั้งแอดมิน (แก้ไขจากหน้าจัดการ) และลูกค้า (แก้ไขออเดอร์ตัวเองก่อนถูกจัดที่หน้า track) —
-// ยอมให้ผ่านถ้ามี ADMIN_KEY ถูกต้อง หรือ customer_id ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (กันลูกค้าคนหนึ่ง
-// แก้ไขออเดอร์ของลูกค้าอีกคนโดยเดา/ยิง order_id ตรงๆ)
-function updateOrder(data) {
-  const loc = findOrderLocation(data.order_id);
-  if (!loc) return response({ error: 'not found' });
-  const { sheet, headers, rowIndex, row } = loc;
-  const ownerCustomerId = row[headers.indexOf('customer_id')];
-  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
-    return response({ error: 'unauthorized' });
+/**
+ * ===== Audit log ทุกครั้งที่ updateOrder เขียนทับออเดอร์ (เพิ่ม 12 ก.ย. 69) =====
+ * พบเคสจริง: ออเดอร์เดียวกันมียอด 2 ค่าต่างกันปรากฏในเวลาไล่เลี่ยกัน (2,917 ตอนแจ้งเตือน Telegram "จัดเสร็จแล้ว"
+ * กับ 2,527 ที่เจอทีหลังในชีต) ไล่ Apps Script Executions log พบ doPost ยิงรัว 8 ครั้งในเวลาไม่ถึง 20 วินาที
+ * แต่ log ไม่บอกว่าแต่ละคำขอเป็น action ไหน/พารามิเตอร์อะไร เพราะ updateOrder ไม่เคยบันทึกอะไรไว้เลย — สืบหา
+ * ต้นตอย้อนหลังไม่ได้จริง ต้องมี log ของตัวเองแยกจาก Apps Script Executions (ซึ่งเก็บแค่ไม่กี่วัน) ถึงจะสอบได้
+ *
+ * ต้องมีชีตชื่อ 'OrderEditLog' พร้อมหัวคอลัมน์: log_id, order_id, timestamp, edited_by, items_before,
+ * total_before, items_after, total_after — ถ้ายังไม่มีชีตนี้ ฟังก์ชันนี้จะข้ามการ log เงียบๆ (ไม่ทำให้
+ * updateOrder ทั้งฟังก์ชันพังไปด้วยแค่เพราะยังไม่ได้สร้างชีต log)
+ *
+ * [เพิ่ม 14 ก.ย. 69] เพิ่มคอลัมน์ทางเลือก change_summary (สรุปรายการที่เปลี่ยนพร้อมเหตุผลผูกไว้ต่อรายการ
+ * เช่น "ปลาระเบิดกลม ห้าดาว x2→x1 (หมด)") — ใช้ pattern เดียวกับคอลัมน์เดิม (`h in rowObj` ตามหัวคอลัมน์จริง
+ * ในชีต) ถ้าชีตยังไม่มีคอลัมน์นี้ จะแค่ไม่เขียนค่าลงไป ไม่ทำให้ log พังหรือขาดคอลัมน์เดิมไป
+ *
+ * [แก้ 14 ก.ย. 69 — ต่อ] เดิมมีคอลัมน์ 'reason' แยกอีกตัวเก็บเหตุผลที่ไม่ซ้ำกันคั่นด้วย ';' — ซ้ำซ้อนกับ
+ * change_summary ที่ผูกเหตุผลไว้ต่อรายการอยู่แล้ว เลิกเขียนคอลัมน์นั้นแล้ว (เหลือไว้เฉยๆ เผื่อมีข้อมูลเก่า
+ * ไม่ลบคอลัมน์ทิ้งเพื่อไม่ให้แถวเก่าเลื่อน) เปลี่ยนไปเขียน total_diff แทน (ยอดหลังแก้ลบยอดก่อนแก้ เช่น
+ * -650 หรือ +200) ให้เห็นส่วนต่างตรงๆ ไม่ต้องเอา total_after ลบ total_before เองทุกครั้ง — ต้องเพิ่มหัวคอลัมน์
+ * 'total_diff' ใน sheet OrderEditLog เองก่อนถึงจะเห็นค่านี้จริง (ลบคอลัมน์ 'reason' ทิ้งเองได้ถ้าต้องการ
+ * ไม่กระทบโค้ด เพราะเขียนตามหัวคอลัมน์จริงอยู่แล้ว ไม่ใช่ตามตำแหน่ง)
+ */
+function logOrderEdit(orderId, editedBy, itemsBefore, totalBefore, itemsAfter, totalAfter, changeSummary) {
+  try {
+    const sheet = getSheet('OrderEditLog');
+    if (!sheet) {
+      console.error('logOrderEdit: ไม่พบ sheet "OrderEditLog" — ข้ามการบันทึก log รอบนี้ (ควรสร้างชีตนี้ไว้)');
+      return;
+    }
+    const headers = sheet.getDataRange().getValues()[0];
+    const logId = 'LOG-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss') + '-' + Math.floor(Math.random() * 1000);
+    const rowObj = {
+      log_id: logId,
+      order_id: orderId,
+      timestamp: new Date(),
+      edited_by: editedBy,
+      items_before: itemsBefore,
+      total_before: totalBefore,
+      items_after: itemsAfter,
+      total_after: totalAfter,
+      change_summary: changeSummary || '',
+      total_diff: (Number(totalAfter) || 0) - (Number(totalBefore) || 0)
+    };
+    const row = headers.map(h => (h in rowObj) ? rowObj[h] : '');
+    sheet.appendRow(row);
+  } catch (e) {
+    // ไม่ throw ต่อ — log ล้มเหลวต้องไม่ทำให้การแก้ไขออเดอร์จริงพังไปด้วย
+    console.error('logOrderEdit ล้มเหลว: ' + e);
   }
-  // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
-  // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
-  const orderGroup = row[headers.indexOf('customer_group')];
-  const total = computeOrderTotal(data.items, orderGroup);
-  sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
-  sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(total);
-  sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
-  invalidateOrderCache();
-  return response({ success: true });
+}
+
+/**
+ * ===== รวมประวัติแก้ไขของออเดอร์หนึ่งๆ เพื่อสรุปใส่ Telegram ตอนจัดเสร็จ (เพิ่ม 14 ก.ย. 69) =====
+ * อ่านทุกแถวใน OrderEditLog ที่เป็น order_id นี้ เรียงตามเวลา คืน { originalTotal, lines }
+ * originalTotal = total_before ของแถวแรกสุด (ยอดตอนสร้างออเดอร์ ก่อนถูกแก้ครั้งใดเลย)
+ * lines = array ของ "change_summary (reason)" ทุกครั้งที่มีการแก้ไข (ข้ามแถวที่ไม่มี change_summary)
+ * ถ้าไม่มีชีต/ไม่มีประวัติแก้ไขเลย คืน null (แปลว่าไม่ต้องแสดงอะไรเพิ่มในข้อความแจ้งเตือน)
+ */
+function getOrderEditSummary(orderId) {
+  try {
+    const sheet = getSheet('OrderEditLog');
+    if (!sheet) return null;
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) return null;
+    const headers = rows[0];
+    const entries = [];
+    for (let i = 1; i < rows.length; i++) {
+      const obj = rowToObj(headers, rows[i]);
+      if (obj['order_id'] === orderId) entries.push(obj);
+    }
+    if (!entries.length) return null;
+    entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const originalTotal = entries[0]['total_before'];
+    // change_summary ผูกเหตุผลไว้ต่อรายการอยู่แล้ว (ดู formatItemsDiffWithReasons) ไม่ต้องต่อคอลัมน์ reason
+    // ซ้ำอีกรอบ — คอลัมน์ reason แยกไว้แค่เผื่อกรอง/ค้นหาเร็วๆ ในชีตเท่านั้น
+    // แต่ละ entry อาจมีหลายรายการรวมกันคั่นด้วย \n (ดู updateOrder) -> split ให้แต่ละรายการเป็นบูลเล็ตของ
+    // ตัวเองตอนสรุปใส่ Telegram แทนที่จะรวมทุกรายการของทุกครั้งแก้ไว้บรรทัดเดียวยาวๆ
+    const lines = [];
+    entries.forEach(e => {
+      if (!e['change_summary']) return;
+      String(e['change_summary']).split('\n').forEach(line => { if (line) lines.push(line); });
+    });
+    if (!lines.length) return null;
+    return { originalTotal: originalTotal, lines: lines };
+  } catch (e) {
+    console.error('getOrderEditSummary ล้มเหลว: ' + e);
+    return null;
+  }
+}
+
+/**
+ * เรียกได้ทั้งแอดมิน (แก้ไขจากหน้าจัดการ) และลูกค้า (แก้ไขออเดอร์ตัวเองก่อนถูกจัดที่หน้า track) —
+ * ยอมให้ผ่านถ้ามี ADMIN_KEY ถูกต้อง หรือ customer_id ที่ส่งมาตรงกับเจ้าของออเดอร์จริงในชีต (กันลูกค้าคนหนึ่ง
+ * แก้ไขออเดอร์ของลูกค้าอีกคนโดยเดา/ยิง order_id ตรงๆ)
+ *
+ * ⚠️ [แก้ 12 ก.ย. 69] ห่อด้วย LockService (แพทเทิร์นเดียวกับ updateDelivery/createOrder) — เดิมฟังก์ชันนี้
+ * ไม่มีการล็อกใดๆ เลย ถ้ามีคำขอ updateOrder หลายอันยิงเข้ามาพร้อมกัน (retry ซ้อนกัน, สองแอดมินแก้ไขออเดอร์
+ * เดียวกันพร้อมกัน) จะอ่าน-เขียนทับกันแบบสุ่ม ไม่มีทางรู้ว่าใครชนะ และไม่มี log อะไรเก็บไว้สอบทีหลังเลย
+ * (พบเคสจริง 12 ก.ย. 69 — ดู comment ของ logOrderEdit ด้านบน) แก้พร้อมกัน 2 อย่าง: (1) lock กันชนกัน
+ * (2) log ค่าก่อน/หลังทุกครั้งที่เขียนสำเร็จ ให้สอบย้อนหลังได้จริงถ้าเกิดเคสแบบนี้อีก
+ */
+function updateOrder(data) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return response({ error: 'updateOrder: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
+  }
+  try {
+    const loc = findOrderLocation(data.order_id);
+    if (!loc) return response({ error: 'not found' });
+    const { sheet, headers, rowIndex, row } = loc;
+    const ownerCustomerId = row[headers.indexOf('customer_id')];
+    const isAdminCall = isValidAdminKey(data.key);
+    if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+      return response({ error: 'unauthorized' });
+    }
+    // [เพิ่ม 15 ก.ย. 69] เดิมเช็คแค่ความเป็นเจ้าของออเดอร์ ไม่เคยเช็คสถานะเลย — ฝั่งเว็บซ่อนปุ่ม "แก้ไข" ไว้แล้ว
+    // ตอน delivery_status เป็น packing/done (ดู canEdit ใน index.html) แต่นั่นบังคับแค่ที่ UI เท่านั้น ถ้าลูกค้า
+    // เปิดหน้าค้างไว้ตั้งแต่ตอนออเดอร์ยัง pending (ปุ่มยังโชว์อยู่) แล้วแอดมินเพิ่งกด "เริ่มจัดสินค้า" พอดี ลูกค้า
+    // กดปุ่มเดิมที่ยังค้างอยู่จะยังยิง request เข้ามาได้อยู่ดี เพราะ backend ไม่เคยเช็คสถานะ — แก้โดยบล็อกฝั่งลูกค้า
+    // (ไม่ใช่ admin) ถ้าออเดอร์ไม่ใช่ pending แล้ว (กำลังจัด/จัดเสร็จ/ยกเลิกแล้ว) ตรงกับเจตนา "แก้ไขได้แค่ตอนร้าน
+    // ยังไม่เริ่มจัดของเท่านั้น" — ฝั่งแอดมินไม่ถูกบล็อก เพราะแก้ไขระหว่างจัดของ (เช่นของหมด) เป็น flow ปกติที่ตั้งใจไว้
+    if (!isAdminCall) {
+      const currentStatus = row[headers.indexOf('delivery_status')];
+      if (currentStatus && currentStatus !== 'pending') {
+        return response({ error: 'ร้านเริ่มจัดสินค้าแล้ว ไม่สามารถแก้ไขออเดอร์นี้ได้' });
+      }
+    }
+    // คำนวณ total ใหม่จากราคาสินค้าจริง ใช้ customer_group ที่บันทึกไว้ตอนสร้างออเดอร์ (ยืนยันแล้วตอน createOrder)
+    // ไม่เชื่อ data.total หรือ customer_group จาก client เลย — เหตุผลเดียวกับ createOrder ด้านบน
+    const orderGroup = row[headers.indexOf('customer_group')];
+    const total = computeOrderTotal(data.items, orderGroup);
+
+    const itemsBefore = row[headers.indexOf('items')];
+    const totalBefore = row[headers.indexOf('total')];
+
+    sheet.getRange(rowIndex, headers.indexOf('items') + 1).setValue(data.items);
+    sheet.getRange(rowIndex, headers.indexOf('total') + 1).setValue(total);
+    sheet.getRange(rowIndex, headers.indexOf('note') + 1).setValue(data.note);
+    invalidateOrderCache();
+
+    // [แก้ 15 ก.ย. 69] เดิม log ทุกครั้งไม่ว่าใครแก้ (ตั้งใจไว้แบบนั้นตอนแรกเพื่อ audit ทั่วไป) — แต่พอมี
+    // ฟีเจอร์เหตุผล/สรุป Telegram ตอนจัดเสร็จ (getOrderEditSummary อ่านทุกแถวของ order_id นั้นไม่สนว่าใครแก้)
+    // ทำให้ลูกค้าแก้ไขออเดอร์ตัวเองก่อนแอดมินเริ่มจัด (สิทธิ์ปกติ ยังไม่ได้จัดของ เปลี่ยนใจได้ตลอด) ถูกดึงไป
+    // โผล่ในสรุป "มีการแก้ไขก่อนจัดเสร็จ" ผิดที่ผิดทาง ทั้งที่ควรมีแค่ตอนแอดมิน/ฝั่งร้านแก้เท่านั้น (เช่นของหมด)
+    // แก้โดย log เฉพาะตอน isAdminCall เท่านั้น — ลูกค้าแก้เองยังบันทึก items/total ปกติเหมือนเดิมทุกอย่าง
+    // (ดูโค้ดด้านบน) แค่ไม่ต่อ OrderEditLog/ไม่ไปโผล่ใน Telegram ตอนจัดเสร็จอีกต่อไป
+    if (isAdminCall) {
+      // data.itemReasons (ถ้ามี) เป็น object {ชื่อสินค้า: เหตุผล} มาจากแอดมินเลือก/พิมพ์ทีละรายการตอนแก้ไข
+      // (เช่นตัวนึง "หมด" อีกตัว "ลูกค้าขอเปลี่ยน") — ดู promptEditReason ฝั่ง index.html ผูกเหตุผลเข้ากับรายการ
+      // นั้นตรงๆ เก็บลง change_summary หนึ่ง cell แต่แยกบรรทัดด้วย \n ต่อรายการ (ไม่ join(', ') รวมบรรทัดเดียว)
+      // เพื่อให้ getOrderEditSummary แยกกลับเป็นคนละบูลเล็ตได้ตอนสรุปใส่ Telegram — อ่านง่ายกว่าตอนแก้หลายรายการ
+      const diffs = diffItemsText(itemsBefore, data.items);
+      const changeSummary = formatItemsDiffWithReasons(diffs, data.itemReasons).join('\n');
+      logOrderEdit(data.order_id, 'admin', itemsBefore, totalBefore, data.items, total, changeSummary);
+    }
+
+    return response({ success: true });
+  } catch (e) {
+    return response({ error: 'updateOrder: ' + e.message });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -733,6 +944,19 @@ function updateDelivery(data) {
           'รหัส: ' + data.order_id + '\n' +
           'ลูกค้า: ' + customerName + '\n' +
           'ยอดรวม: ฿' + formatMoney(total);
+
+        // [เพิ่ม 14 ก.ย. 69] ถ้าออเดอร์นี้เคยถูกแก้ไขมาก่อน (เช่น ของหมดตอนจัด) ต่อท้ายด้วยสรุปว่าแก้อะไรไปทำไม
+        // กันความสับสนตอนยอด "สั่ง" กับยอด "จัดเสร็จ" ไม่ตรงกัน (ดู comment ของ getOrderEditSummary ด้านบน)
+        const editSummary = getOrderEditSummary(data.order_id);
+        if (editSummary) {
+          // [แก้ 14 ก.ย. 69] เดิมโชว์แค่ "ยอดเดิม" อย่างเดียว ต้องเอา ยอดจัดเสร็จ ลบเองถึงจะรู้ว่าต่างกันเท่าไหร่
+          // เพิ่มส่วนต่างให้ตรงๆ พร้อมเครื่องหมาย +/- (ลด = ติดลบ, เพิ่ม = บวก) ไม่ต้องคำนวณเอง
+          const totalDiff = (Number(total) || 0) - (Number(editSummary.originalTotal) || 0);
+          const diffText = (totalDiff >= 0 ? '+' : '-') + formatMoney(Math.abs(totalDiff));
+          notifyMessage += '\n\n⚠️ มีการแก้ไขก่อนจัดเสร็จ (ยอดเดิม ฿' + formatMoney(editSummary.originalTotal) +
+            ' → ยอดนี้ ฿' + formatMoney(total) + ', ต่างกัน ' + diffText + ' บาท):\n- ' +
+            editSummary.lines.join('\n- ');
+        }
       }
 
     return response({ success: true });
@@ -759,8 +983,19 @@ function cancelOrder(data) {
   if (!loc) return response({ error: 'not found' });
   const { sheet, headers, rowIndex, row } = loc;
   const ownerCustomerId = row[headers.indexOf('customer_id')];
-  if (!isValidAdminKey(data.key) && !(data.customer_id && data.customer_id === ownerCustomerId)) {
+  const isAdminCall = isValidAdminKey(data.key);
+  if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
     return response({ error: 'unauthorized' });
+  }
+  // [เพิ่ม 15 ก.ย. 69] ช่องโหว่เดียวกับ updateOrder (ดู comment ด้านบน) — ปุ่ม "ยกเลิก" ก็ซ่อนไว้แค่ที่ UI
+  // ตอน packing/done (canCancel=canEdit ใน index.html) ไม่เคยเช็คที่ backend เลย ลูกค้าเปิดหน้าค้างไว้ตั้งแต่
+  // ก่อนแอดมินเริ่มจัด แล้วกดยกเลิกตอนร้านเริ่มจัดไปแล้วพอดี จะยังยกเลิกได้อยู่ดี ทั้งที่ของอาจถูกจัดไปแล้ว —
+  // บล็อกฝั่งลูกค้า (ไม่ใช่ admin) เหมือนกัน ถ้าออเดอร์ไม่ใช่ pending แล้ว
+  if (!isAdminCall) {
+    const currentStatus = row[headers.indexOf('delivery_status')];
+    if (currentStatus && currentStatus !== 'pending') {
+      return response({ error: 'ร้านเริ่มจัดสินค้าแล้ว ไม่สามารถยกเลิกออเดอร์นี้เองได้ กรุณาติดต่อร้านค้าโดยตรง' });
+    }
   }
   const customerName = row[headers.indexOf('customer_name')];
   const total = row[headers.indexOf('total')];

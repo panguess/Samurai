@@ -85,6 +85,12 @@
     .btn-edit{font-size:13.5px;padding:6px 14px;background:none;border:1px solid #D64109;color:#D64109;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
     .empty-state{text-align:center;padding:3rem 1rem;color:#aaa;font-size:16px}
+    /* ===== จุดกระโดดสามจุด ใช้แทน "กำลังโหลด..." เดิมทุกจุด (เพิ่ม 15 ก.ย. 69) ===== */
+    .loading-dots{display:flex;gap:8px;justify-content:center;align-items:center;padding:6px 0}
+    .loading-dots span{width:10px;height:10px;border-radius:50%;background:#D64109;animation:loadingDotBounce 1s ease-in-out infinite}
+    .loading-dots span:nth-child(2){animation-delay:0.15s}
+    .loading-dots span:nth-child(3){animation-delay:0.3s}
+    @keyframes loadingDotBounce{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-10px);opacity:1}}
     .home-top{background:#D64109;padding:1.8rem 1.5rem 1rem;text-align:center;color:#fff}
     .home-logo{margin-bottom:6px}
     .home-logo img{width:180px;max-width:70vw;height:auto;display:block;margin:0 auto}
@@ -243,6 +249,8 @@
     .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
     .admin-item-name{font-size:17px;font-weight:500;flex:1}
     .admin-item-price{font-size:12.5px;color:#aaa;margin-top:2px;font-weight:400}
+    .admin-item-reason{font-size:11.5px;color:#aaa;margin-top:2px;font-style:italic}
+    .admin-item-reason b{font-weight:600;font-style:normal}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
     .admin-qty-num{font-size:16px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
@@ -340,7 +348,7 @@
         <h3 style="font-size:18px;font-weight:600">สั่งซ้ำจากประวัติ</h3>
         <button onclick="closeReorderModal()" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#aaa">✕</button>
       </div>
-      <div id="reorderModalBody"><div class="empty-state">กำลังโหลด...</div></div>
+      <div id="reorderModalBody"><div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div></div>
     </div>
   </div>
   <!-- Edit Modal -->
@@ -352,6 +360,22 @@
       </div>
       <div id="editModalBody"></div>
       <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด)
+     ต้องอยู่นอก #app เพราะ show('adminApp') จะตั้ง #app เป็น display:none ทับ ถ้า modal นี้ซ้อนอยู่ข้างในจะไม่มีวันโผล่ตอนอยู่หน้าแอดมิน -->
+<div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:center;justify-content:center;padding:24px 16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25)">
+    <div style="padding:1.25rem 1.1rem 0">
+      <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขแต่ละรายการ</h3>
+      <div style="color:#888;font-size:12.5px;margin-bottom:8px">แต่ละรายการอาจมีเหตุผลไม่เหมือนกัน (เช่นตัวนึงหมด อีกตัวลูกค้าขอเปลี่ยน) เลือก/พิมพ์แยกทีละรายการได้</div>
+    </div>
+    <div id="reasonModalBody" style="overflow-y:auto;padding:0 1.1rem;flex:1"></div>
+    <div style="display:flex;gap:10px;padding:12px 1.1rem 1.5rem">
+      <button onclick="cancelEditReason()" style="flex:1;padding:11px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;font-weight:600">ยกเลิก</button>
+      <button onclick="confirmEditReason()" style="flex:1;padding:11px;border-radius:10px;border:none;background:#2f7d4f;color:#fff;font-size:14px;font-weight:600">ยืนยัน</button>
     </div>
   </div>
 </div>
@@ -452,20 +476,26 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
       const res=await fetch(url,{signal:controller.signal});
       clearTimeout(t);
       if(!res.ok){
-        logError(label||'fetch','HTTP '+res.status,silent);
+        // [แก้ 15 ก.ย. 69] เดิม logError ตัวนี้โผล่แบนเนอร์แดงกวนใจทุกครั้งที่ fetch พลาด แม้แต่ตอนกำลัง
+        // retry อยู่/เป็นแค่ความล่าช้าชั่วคราว ทั้งที่จุดเรียกแทบทุกจุดมี fallback ของตัวเองอยู่แล้ว (หน้า
+        // "โหลดไม่สำเร็จ" พร้อมปุ่มลองใหม่, banner แบบ 3 ครั้งติดของ auto-refresh, หรือ alert() ของ action
+        // นั้นๆ โดยตรง) เลยบังคับ silent เสมอ (log ลง console/localStorage ไว้เหมือนเดิมเพื่อ debug ทีหลัง
+        // ได้ แค่ไม่โผล่ตรงหน้าจอผู้ใช้ซ้ำซ้อน) ยังโชว์ banner นี้เฉพาะ JS error จริง (window.onerror/
+        // unhandledrejection ด้านบน) ที่ต้องการความสนใจจริงๆ เท่านั้น
+        logError(label||'fetch','HTTP '+res.status,true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
       const text=await res.text();
       try{return JSON.parse(text);}
       catch(e){
-        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),silent);
+        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
     }catch(e){
       clearTimeout(t);
-      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,silent);
+      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
       return fallback;
     }
@@ -485,7 +515,10 @@ async function postAction(payload,label,timeoutMs,retries){
       const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal});
       clearTimeout(t);
       if(!res.ok){
-        logError(label||'postAction','HTTP '+res.status);
+        // [แก้ 15 ก.ย. 69] silent เสมอเหมือน safeFetchJSON ด้านบน — ผู้เรียก postAction ทุกจุดมี alert()/
+        // toast ของตัวเองอยู่แล้วเวลา result เป็น null/success===false ไม่ต้องมีแบนเนอร์แดงซ้อนทับอีกชั้น
+        // (เจอจริง: กด "จัดเสร็จแล้ว" ไม่สำเร็จ ขึ้นทั้ง alert() และแบนเนอร์แดงพร้อมกัน ข้อความซ้ำกันเปล่าๆ)
+        logError(label||'postAction','HTTP '+res.status,true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return null;
       }
@@ -495,18 +528,18 @@ async function postAction(payload,label,timeoutMs,retries){
       catch(e){
         // backend อาจส่งหน้า error/HTML กลับมาแทน JSON (เช่น exception ที่ยังไม่ได้ครอบ try/catch)
         // HTTP status เป็น 200 ได้ทั้งที่ไม่สำเร็จจริง เลยต้อง treat แบบนี้เป็น "ไม่สำเร็จ" เสมอ
-        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120));
+        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120),true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return null;
       }
       if(data&&data.error){
-        logError(label||'postAction','backend error: '+data.error);
+        logError(label||'postAction','backend error: '+data.error,true);
         return {success:false,error:data.error};
       }
       return data||{success:true};
     }catch(e){
       clearTimeout(t);
-      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
+      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
       return null;
     }
@@ -538,7 +571,15 @@ async function initCustomer(){
       data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
       if(data&&!data.error) cacheSet(custCacheKey,data,30000);
     }
-    if(data===null){showError(true);return;}
+    // [แก้ 15 ก.ย. 69] เดิม data===null (network/timeout) โชว์หน้า "เชื่อมต่อไม่ได้" เต็มจอพร้อมปุ่มลองใหม่
+    // ให้ลูกค้ากดเอง — ผู้ใช้ (เจ้าของร้าน) ขอให้ไม่ต้องโชว์ error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็ลองใหม่เองในระบบ
+    // เงียบๆ ไปเลย เปลี่ยนเป็นวนลองใหม่อัตโนมัติทุก 3 วิ โดยยังโชว์หน้า loading เดิมค้างไว้ (ไม่มีข้อความ error
+    // ให้เห็นเลย) จนกว่าจะสำเร็จ — ส่วน data.error (เช่น "not found" จริงๆ จาก backend ไม่ใช่ปัญหาเชื่อมต่อ)
+    // ยังโชว์ showError(false) เหมือนเดิม เพราะลองใหม่ไปก็ไม่มีทางสำเร็จ (ลิงก์ผิดจริง ไม่ใช่ปัญหาเน็ต)
+    if(data===null){
+      await new Promise(r=>setTimeout(r,3000));
+      return initCustomer();
+    }
     if(data.error){showError(false);return;}
     customer=data;
     // จำ ref ที่เพิ่งเข้าสำเร็จไว้ ใช้กู้กลับตอนเข้ามาแบบไม่มี query string เลย (ดู window.onload ด้านบน)
@@ -583,7 +624,7 @@ let lastTrackOrders=[];
 let lastTrackOrdersHash='';
 async function loadTrackSection(){
   const list=document.getElementById('trackList');
-  list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   const isCancelled=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='cancelled';};
   const isDone=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='done';};
   const byTimeDesc=(a,b)=>new Date(b.timestamp)-new Date(a.timestamp);
@@ -595,7 +636,12 @@ async function loadTrackSection(){
   };
   try{
     const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
-    if(orders===null) throw new Error('timeout/fetch-failed');
+    if(orders===null){
+      // [แก้ 15 ก.ย. 69] เดิมโชว์ "โหลดข้อมูลไม่ได้" ค้างไว้เฉยๆ — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+      // initCustomer/loadAdminOrders ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่ต้องรอผู้ใช้กดอะไรเลย
+      await new Promise(r=>setTimeout(r,3000));
+      return loadTrackSection();
+    }
     lastTrackOrdersHash=JSON.stringify(orders);
     lastTrackOrders=orders;
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
@@ -609,14 +655,10 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
+      // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+      // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 10 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
       const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
-      if(orders===null){
-        trackRefreshFailCount++;
-        if(trackRefreshFailCount>=3){
-          showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+trackRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
-        }
-        return;
-      }
+      if(orders===null) return;
       trackRefreshFailCount=0;
       const text=JSON.stringify(orders);
       if(text===lastTrackOrdersHash) return;
@@ -810,7 +852,7 @@ async function switchTab(tab){
 
 async function loadHistory(){
   const list=document.getElementById('trackList');
-  list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   try{
     const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadHistory',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
@@ -990,7 +1032,67 @@ async function saveEdit(){
 
 function closeEditModal(){document.getElementById('editModal').style.display='none';}
 
+/**
+ * ===== เหตุผลแก้ไขออเดอร์ แยกทีละรายการ (เพิ่ม 14 ก.ย. 69, แก้เป็นรายรายการ 14 ก.ย. 69) — เฉพาะแอดมิน =====
+ * แสดงถามเหตุผลเฉพาะตอนมีรายการสินค้าถูกตัด/ลดจำนวนจริง (diff.length>0) เท่านั้น ไม่รบกวนถ้าไม่มีอะไรเปลี่ยน
+ * แต่ละรายการที่เปลี่ยนมีช่องเหตุผลของตัวเอง เพราะแก้พร้อมกันหลายรายการอาจคนละเหตุผลกัน (เช่นตัวนึงหมด
+ * อีกตัวลูกค้าขอเปลี่ยน) — รวมเป็นเหตุผลเดียวแบบเดิมจะผิด ไม่ตรงกับรายการจริง
+ * คืน Promise<{[itemName]:reason}|null> — null แปลว่าแอดมินกด "ยกเลิก" (ผู้เรียกต้องเลิกบันทึกด้วย ไม่ใช่แค่ข้ามเหตุผล)
+ * ปุ่ม "หมด" กดแล้วกรอกให้อัตโนมัติจบเลย ไม่ต้องพิมพ์ ส่วน "อื่นๆ" ให้พิมพ์เหตุผลเองในช่องของรายการนั้น
+ */
+let editReasonResolver=null;
+let editReasonDiffs=[];
+const REASON_CHIP_NORMAL='padding:7px 12px;border-radius:20px;border:1px solid #ddd;font-size:12.5px;cursor:pointer';
+const REASON_CHIP_SELECTED='padding:7px 12px;border-radius:20px;border:1px solid #2f7d4f;background:#2f7d4f;color:#fff;font-size:12.5px;cursor:pointer';
+function buildItemsDiffLine(itemsBeforeText,itemsAfterText){
+  const before={};parseItems(itemsBeforeText).forEach(i=>{before[i.name]=i.qty;});
+  const after={};parseItems(itemsAfterText).forEach(i=>{after[i.name]=i.qty;});
+  const names=new Set([...Object.keys(before),...Object.keys(after)]);
+  const diffs=[];
+  names.forEach(name=>{
+    const b=before[name]||0,a=after[name]||0;
+    if(b!==a) diffs.push({name,before:b,after:a});
+  });
+  return diffs;
+}
+function promptEditReason(itemsBeforeText,itemsAfterText){
+  const diffs=buildItemsDiffLine(itemsBeforeText,itemsAfterText);
+  if(!diffs.length) return Promise.resolve({}); // ไม่มีอะไรเปลี่ยนเลย -> ไม่ต้องถาม
+  editReasonDiffs=diffs;
+  document.getElementById('reasonModalBody').innerHTML=diffs.map((d,idx)=>`
+    <div style="border:1px solid #eee;border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="font-size:13.5px;font-weight:600;margin-bottom:8px">${escapeHtml(d.name)}: x${d.before}→x${d.after}</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div id="reasonChipOut${idx}" onclick="selectItemReasonChip(${idx},'หมด')" style="${REASON_CHIP_NORMAL}">หมด</div>
+        <div id="reasonChipOther${idx}" onclick="selectItemReasonChip(${idx},'')" style="${REASON_CHIP_NORMAL}">อื่นๆ</div>
+      </div>
+      <textarea id="reasonInput${idx}" placeholder="ระบุเหตุผลของรายการนี้" style="width:100%;min-height:44px;border:1px solid #ddd;border-radius:10px;padding:8px;font-size:13.5px;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>`).join('');
+  document.getElementById('reasonModal').style.display='flex';
+  return new Promise(resolve=>{editReasonResolver=resolve;});
+}
+function selectItemReasonChip(idx,val){
+  const outChip=document.getElementById('reasonChipOut'+idx),otherChip=document.getElementById('reasonChipOther'+idx);
+  const input=document.getElementById('reasonInput'+idx);
+  if(val==='หมด'){outChip.style.cssText=REASON_CHIP_SELECTED;otherChip.style.cssText=REASON_CHIP_NORMAL;input.value='หมด';}
+  else{otherChip.style.cssText=REASON_CHIP_SELECTED;outChip.style.cssText=REASON_CHIP_NORMAL;input.value='';input.focus();}
+}
+function cancelEditReason(){
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(null);editReasonResolver=null;}
+}
+function confirmEditReason(){
+  const reasons={};
+  editReasonDiffs.forEach((d,idx)=>{
+    const val=(document.getElementById('reasonInput'+idx).value||'').trim();
+    reasons[d.name]=val||'(ไม่ระบุเหตุผล)';
+  });
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(reasons);editReasonResolver=null;}
+}
+
 let adminRefreshInterval=null;
+let adminEditBusy=false; // true ตลอดช่วง markDone/saveAdminEdit ที่มีการแก้จำนวน กันไม่ให้ auto-refresh ชิงทับข้อมูลกลางทาง (ดู setInterval ด้านล่าง)
 let lastAdminOrdersHash='';
 let lastAdminOrdersFullHash='';
 let adminRefreshFailCount=0;
@@ -998,13 +1100,24 @@ let adminRefreshFailCount=0;
 // โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
 // (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
 // เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
+/**
+ * ===== ลูกค้าที่ไม่ต้องนับในภาพรวม/แดชบอร์ด (เพิ่ม 14 ก.ย. 69) =====
+ * เช่น "ซูโม่ Sausage" — จริงๆ เป็นร้านของเจ้าของเองอีกร้าน เอามาใช้ order web app นี้แค่ทำบิลระหว่างร้าน
+ * ไม่ใช่ลูกค้าจริง ต้องยังเห็น/จัดของ/ติดตามสถานะได้ปกติทุกอย่าง (ไม่แตะ allAdminOrders ที่ใช้ในแท็บ
+ * รอจัด/กำลังจัด/เสร็จสมบูรณ์เลย) แค่ไม่ต้องเอายอดไปรวมคำนวณในหน้า "ภาพรวม" (ยอดขาย/กราฟ/เทียบเดือน) เท่านั้น
+ * กรองตรงจุดเดียวที่นี่ (ต้นทางของ allAdminOrdersFull ซึ่งเป็นแหล่งข้อมูลเดียวที่ทุกฟังก์ชันในหน้าภาพรวมใช้
+ * ร่วมกัน — renderAdminOverview/ov_doneOrdersInRange/db_doneOrders/getAvailableOverviewMonths) แทนที่จะ
+ * ไปกรองซ้ำทีละฟังก์ชัน ถ้ามีลูกค้าลักษณะนี้เพิ่มอีกในอนาคต เพิ่มชื่อเข้า array นี้ได้เลย
+ */
+const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage'];
+
 async function fetchFullAdminOrders(silent){
   const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',35000,1,silent);
   if(data===null) return false;
   const text=JSON.stringify(data);
   if(text===lastAdminOrdersFullHash) return false;
   lastAdminOrdersFullHash=text;
-  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
   return true;
 }
 
@@ -1033,7 +1146,7 @@ async function loadBusinessNotes(){
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
-  document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
 
   // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
   // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
@@ -1050,7 +1163,9 @@ async function initAdmin(){
   if(!adminProdCached&&products.length) cacheSet('products_ALL',products,30000);
 
   if(ordersData===null){
-    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — เปลี่ยนเป็นเรียก loadAdminOrders() ที่วนลองใหม่
+    // อัตโนมัติเงียบๆ แทน (ดู comment ของ loadAdminOrders ด้านบน) ไม่ต้องรอผู้ใช้กดอะไรเลย
+    await loadAdminOrders();
   }else{
     allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
     lastAdminOrdersHash=JSON.stringify(ordersData);
@@ -1063,16 +1178,19 @@ async function initAdmin(){
   adminRefreshInterval=setInterval(async()=>{
     const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
     const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
-    if(reorderOpen||editOpen) return;
+    const reasonOpen=document.getElementById('reasonModal')&&document.getElementById('reasonModal').style.display==='flex';
+    // [แก้ 14 ก.ย. 69] เดิมไม่เช็ค reasonModal/adminEditBusy เลย — ถ้า auto-refresh (ทุก 30 วิ) ดันดึงข้อมูล
+    // เก่าจากเซิร์ฟเวอร์มาทับ allAdminOrders ระหว่างที่แอดมินกำลังกรอกเหตุผล/กำลังบันทึกการแก้ไขจำนวนอยู่พอดี
+    // (ใช้เวลานานกว่าจุดอื่นเพราะต้องรอคนพิมพ์) หน้าสรุปตอนจบจะไปอ่าน allAdminOrders ที่ถูกข้อมูลเก่าทับไปแล้ว
+    // ทำให้ยอด/จำนวนที่โชว้ตอนจบดูเหมือน "ย้อนกลับ" ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่ดี — เพิ่ม adminEditBusy
+    // (ตั้งจาก markDone/saveAdminEdit ตลอดช่วงแก้ไข ไม่ใช่แค่ตอน modal เปิดอยู่) กันไว้อีกชั้น เผื่อ request
+    // ค้างอยู่ก่อน modal จะเปิดด้วย (ดูจุดเช็คซ้ำก่อน apply ผลด้านล่าง)
+    if(reorderOpen||editOpen||reasonOpen||adminEditBusy) return;
+    // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+    // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 30 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
     const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
-    if(data===null){
-      adminRefreshFailCount++;
-      if(adminRefreshFailCount>=3){
-        showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+adminRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
-      }
-      return;
-    }
-    adminRefreshFailCount=0;
+    if(data===null) return;
+    if(adminEditBusy) return; // request นี้อาจค้างอยู่ตั้งแต่ก่อนแอดมินเริ่มแก้ไข -> ผลที่ได้กลับมาอาจเก่ากว่าที่กำลังแก้อยู่ ทิ้งไปอย่าเอามาทับ
     const text=JSON.stringify(data);
     if(text!==lastAdminOrdersHash){
       lastAdminOrdersHash=text;
@@ -1087,16 +1205,21 @@ async function initAdmin(){
   },30000);
 }
 
+// [แก้ 15 ก.ย. 69] เดิมโหลดไม่สำเร็จโชว์ "โหลดข้อมูลไม่สำเร็จ" + ปุ่มลองใหม่ให้กดเอง — ขอให้ไม่ต้องโชว์
+// error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็วนลองใหม่อัตโนมัติในระบบเงียบๆ ไปเลย เปลี่ยนเป็น loop ทุก 3 วิ ค้างหน้า
+// "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่มีข้อความ error/ปุ่มให้กดเลย
 async function loadAdminOrders(){
-  document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
-  if(data===null){
-    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
-    return;
+  document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  while(true){
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
+    if(data!==null){
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      lastAdminOrdersHash=JSON.stringify(data);
+      renderAdminOrders();
+      return;
+    }
+    await new Promise(r=>setTimeout(r,3000));
   }
-  allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
-  lastAdminOrdersHash=JSON.stringify(data);
-  renderAdminOrders();
 }
 
 async function switchAdminTab(tab){
@@ -1111,11 +1234,13 @@ async function switchAdminTab(tab){
   document.getElementById('ownerDashboard').style.display='none';
   if(tab==='overview'){
     // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
-    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
     await fetchFullAdminOrders();
-    if(!allAdminOrdersFull){
-      document.getElementById('adminOverview').innerHTML='<div class="empty-state">โหลดข้อมูลภาพรวมไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="switchAdminTab(\'overview\')">↻ ลองใหม่</button></div>';
-      return;
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+    // loadAdminOrders/initCustomer ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ
+    while(!allAdminOrdersFull){
+      await new Promise(r=>setTimeout(r,3000));
+      await fetchFullAdminOrders();
     }
     renderAdminOverview();
   } else {
@@ -1138,8 +1263,23 @@ function buildAdminItemsHtml(o,canAdjustQty){
     const unitPrice=Number(prod.price)||0;
     const lineTotal=unitPrice*item.qty;
     const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
-    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+    const reasonHtml=buildItemEditNoteHtml(o,item.name);
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
   }).join('');
+}
+
+/**
+ * ===== โน้ตเหตุผลแก้ไขใต้รายการที่เพิ่งแก้ (เพิ่ม 14 ก.ย. 69) =====
+ * โชว์เฉพาะรายการที่ถูกแก้จำนวนในรอบล่าสุด (ตั้งแต่คลิก "จัดเสร็จแล้ว" ครั้งแรกที่บันทึกการแก้ไข — ดู markDone)
+ * เก็บไว้แค่ใน memory (o.itemEditNotes) ไม่ได้บันทึกถาวรในหน้านี้ — พอ auto-refresh ดึงข้อมูลใหม่จาก
+ * เซิร์ฟเวอร์มาแทนที่ orders array (ไม่มีฟิลด์นี้ติดมาด้วย เพราะไม่ใช่คอลัมน์ในชีต) โน้ตนี้จะหายไปเอง
+ * ตั้งใจให้เป็นแบบนั้น เพราะจุดประสงค์คือให้แอดมินทวนดูทันทีก่อนกดจัดเสร็จรอบสอง ไม่ใช่ประวัติถาวร
+ * (ประวัติถาวรจริงๆ อยู่ใน Google Sheet "OrderEditLog" อยู่แล้ว)
+ */
+function buildItemEditNoteHtml(o,itemName){
+  const note=o.itemEditNotes&&o.itemEditNotes[itemName];
+  if(!note) return '';
+  return `<div class="admin-item-reason">แก้จาก x${note.before} → <b>x${note.after}</b> — ${escapeHtml(note.reason)}</div>`;
 }
 
 let openAdminPendingCards=new Set();
@@ -1253,15 +1393,16 @@ function renderAdminOrders(){
       const unitPrice=Number(prod.price)||0;
       const lineTotal=unitPrice*item.qty;
       const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      const reasonHtml=buildItemEditNoteHtml(o,item.name);
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
     else if(isPacking) topBadge=`<span class="badge" style="background:#EEEDFE;color:#3C3489">กำลังจัด</span>`;
     else topBadge=`<span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>`;
     let footerBtns='';
-    if(isPending) footerBtns=`<button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
-    else if(isPacking) footerBtns=`<button class="btn-done" style="background:#639922;font-size:13.5px" onclick="markDone('${o.order_id}')">✓ จัดเสร็จแล้ว</button>`;
+    if(isPending) footerBtns=`<button class="btn-done" id="btnMarkPacking_${o.order_id}" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}',this)">เริ่มจัดสินค้า</button>`;
+    else if(isPacking) footerBtns=`<button class="btn-done" id="btnMarkDone_${o.order_id}" style="background:#639922;font-size:13.5px" onclick="markDone('${o.order_id}',this)">✓ จัดเสร็จแล้ว</button>`;
     else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="showOrderSummary('${o.order_id}')">⬇ บันทึกรูปภาพ</button>`;
     return`<div class="admin-order-card">
       <div class="admin-order-top">
@@ -2501,20 +2642,44 @@ async function saveAdminEdit(orderId){
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
   try{
-    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp},'saveAdminEdit');
+    const itemReasons=await promptEditReason(order.items,itemsText);
+    if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> เลิกบันทึกทั้งหมด
+    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'saveAdminEdit');
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
       return;
     }
     order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
+    const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+    const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+    order.itemEditNotes=order.itemEditNotes||{};
+    Object.keys(itemReasons).forEach(name=>{
+      order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+    });
+    renderAdminOrders();
     showToast('บันทึกการแก้ไขเรียบร้อย ✓');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{adminEditBusy=false;}
 }
 
-async function markDone(orderId){
+async function markDone(orderId,btnEl){
+  // [เพิ่ม 15 ก.ย. 69] เดิมปุ่มนี้ไม่มี loading state เลย — ระหว่างรอ (refresh products/prompt เหตุผล/
+  // ยิง updateOrder+updateDelivery ซึ่งช้าได้หลายวินาทีโดยเฉพาะช่วงเน็ต/backend ไม่นิ่ง) หน้าจอดูเหมือนค้าง
+  // เฉยๆ ไม่มีสัญญาณอะไรเลย ทำให้พนักงานคิดว่ากดไม่ติด/ไม่ทำงาน แล้วกดซ้ำ กลายเป็นยิง markDone() ซ้อนกัน
+  // 2 รอบพร้อมกันจริงๆ (คนละ call stack แยกกัน ไม่ใช่แค่ UI เด้ง) เสี่ยงข้อมูลชนกัน — กันซ้ำด้วยการเช็ค
+  // disabled ก่อนเริ่ม + ปิดปุ่มเปลี่ยนข้อความทันทีให้เห็นชัดว่ากำลังทำงานอยู่ ไม่ใช่ค้าง
+  if(btnEl&&btnEl.disabled) return;
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก — เดิมไม่มีการกันตรงนี้เลย
+  // ทำให้บางครั้งข้อมูลที่เพิ่งแก้ (เช่นจำนวนที่เพิ่ม/ลด) ถูก auto-refresh ทับด้วยของเก่าก่อนจะโชว้หน้าสรุป
+  // ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่แล้ว (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
   try{
-    const order=allAdminOrders.find(o=>o.order_id===orderId);
     if(order&&adminQtys[orderId]){
       const items=parseItems(order.items);
       const qtyChanged=items.some((item,i)=>adminQtys[orderId][i]!==item.qty);
@@ -2528,12 +2693,30 @@ async function markDone(orderId){
         const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
-        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp},'markDone:updateOrder');
+        const itemReasons=await promptEditReason(order.items,itemsStr);
+        if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> ยังไม่จัดเสร็จ ยังไม่บันทึกจำนวนใหม่
+        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'markDone:updateOrder');
         if(!updateResult||updateResult.success===false){
           alert('บันทึกจำนวนที่แก้ไขไม่สำเร็จ: '+(updateResult&&updateResult.error?updateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ ยังไม่ได้บันทึกสถานะจัดเสร็จ');
           return;
         }
         order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+        // [เพิ่ม 14 ก.ย. 69] เก็บ before/after/เหตุผลของแต่ละรายการที่เพิ่งแก้ไว้ใน order เอง (ไม่ใช่คอลัมน์ในชีต
+        // แค่ใน memory ของหน้านี้) ให้ buildAdminItemsHtml/รายการในแท็บกำลังจัดโชว์โน้ตเล็กๆ ใต้ราคาทันที ทวนดูได้
+        // ก่อนกด "จัดเสร็จแล้ว" รอบสอง — หายไปเองตอน auto-refresh ครั้งถัดไปได้ข้อมูลจริงจากเซิร์ฟเวอร์มาแทน
+        const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+        const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+        order.itemEditNotes=order.itemEditNotes||{};
+        Object.keys(itemReasons).forEach(name=>{
+          order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+        });
+        // [แก้ 14 ก.ย. 69] เดิมพอบันทึกจำนวนที่แก้เสร็จ ไหลต่อไปจัดเสร็จ (updateDelivery done) ทันทีในคลิกเดียว
+        // ไม่มีจังหวะให้แอดมินทวนดูว่าตัวเลข/โน้ตเหตุผลที่เพิ่งแก้ถูกต้องไหมก่อน — ผู้ใช้ยืนยันว่าไม่ต้องการแบบนั้น
+        // แยกเป็น 2 จังหวะ: คลิกนี้บันทึกแค่การแก้ไข ยังอยู่แท็บ "กำลังจัด" เห็นตัวเลขที่แก้แล้วให้ทวนก่อน ต้องกด
+        // "จัดเสร็จแล้ว" อีกครั้ง (ตอนนั้นจะไม่มี diff แล้ว เลยไม่ถามเหตุผลซ้ำ) ถึงจะจัดเสร็จจริง
+        renderAdminOrders();
+        showToast('บันทึกการแก้ไขแล้ว — กด "จัดเสร็จแล้ว" อีกครั้งเพื่อยืนยัน ✓');
+        return;
       }
     }
     const doneResult=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'},'markDone:updateDelivery');
@@ -2545,9 +2728,18 @@ async function markDone(orderId){
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{
+    adminEditBusy=false;
+    // ปุ่มเดิมอาจถูกแทนที่ไปแล้วจาก renderAdminOrders() ตอนสำเร็จ (คืนค่าปุ่มที่หลุดจาก DOM ไปแล้วไม่มีผลอะไร)
+    // แต่ตอนยกเลิก/error ที่ไม่ได้ re-render ปุ่มเดิมยังอยู่ ต้องคืนสภาพให้กดใหม่ได้ ไม่งั้นค้าง disabled ตลอดไป
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
 }
 
-async function markPacking(orderId){
+async function markPacking(orderId,btnEl){
+  if(btnEl&&btnEl.disabled) return; // กันกดซ้ำระหว่างรอ ดูเหตุผลเดียวกับ markDone ด้านบน
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     const result=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'},'markPacking');
@@ -2558,6 +2750,9 @@ async function markPacking(orderId){
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
 }
 
 function showCustomerBill(orderId){
@@ -2725,7 +2920,7 @@ function cancelOrder(orderId){
 async function openReorderModal(){
   document.getElementById('reorderModal').style.display='flex';
   const body=document.getElementById('reorderModalBody');
-  body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  body.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   try{
     const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
@@ -2902,7 +3097,77 @@ function showError(isNetwork){
 }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
+/**
+ * ===== ดึงหน้าจอลงเพื่อรีเฟรช (Pull-to-refresh, เพิ่ม 14 ก.ย. 69) =====
+ * เลียนแบบ pattern ของ Facebook/IG — ดึงจอลงจากด้านบนสุดขณะยังไม่ scroll ไปไหน ปล่อยแล้วรีเฟรชข้อมูลของ
+ * หน้าที่กำลังดูอยู่ทันที ไม่ต้องกดปุ่ม/กลับเข้าหน้าใหม่ ใช้ touch events ธรรมดา ไม่พึ่ง library ภายนอก
+ * ทำงานเฉพาะตอน scrollY===0 เท่านั้น (กันชนกับการ scroll ปกติในหน้า) และปิดใช้งานขณะมี modal ใดๆ เปิดอยู่
+ * (editModal/reorderModal/reasonModal/confirmScreen/successScreen) กันดึงจอชนกับการเลื่อนดูเนื้อหาใน modal
+ */
+(function initPullToRefresh(){
+  const THRESHOLD=68;
+  let startY=null,pulling=false,refreshing=false;
+  const indicator=document.createElement('div');
+  indicator.id='pullRefreshIndicator';
+  indicator.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#D64109;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);z-index:9999;transition:height .12s ease-out';
+  indicator.textContent='↓ ดึงลงเพื่อรีเฟรช';
+  document.body.appendChild(indicator);
 
+  function anyModalOpen(){
+    return ['editModal','reorderModal','reasonModal','confirmScreen','successScreen'].some(id=>{
+      const el=document.getElementById(id);
+      return el&&getComputedStyle(el).display!=='none';
+    });
+  }
+
+  document.addEventListener('touchstart',e=>{
+    if(refreshing||anyModalOpen()||window.scrollY>0){startY=null;pulling=false;return;}
+    startY=e.touches[0].clientY;
+    pulling=true;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!pulling||startY===null||refreshing) return;
+    if(window.scrollY>0||anyModalOpen()){pulling=false;indicator.style.height='0px';return;}
+    const dy=e.touches[0].clientY-startY;
+    if(dy<=0){indicator.style.height='0px';return;}
+    const h=Math.min(dy*0.5,THRESHOLD+20);
+    indicator.style.height=h+'px';
+    indicator.textContent=h>=THRESHOLD?'↑ ปล่อยเพื่อรีเฟรช':'↓ ดึงลงเพื่อรีเฟรช';
+  },{passive:true});
+
+  document.addEventListener('touchend',async()=>{
+    if(!pulling||refreshing){pulling=false;return;}
+    const h=parseInt(indicator.style.height,10)||0;
+    pulling=false;
+    if(h<THRESHOLD){indicator.style.height='0px';return;}
+    refreshing=true;
+    indicator.textContent='กำลังรีเฟรช...';
+    indicator.style.height='40px';
+    try{await runPullRefresh();}catch(e){/* ปล่อยผ่าน ไม่ต้อง alert ผู้ใช้ระหว่างรีเฟรชเงียบๆ */}
+    indicator.style.height='0px';
+    refreshing=false;
+  });
+
+  // เลือกฟังก์ชันรีเฟรชตามหน้าที่กำลังแสดงอยู่จริง — ใช้ getComputedStyle แทน inline style เพราะบางหน้า
+  // (เช่น #app/#adminApp) ไม่เคยตั้ง inline style display มาก่อนจนกว่า show() จะถูกเรียกครั้งแรก
+  async function runPullRefresh(){
+    const adminVisible=getComputedStyle(document.getElementById('adminApp')).display!=='none';
+    if(adminVisible){
+      if(adminCurrentTab==='overview'){allAdminOrdersFull=null;await fetchFullAdminOrders();renderAdminOverview();}
+      else{await loadAdminOrders();}
+      await loadBusinessNotes();
+      return;
+    }
+    const appVisible=getComputedStyle(document.getElementById('app')).display!=='none';
+    if(appVisible){
+      const trackVisible=getComputedStyle(document.getElementById('trackSection')).display!=='none';
+      const shopVisible=getComputedStyle(document.getElementById('shopSection')).display!=='none';
+      if(trackVisible){await loadTrackSection();return;}
+      if(shopVisible){await loadProducts();return;}
+    }
+  }
+})();
 </script>
 <!-- Confirm Screen (outside app) -->
 <div id="confirmScreen" style="display:none;min-height:100vh;background:#f5f3f0;flex-direction:column">
