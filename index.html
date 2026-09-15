@@ -85,6 +85,12 @@
     .btn-edit{font-size:13.5px;padding:6px 14px;background:none;border:1px solid #D64109;color:#D64109;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
     .empty-state{text-align:center;padding:3rem 1rem;color:#aaa;font-size:16px}
+    /* ===== จุดกระโดดสามจุด ใช้แทน "กำลังโหลด..." เดิมทุกจุด (เพิ่ม 15 ก.ย. 69) ===== */
+    .loading-dots{display:flex;gap:8px;justify-content:center;align-items:center;padding:6px 0}
+    .loading-dots span{width:10px;height:10px;border-radius:50%;background:#D64109;animation:loadingDotBounce 1s ease-in-out infinite}
+    .loading-dots span:nth-child(2){animation-delay:0.15s}
+    .loading-dots span:nth-child(3){animation-delay:0.3s}
+    @keyframes loadingDotBounce{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-10px);opacity:1}}
     .home-top{background:#D64109;padding:1.8rem 1.5rem 1rem;text-align:center;color:#fff}
     .home-logo{margin-bottom:6px}
     .home-logo img{width:180px;max-width:70vw;height:auto;display:block;margin:0 auto}
@@ -342,7 +348,7 @@
         <h3 style="font-size:18px;font-weight:600">สั่งซ้ำจากประวัติ</h3>
         <button onclick="closeReorderModal()" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#aaa">✕</button>
       </div>
-      <div id="reorderModalBody"><div class="empty-state">กำลังโหลด...</div></div>
+      <div id="reorderModalBody"><div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div></div>
     </div>
   </div>
   <!-- Edit Modal -->
@@ -470,20 +476,26 @@ async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
       const res=await fetch(url,{signal:controller.signal});
       clearTimeout(t);
       if(!res.ok){
-        logError(label||'fetch','HTTP '+res.status,silent);
+        // [แก้ 15 ก.ย. 69] เดิม logError ตัวนี้โผล่แบนเนอร์แดงกวนใจทุกครั้งที่ fetch พลาด แม้แต่ตอนกำลัง
+        // retry อยู่/เป็นแค่ความล่าช้าชั่วคราว ทั้งที่จุดเรียกแทบทุกจุดมี fallback ของตัวเองอยู่แล้ว (หน้า
+        // "โหลดไม่สำเร็จ" พร้อมปุ่มลองใหม่, banner แบบ 3 ครั้งติดของ auto-refresh, หรือ alert() ของ action
+        // นั้นๆ โดยตรง) เลยบังคับ silent เสมอ (log ลง console/localStorage ไว้เหมือนเดิมเพื่อ debug ทีหลัง
+        // ได้ แค่ไม่โผล่ตรงหน้าจอผู้ใช้ซ้ำซ้อน) ยังโชว์ banner นี้เฉพาะ JS error จริง (window.onerror/
+        // unhandledrejection ด้านบน) ที่ต้องการความสนใจจริงๆ เท่านั้น
+        logError(label||'fetch','HTTP '+res.status,true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
       const text=await res.text();
       try{return JSON.parse(text);}
       catch(e){
-        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),silent);
+        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return fallback;
       }
     }catch(e){
       clearTimeout(t);
-      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,silent);
+      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
       return fallback;
     }
@@ -503,7 +515,10 @@ async function postAction(payload,label,timeoutMs,retries){
       const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal});
       clearTimeout(t);
       if(!res.ok){
-        logError(label||'postAction','HTTP '+res.status);
+        // [แก้ 15 ก.ย. 69] silent เสมอเหมือน safeFetchJSON ด้านบน — ผู้เรียก postAction ทุกจุดมี alert()/
+        // toast ของตัวเองอยู่แล้วเวลา result เป็น null/success===false ไม่ต้องมีแบนเนอร์แดงซ้อนทับอีกชั้น
+        // (เจอจริง: กด "จัดเสร็จแล้ว" ไม่สำเร็จ ขึ้นทั้ง alert() และแบนเนอร์แดงพร้อมกัน ข้อความซ้ำกันเปล่าๆ)
+        logError(label||'postAction','HTTP '+res.status,true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return null;
       }
@@ -513,18 +528,18 @@ async function postAction(payload,label,timeoutMs,retries){
       catch(e){
         // backend อาจส่งหน้า error/HTML กลับมาแทน JSON (เช่น exception ที่ยังไม่ได้ครอบ try/catch)
         // HTTP status เป็น 200 ได้ทั้งที่ไม่สำเร็จจริง เลยต้อง treat แบบนี้เป็น "ไม่สำเร็จ" เสมอ
-        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120));
+        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120),true);
         if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
         return null;
       }
       if(data&&data.error){
-        logError(label||'postAction','backend error: '+data.error);
+        logError(label||'postAction','backend error: '+data.error,true);
         return {success:false,error:data.error};
       }
       return data||{success:true};
     }catch(e){
       clearTimeout(t);
-      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e);
+      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
       if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
       return null;
     }
@@ -556,7 +571,15 @@ async function initCustomer(){
       data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
       if(data&&!data.error) cacheSet(custCacheKey,data,30000);
     }
-    if(data===null){showError(true);return;}
+    // [แก้ 15 ก.ย. 69] เดิม data===null (network/timeout) โชว์หน้า "เชื่อมต่อไม่ได้" เต็มจอพร้อมปุ่มลองใหม่
+    // ให้ลูกค้ากดเอง — ผู้ใช้ (เจ้าของร้าน) ขอให้ไม่ต้องโชว์ error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็ลองใหม่เองในระบบ
+    // เงียบๆ ไปเลย เปลี่ยนเป็นวนลองใหม่อัตโนมัติทุก 3 วิ โดยยังโชว์หน้า loading เดิมค้างไว้ (ไม่มีข้อความ error
+    // ให้เห็นเลย) จนกว่าจะสำเร็จ — ส่วน data.error (เช่น "not found" จริงๆ จาก backend ไม่ใช่ปัญหาเชื่อมต่อ)
+    // ยังโชว์ showError(false) เหมือนเดิม เพราะลองใหม่ไปก็ไม่มีทางสำเร็จ (ลิงก์ผิดจริง ไม่ใช่ปัญหาเน็ต)
+    if(data===null){
+      await new Promise(r=>setTimeout(r,3000));
+      return initCustomer();
+    }
     if(data.error){showError(false);return;}
     customer=data;
     // จำ ref ที่เพิ่งเข้าสำเร็จไว้ ใช้กู้กลับตอนเข้ามาแบบไม่มี query string เลย (ดู window.onload ด้านบน)
@@ -601,7 +624,7 @@ let lastTrackOrders=[];
 let lastTrackOrdersHash='';
 async function loadTrackSection(){
   const list=document.getElementById('trackList');
-  list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   const isCancelled=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='cancelled';};
   const isDone=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='done';};
   const byTimeDesc=(a,b)=>new Date(b.timestamp)-new Date(a.timestamp);
@@ -613,7 +636,12 @@ async function loadTrackSection(){
   };
   try{
     const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
-    if(orders===null) throw new Error('timeout/fetch-failed');
+    if(orders===null){
+      // [แก้ 15 ก.ย. 69] เดิมโชว์ "โหลดข้อมูลไม่ได้" ค้างไว้เฉยๆ — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+      // initCustomer/loadAdminOrders ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่ต้องรอผู้ใช้กดอะไรเลย
+      await new Promise(r=>setTimeout(r,3000));
+      return loadTrackSection();
+    }
     lastTrackOrdersHash=JSON.stringify(orders);
     lastTrackOrders=orders;
     if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
@@ -627,14 +655,10 @@ async function loadTrackSection(){
     const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
     if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
     try{
+      // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+      // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 10 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
       const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
-      if(orders===null){
-        trackRefreshFailCount++;
-        if(trackRefreshFailCount>=3){
-          showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+trackRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
-        }
-        return;
-      }
+      if(orders===null) return;
       trackRefreshFailCount=0;
       const text=JSON.stringify(orders);
       if(text===lastTrackOrdersHash) return;
@@ -828,7 +852,7 @@ async function switchTab(tab){
 
 async function loadHistory(){
   const list=document.getElementById('trackList');
-  list.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   try{
     const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadHistory',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
@@ -1122,7 +1146,7 @@ async function loadBusinessNotes(){
 async function initAdmin(){
   document.title='Admin - รายการจัดสินค้า';
   show('adminApp');
-  document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
 
   // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
   // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
@@ -1139,7 +1163,9 @@ async function initAdmin(){
   if(!adminProdCached&&products.length) cacheSet('products_ALL',products,30000);
 
   if(ordersData===null){
-    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — เปลี่ยนเป็นเรียก loadAdminOrders() ที่วนลองใหม่
+    // อัตโนมัติเงียบๆ แทน (ดู comment ของ loadAdminOrders ด้านบน) ไม่ต้องรอผู้ใช้กดอะไรเลย
+    await loadAdminOrders();
   }else{
     allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
     lastAdminOrdersHash=JSON.stringify(ordersData);
@@ -1160,16 +1186,11 @@ async function initAdmin(){
     // (ตั้งจาก markDone/saveAdminEdit ตลอดช่วงแก้ไข ไม่ใช่แค่ตอน modal เปิดอยู่) กันไว้อีกชั้น เผื่อ request
     // ค้างอยู่ก่อน modal จะเปิดด้วย (ดูจุดเช็คซ้ำก่อน apply ผลด้านล่าง)
     if(reorderOpen||editOpen||reasonOpen||adminEditBusy) return;
+    // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+    // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 30 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
     const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
-    if(data===null){
-      adminRefreshFailCount++;
-      if(adminRefreshFailCount>=3){
-        showErrBanner('เชื่อมต่อข้อมูลล่าสุดไม่ได้ (พลาด '+adminRefreshFailCount+' ครั้งติด) — ข้อมูลที่เห็นอาจไม่ใหม่ที่สุด');
-      }
-      return;
-    }
+    if(data===null) return;
     if(adminEditBusy) return; // request นี้อาจค้างอยู่ตั้งแต่ก่อนแอดมินเริ่มแก้ไข -> ผลที่ได้กลับมาอาจเก่ากว่าที่กำลังแก้อยู่ ทิ้งไปอย่าเอามาทับ
-    adminRefreshFailCount=0;
     const text=JSON.stringify(data);
     if(text!==lastAdminOrdersHash){
       lastAdminOrdersHash=text;
@@ -1184,16 +1205,21 @@ async function initAdmin(){
   },30000);
 }
 
+// [แก้ 15 ก.ย. 69] เดิมโหลดไม่สำเร็จโชว์ "โหลดข้อมูลไม่สำเร็จ" + ปุ่มลองใหม่ให้กดเอง — ขอให้ไม่ต้องโชว์
+// error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็วนลองใหม่อัตโนมัติในระบบเงียบๆ ไปเลย เปลี่ยนเป็น loop ทุก 3 วิ ค้างหน้า
+// "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่มีข้อความ error/ปุ่มให้กดเลย
 async function loadAdminOrders(){
-  document.getElementById('adminList').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
-  const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
-  if(data===null){
-    document.getElementById('adminList').innerHTML='<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="loadAdminOrders()">↻ ลองใหม่</button></div>';
-    return;
+  document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  while(true){
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
+    if(data!==null){
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      lastAdminOrdersHash=JSON.stringify(data);
+      renderAdminOrders();
+      return;
+    }
+    await new Promise(r=>setTimeout(r,3000));
   }
-  allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
-  lastAdminOrdersHash=JSON.stringify(data);
-  renderAdminOrders();
 }
 
 async function switchAdminTab(tab){
@@ -1208,11 +1234,13 @@ async function switchAdminTab(tab){
   document.getElementById('ownerDashboard').style.display='none';
   if(tab==='overview'){
     // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
-    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+    if(!allAdminOrdersFull) document.getElementById('adminOverview').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
     await fetchFullAdminOrders();
-    if(!allAdminOrdersFull){
-      document.getElementById('adminOverview').innerHTML='<div class="empty-state">โหลดข้อมูลภาพรวมไม่สำเร็จ<br><button class="btn-ghost" style="margin-top:10px" onclick="switchAdminTab(\'overview\')">↻ ลองใหม่</button></div>';
-      return;
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+    // loadAdminOrders/initCustomer ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ
+    while(!allAdminOrdersFull){
+      await new Promise(r=>setTimeout(r,3000));
+      await fetchFullAdminOrders();
     }
     renderAdminOverview();
   } else {
@@ -1373,8 +1401,8 @@ function renderAdminOrders(){
     else if(isPacking) topBadge=`<span class="badge" style="background:#EEEDFE;color:#3C3489">กำลังจัด</span>`;
     else topBadge=`<span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>`;
     let footerBtns='';
-    if(isPending) footerBtns=`<button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>`;
-    else if(isPacking) footerBtns=`<button class="btn-done" style="background:#639922;font-size:13.5px" onclick="markDone('${o.order_id}')">✓ จัดเสร็จแล้ว</button>`;
+    if(isPending) footerBtns=`<button class="btn-done" id="btnMarkPacking_${o.order_id}" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}',this)">เริ่มจัดสินค้า</button>`;
+    else if(isPacking) footerBtns=`<button class="btn-done" id="btnMarkDone_${o.order_id}" style="background:#639922;font-size:13.5px" onclick="markDone('${o.order_id}',this)">✓ จัดเสร็จแล้ว</button>`;
     else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="showOrderSummary('${o.order_id}')">⬇ บันทึกรูปภาพ</button>`;
     return`<div class="admin-order-card">
       <div class="admin-order-top">
@@ -2637,7 +2665,15 @@ async function saveAdminEdit(orderId){
   finally{adminEditBusy=false;}
 }
 
-async function markDone(orderId){
+async function markDone(orderId,btnEl){
+  // [เพิ่ม 15 ก.ย. 69] เดิมปุ่มนี้ไม่มี loading state เลย — ระหว่างรอ (refresh products/prompt เหตุผล/
+  // ยิง updateOrder+updateDelivery ซึ่งช้าได้หลายวินาทีโดยเฉพาะช่วงเน็ต/backend ไม่นิ่ง) หน้าจอดูเหมือนค้าง
+  // เฉยๆ ไม่มีสัญญาณอะไรเลย ทำให้พนักงานคิดว่ากดไม่ติด/ไม่ทำงาน แล้วกดซ้ำ กลายเป็นยิง markDone() ซ้อนกัน
+  // 2 รอบพร้อมกันจริงๆ (คนละ call stack แยกกัน ไม่ใช่แค่ UI เด้ง) เสี่ยงข้อมูลชนกัน — กันซ้ำด้วยการเช็ค
+  // disabled ก่อนเริ่ม + ปิดปุ่มเปลี่ยนข้อความทันทีให้เห็นชัดว่ากำลังทำงานอยู่ ไม่ใช่ค้าง
+  if(btnEl&&btnEl.disabled) return;
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
   const order=allAdminOrders.find(o=>o.order_id===orderId);
   // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก — เดิมไม่มีการกันตรงนี้เลย
   // ทำให้บางครั้งข้อมูลที่เพิ่งแก้ (เช่นจำนวนที่เพิ่ม/ลด) ถูก auto-refresh ทับด้วยของเก่าก่อนจะโชว้หน้าสรุป
@@ -2692,10 +2728,18 @@ async function markDone(orderId){
     renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
     if(order) showOrderSummary(orderId);
   }catch(e){alert('เกิดข้อผิดพลาด');}
-  finally{adminEditBusy=false;}
+  finally{
+    adminEditBusy=false;
+    // ปุ่มเดิมอาจถูกแทนที่ไปแล้วจาก renderAdminOrders() ตอนสำเร็จ (คืนค่าปุ่มที่หลุดจาก DOM ไปแล้วไม่มีผลอะไร)
+    // แต่ตอนยกเลิก/error ที่ไม่ได้ re-render ปุ่มเดิมยังอยู่ ต้องคืนสภาพให้กดใหม่ได้ ไม่งั้นค้าง disabled ตลอดไป
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
 }
 
-async function markPacking(orderId){
+async function markPacking(orderId,btnEl){
+  if(btnEl&&btnEl.disabled) return; // กันกดซ้ำระหว่างรอ ดูเหตุผลเดียวกับ markDone ด้านบน
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
   try{
     const order=allAdminOrders.find(o=>o.order_id===orderId);
     const result=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'},'markPacking');
@@ -2706,6 +2750,9 @@ async function markPacking(orderId){
     if(order){order.delivery_status='packing';}
     renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
   }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
 }
 
 function showCustomerBill(orderId){
@@ -2873,7 +2920,7 @@ function cancelOrder(orderId){
 async function openReorderModal(){
   document.getElementById('reorderModal').style.display='flex';
   const body=document.getElementById('reorderModalBody');
-  body.innerHTML='<div class="empty-state">กำลังโหลด...</div>';
+  body.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   try{
     const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
     if(orders===null) throw new Error('timeout/fetch-failed');
