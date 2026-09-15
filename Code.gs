@@ -1412,3 +1412,16 @@ function reserveIdBlock(counterKey, count) {
     lock.releaseLock();
   }
 }
+
+/* ============ keepWarm ============ */
+// เจอจริง 15 ก.ย. 69: เข้าแอปไม่ได้/ช้าเป็นระยะ ทดสอบเปิด URL ของ backend ตรงๆ (เบราว์เซอร์ไม่มี timeout
+// ของตัวเอง) กลับติดสำเร็จทุกครั้งช่วงเวลาเดียวกัน — สอดคล้องกับ pattern เดียวกับที่แอปสั่งของ
+// (order-app-Code.gs) เคยเจอและแก้ไปแล้วเมื่อ 13 ก.ย. 69 ด้วย keepWarm() ตัวนี้: ฟังก์ชันเปล่าๆ ไม่แตะ
+// Sheet/Cache/Lock ใดๆ เลย (กินโควต้า execution time แทบเป็น 0 วิ/ครั้ง) ให้ time-driven trigger เรียกทุก
+// 5 นาที กัน Apps Script โปรเจกต์นี้มีโอกาส "หลับ" (cold start) ตั้งแต่แรก แทนที่จะให้ผู้ใช้จริงเป็นคนจ่าย
+// cost ของ cold start ตอนเปิดแอป — คู่กับฝั่งหน้าเว็บที่เปลี่ยนมาวนลองเชื่อมต่อเงียบๆ ไม่จำกัดรอบแทนการยอม
+// แพ้แล้วโชว์ error (ดู bootstrap() ใน stock-check.html) — ต้องตั้ง trigger เองใน Apps Script Editor:
+// Triggers → Add Trigger → keepWarm → Time-driven → Minutes timer → Every 5 minutes → Save
+function keepWarm() {
+  Logger.log('[keepWarm] ' + new Date().toISOString());
+}
