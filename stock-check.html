@@ -12,6 +12,17 @@
 <title>ซามูไรไส้กรอก — เช็คสต๊อก & สั่งของ</title>
 <link rel="apple-touch-icon" href="/icon-192-black.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192-black.png">
+<!-- เจอ 15 ก.ย. 69: เข้าแอปไม่ได้ ("ไม่สามารถเปิดไฟล์ได้ในเวลานี้" — หน้า error ของ Google Drive เอง) เฉพาะตอน
+     เปิดผ่าน Safari โปรไฟล์ปกติ ขณะที่ incognito เข้าได้ปกติเสมอ — สงสัยว่า Safari ปกติสะสม session/คุกกี้ของ
+     Google จากการใช้งานเว็บอื่น (Gmail/Drive/Maps ฯลฯ) แล้วไปชนกับตอนแอปนี้ต้องเข้าถึงไฟล์ Drive (รูปสินค้า/
+     สเปรดชีต) ทั้งที่แอปตั้งใจให้เข้าได้แบบไม่ต้องล็อกอิน Google เลย ("Anyone can access") — เพิ่ม
+     apple-mobile-web-app-capable ให้ตอนเปิดจากไอคอนหน้าจอโฮม iOS รันแบบ standalone ซึ่งมี storage/คุกกี้
+     แยกจาก Safari ปกติโดยสิ้นเชิง (คนละ partition กันเลย) เพื่อกันไม่ให้คุกกี้ที่สะสมจาก Safari ปกติมาปนกับ
+     แอปนี้อีก — ยังไม่ยืนยัน 100% ว่าแก้ต้นตอได้จริง (เป็นสมมติฐานที่มีเหตุผลรองรับ ไม่ใช่คำยืนยัน) ผู้ใช้ต้องลบ
+     ไอคอนเดิมที่เคยเพิ่มไว้แล้วเพิ่มใหม่หลัง deploy ถึงจะได้ผล -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ซามูไรไส้กรอก">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- ให้เบราว์เซอร์เริ่ม DNS + จับมือ TLS กับ backend ล่วงหน้าตั้งแต่หน้าเพิ่งเริ่มโหลด แทนที่จะรอให้
