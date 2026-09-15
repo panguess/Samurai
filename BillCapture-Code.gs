@@ -126,6 +126,7 @@ function doPost(e) {
       case 'analyzeBillBatch':       result = analyzeBillBatch(body);       break;
       case 'submitBillForReview':    result = submitBillForReview(body);    break;
       case 'finalizePurchaseReceipt':result = finalizePurchaseReceipt(body);break;
+      case 'discardPendingBill':     result = discardPendingBill(body);     break;
       default:                       result = { error: 'unknown action: ' + body.action };
     }
   } catch (err) {
@@ -249,10 +250,14 @@ function analyzeBillPhoto(body) {
 // ไม่จำกัดเวลา (ไม่กรองตามวันที่) เพราะบิลใน backlog อาจถูกสแกนซ้ำห่างกันเป็นเดือนได้ ไม่ใช่แค่วันเดียวกัน
 // คืน { matchType:'billNumber'|'items', batchId, date, billNumber, photoUrl, status:'pending'|'finalized',
 // overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ
-function checkDuplicateBill(supplierId, billHeader, items) {
+// excludeBatchId (15 ก.ย. 69 — ต่อ): ตัด candidate ที่เป็นบิลตัวเองออกจากการเทียบ — จำเป็นตอนเรียกจาก
+// getPendingBillReceipts() เพื่อเช็คบิลค้างในคิวเทียบกับ "บิลอื่น" ในคิวเดียวกัน (ไม่งั้นบิลจะ match ตัวเอง
+// เสมอด้วย ratio 1.0) ตอนเรียกจาก analyzeBillPhoto (สแกนสด) ไม่ต้องส่งพารามิเตอร์นี้เลย เพราะบิลที่กำลัง
+// สแกนยังไม่เคยถูกบันทึกเป็น candidate ที่ไหนมาก่อน
+function checkDuplicateBill(supplierId, billHeader, items, excludeBatchId) {
   const newKeys = buildItemFingerprint(items);
   const newBillNumber = String((billHeader && billHeader.billNumber) || '').trim();
-  const candidates = getDuplicateCandidates(supplierId);
+  const candidates = getDuplicateCandidates(supplierId).filter(c => !excludeBatchId || c.batchId !== excludeBatchId);
 
   let best = null;
   for (const c of candidates) {
@@ -523,10 +528,24 @@ function normalizeAliasKey(text) {
 // body = { supplierId, staffName, photos:[dataURL,...], items:[{billText, unit, qty, receivedQty,
 //          unitPrice, likelyNonProduct, skip, productId, factor, fromAlias}] } — เก็บทุกรายการรวมที่ข้ามไว้
 // ด้วย (ต่างจาก finalizePurchaseReceipt) เพราะเจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
+// กัน submitBillForReview สร้างแถวซ้ำถ้าพนักงานกดซ้ำเองหลังเจอ timeout (เจอจริง 15 ก.ย. 69 — 3 บิลซ้ำ
+// สตาร์อัพ) — ตั้งใจไม่ใช้ LockService (ต่างจาก createOrder ของแอปสั่งของ) เพราะฟังก์ชันนี้มีขั้นตอนอัปโหลดรูป
+// ขึ้น Drive ที่ช้าได้ไม่แน่นอน โดยเฉพาะตอนโปรเจกต์นี้ cold start — ถ้าล็อกทั้งฟังก์ชันจะเสี่ยงบล็อกคำขอของ
+// พนักงานคนอื่นที่กำลังส่งบิลคนละใบพร้อมกัน (บั๊กแบบเดียวกับที่เจอใน updateDelivery/Telegram ของแอปสั่งของ
+// เมื่อ 10 ก.ย. 69) ใช้แค่ cache เช็ค-แล้ว-จำเพียงพอกับเคสจริงที่เจอ (พนักงานกดซ้ำห่างกันหลายวินาที ไม่ใช่สอง
+// คำขอมาถึงพร้อมกันในเสี้ยววินาที) — idempotencyKey เป็น optional ไม่บังคับ ไฟล์เว็บเก่าที่ไม่ส่งมายังทำงาน
+// เหมือนเดิมทุกอย่าง (ข้ามการเช็คนี้ไปเฉยๆ)
 function submitBillForReview(body) {
   if (!body.supplierId || !body.staffName || !body.items || !body.items.length) {
     throw new Error('ข้อมูลไม่ครบ (supplierId, staffName หรือรายการสินค้าหายไป)');
   }
+
+  const idemKey = body.idempotencyKey ? ('submitIdem_' + body.idempotencyKey) : null;
+  if (idemKey) {
+    const cached = cacheGet(idemKey);
+    if (cached) return cached; // เคยส่งบิลนี้สำเร็จไปแล้ว — คืนผลเดิม ไม่สร้างแถว/อัปโหลดรูปซ้ำ
+  }
+
   const suppliers = readTable('Suppliers');
   const sup = suppliers.find(s => String(s.SupplierID).trim() === String(body.supplierId).trim());
   if (!sup) throw new Error('ไม่พบซัพพลายเออร์นี้: ' + body.supplierId);
@@ -555,7 +574,9 @@ function submitBillForReview(body) {
 
   cacheClear('pendingBills'); // เพิ่งเพิ่มบิลใหม่ในคิว — กันหน้า "บิลรอตรวจสอบ" เห็นข้อมูลค้างจากแคชเก่า
   invalidateDuplicateCandidatesCache(body.supplierId); // บิลนี้ต้องนับเป็น candidate ซ้ำได้ทันทีสำหรับการสแกนครั้งถัดไปของเจ้านี้
-  return { ok: true, batchId };
+  const result = { ok: true, batchId };
+  if (idemKey) cacheSet(idemKey, result, 300); // 5 นาที — เหมือน TTL ของ idempotency key ฝั่ง createOrder แอปสั่งของ
+  return result;
 }
 
 // สร้าง billHeader object จากแถวชีต (PendingBillReceipts หรือ PurchaseReceipts) — คืน null ถ้าไม่มีข้อมูล
@@ -592,13 +613,51 @@ function getPendingBillReceipts() {
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) return { batches: [] };
   const result = {
-    batches: readTable(PENDING_BILL_SHEET).map(r => ({
-      batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
-      photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items: JSON.parse(r.ItemsJSON || '[]'), billHeader: buildBillHeaderFromRow(r)
-    }))
+    batches: readTable(PENDING_BILL_SHEET).map(r => {
+      const items = JSON.parse(r.ItemsJSON || '[]');
+      const billHeader = buildBillHeaderFromRow(r);
+      return {
+        batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
+        photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items, billHeader,
+        // 15 ก.ย. 69 (ต่อ): เดิมคำเตือนบิลซ้ำ (checkDuplicateBill) ทำงานแค่ตอนพนักงานสแกนสดเท่านั้น —
+        // เจ้าของเปิดดูจากคิวนี้ทีหลังไม่เคยเห็นคำเตือนเลยแม้พนักงานจะกดผ่านตอนสแกนไปแล้ว (เจอเคสจริง 3 บิล
+        // ซ้ำสตาร์อัพ) เพิ่มเช็คซ้ำตรงนี้ด้วย เทียบกับบิลอื่นในคิวเดียวกัน/ที่บันทึกจริงแล้ว (excludeBatchId
+        // กันบิลจับคู่กับตัวเอง)
+        duplicateBillWarning: checkDuplicateBill(r.SupplierID, billHeader, items, r.BatchID)
+      };
+    })
   };
   cacheSet('pendingBills', result, CACHE_TTL.pendingBills);
   return result;
+}
+
+// ============ ทิ้งบิลที่ยืนยันว่าไม่ต้องการออกจากคิว "บิลรอตรวจสอบ" (15 ก.ย. 69) ============
+// เจอ use case จริง: checkDuplicateBill() ตอนสแกนเป็นแค่คำเตือน ไม่บล็อกการบันทึกเข้าคิว (ตั้งใจไว้แบบนั้น
+// ตั้งแต่ 10 ก.ย. 69) พนักงานกดบันทึกต่อได้แม้เจอเตือน ทำให้บิลซ้ำหลายใบค้างอยู่ใน PendingBillReceipts ได้จริง
+// — เดิมมีทางเดียวคือเปิด Google Sheet ไปลบแถวด้วยมือ เพิ่ม action นี้ให้เจ้าของทิ้งบิลออกจากคิวได้จากในแอปเลย
+// ลบแค่แถวใน PendingBillReceipts เท่านั้น — ไม่แตะ PurchaseReceipts/ProductAlias เลย (ไม่ใช่การบันทึกต้นทุน
+// ไม่มีการเรียนรู้การจับคู่จากบิลที่ถูกทิ้ง) ไม่ลบรูปใน Drive ทิ้งด้วย (เผื่อยังอยากย้อนดูภายหลัง)
+// idempotent: เรียกซ้ำด้วย batchId ที่ถูกลบไปแล้วก่อนหน้านี้จะแค่หาแถวไม่เจอ ไม่ throw error — ปลอดภัยที่จะ
+// ใส่ retryOnTimeout ฝั่งเว็บ
+function discardPendingBill(body) {
+  if (!body.batchId) throw new Error('ข้อมูลไม่ครบ (batchId หายไป)');
+  const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
+  if (!sh) return { ok: true };
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const batchCol = headers.indexOf('BatchID');
+  const supplierCol = headers.indexOf('SupplierID');
+  let supplierId = null;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][batchCol]).trim() === String(body.batchId).trim()) {
+      supplierId = data[i][supplierCol];
+      sh.deleteRow(i + 1);
+      break;
+    }
+  }
+  cacheClear('pendingBills');
+  if (supplierId) invalidateDuplicateCandidatesCache(supplierId);
+  return { ok: true };
 }
 
 // ============ เจ้าของตรวจ+กดบันทึกจริง — จุดเดียวในระบบที่เขียนลง PurchaseReceipts ============

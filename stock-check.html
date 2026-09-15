@@ -484,6 +484,12 @@ const BILL_API_URL = 'https://script.google.com/macros/s/AKfycbydw4-CO8PXffbbFV5
 
 const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อนๆ หรือ Apps Script cold start ตอบช้ากว่า 12 วิได้ง่ายๆ
 
+// เจอจริง 15 ก.ย. 69: submitBillForReview ไม่ idempotent (สร้างแถวใหม่ทุกครั้งที่เรียก) ถ้าเจอ timeout
+// (เช่นตอน BillCapture project cold start) แล้วพนักงานกดปุ่ม "บันทึกรายการนี้"/"ส่งทั้งหมด" ซ้ำเอง จะได้บิล
+// ซ้ำในคิว "บิลรอตรวจสอบ" จริง (เจอเคสจริง 3 บิลซ้ำสตาร์อัพ) — สร้าง key ใหม่ตอนบิลถูกอ่านสำเร็จครั้งแรก
+// (ก่อนเข้าหน้ารีวิว) ใช้ซ้ำได้ทุกครั้งที่ retry ส่งบิลใบเดียวกัน backend เช็คแล้วไม่สร้างซ้อนถ้าเจอ key เดิม
+function genIdemKey(){ return 'BI' + Date.now() + '_' + Math.random().toString(36).slice(2); }
+
 // หน่วงการเรียก fn จนกว่าจะไม่มีการเรียกซ้ำอีกภายใน wait ms — ใช้กันช่องค้นหาที่ยิง
 // renderGroups() รีบิลด์ DOM ทั้งลิสต์ทุกตัวอักษรที่พิมพ์ ซึ่งหนักมากถ้ามีการ์ดเปิดอยู่หลายสิบรายการ
 function debounce(fn, wait){
@@ -1455,7 +1461,7 @@ function renderBillAnalyzing(app){
       }));
       if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
       // null สำหรับบิลเขียนมือที่ไม่มีเลขที่บิล/VAT — renderBillReview จะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
-      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billDuplicateWarning: res.duplicateBillWarning || null, billMode:'staff'}, {replace:true});
+      go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billDuplicateWarning: res.duplicateBillWarning || null, billMode:'staff', billSubmitIdemKey: genIdemKey()}, {replace:true});
     })
     .catch(err=>{
       // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
@@ -1540,7 +1546,7 @@ function renderBillBatchAnalyzing(app){
           billHeader: res.billHeader || null,
           supplierMismatchWarning: res.supplierMismatchWarning || null,
           duplicateBillWarning: res.duplicateBillWarning || null,
-          reviewed: false, submitted: false,
+          reviewed: false, submitted: false, idemKey: genIdemKey(),
         });
       }
       go('billBatchReview', {billBatchGroups: groups}, {replace:true});
@@ -1627,7 +1633,8 @@ function renderBillReview(app){
     <div class="review-footer">
       <div class="rf-summary"><span id="rfPending" class="rf-left"></span><span>รวม <b class="rf-total" id="rfTotal">฿0</b></span></div>
       ${isResume
-        ? `<button class="btn btn-primary btn-block" id="saveBtn" disabled>บันทึกต้นทุน</button>`
+        ? `<button class="btn btn-primary btn-block" id="saveBtn" disabled>บันทึกต้นทุน</button>
+           <button class="btn-text-cancel" id="discardBtn" style="color:var(--danger);">ทิ้งบิลนี้ (ไม่บันทึก)</button>`
         : `<button class="btn btn-primary btn-block" id="submitBtn">บันทึกรายการนี้</button>`}
     </div>
   `;
@@ -1865,6 +1872,27 @@ function renderBillReview(app){
     }
   };
 
+  // เจอจริง 15 ก.ย. 69: บิลซ้ำเข้าคิว "บิลรอตรวจสอบ" ได้ (checkDuplicateBill ตอนสแกนเป็นแค่คำเตือน ไม่บล็อก
+  // พนักงานกดบันทึกต่อได้) เดิมมีทางเดียวคือเปิด Google Sheet ไปลบแถวด้วยมือ (sandbox นี้เข้า Google ไม่ได้
+  // ผู้ใช้ต้องขอไฟล์ .gs ไปแปะเองทุกครั้ง) เพิ่มปุ่มนี้ให้ทิ้งบิลที่ยืนยันว่าไม่ต้องการออกจากคิวได้จากในแอปเลย
+  // — ลบแค่แถวใน PendingBillReceipts ไม่เขียนอะไรลง PurchaseReceipts/ProductAlias เลย (ไม่ใช่การบันทึก)
+  const discardBtn = c.querySelector('#discardBtn');
+  if(discardBtn) discardBtn.onclick = async ()=>{
+    if(!confirm('ยืนยันทิ้งบิลนี้ใช่ไหม?\n\nบิลจะถูกลบออกจากคิว "บิลรอตรวจสอบ" ทันที ไม่มีการบันทึกต้นทุน และกู้คืนไม่ได้')) return;
+    discardBtn.disabled = true; discardBtn.textContent = 'กำลังทิ้งบิล...';
+    if(saveBtn) saveBtn.disabled = true;
+    try{
+      // ลบแถวด้วย batchId เป็น idempotent อยู่แล้ว (เรียกซ้ำ = ไม่เจอแถว = ไม่ throw) ปลอดภัยที่จะ retry
+      await apiPost('discardPendingBill', { batchId: state.billResumeBatchId }, true, undefined, BILL_API_URL);
+      clearDraft();
+      go('billPendingList');
+    }catch(err){
+      discardBtn.disabled = false; discardBtn.textContent = 'ทิ้งบิลนี้ (ไม่บันทึก)';
+      updateFooter(); // คืนสถานะ saveBtn.disabled ให้ตรงกับจำนวนรายการที่ยังไม่จับคู่จริง
+      alert('ทิ้งบิลไม่สำเร็จ: ' + err.message);
+    }
+  };
+
   const submitBtn = c.querySelector('#submitBtn');
   if(submitBtn) submitBtn.onclick = async ()=>{
     // ฝั่งลูกจ้างไม่มีทางเขียนลง PurchaseReceipts เองเลย ไม่ว่าจะจับคู่ครบหรือไม่ก็ตาม — ทุกใบต้องผ่าน
@@ -1872,10 +1900,11 @@ function renderBillReview(app){
     submitBtn.disabled = true; submitBtn.textContent = 'กำลังบันทึก...';
     try{
       // ส่งทุกรายการ (รวมที่ข้าม) ไปด้วย — เจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
-      // ห้ามใส่ retryOnTimeout — สร้างแถวใหม่/อัปโหลดรูปทุกครั้งที่เรียก ไม่ idempotent
+      // ห้ามใส่ retryOnTimeout ฝั่งนี้ (auto-retry ของ apiPost เอง) — แต่ backend เช็ค idempotencyKey ให้แล้ว
+      // ปลอดภัยถ้าพนักงานกดปุ่มนี้ซ้ำเองหลังเจอ error (ดูคอมเมนต์ genIdemKey ด้านบน)
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems,
-        billHeader: state.billHeader
+        billHeader: state.billHeader, idempotencyKey: state.billSubmitIdemKey
       }, false, undefined, BILL_API_URL);
       go('billSuccess', {});
     }catch(err){
@@ -1956,11 +1985,13 @@ async function submitAllBatch(c){
     if(g.submitted) continue;
     btn.textContent = `กำลังส่งบิลที่ ${gi+1}...`;
     try{
-      // ห้ามใส่ retryOnTimeout — submitBillForReview สร้างแถวใหม่/อัปโหลดรูปทุกครั้งที่เรียก ไม่ idempotent
-      // เหมือนโหมดปกติทุกประการ (ดูคอมเมนต์เดิมใน renderBillReview) วนเรียกทีละบิลจริงตามลำดับ ไม่ยิงพร้อมกัน
+      // ห้ามใส่ retryOnTimeout ฝั่งนี้ (auto-retry ของ apiPost เอง) — แต่ backend เช็ค idempotencyKey (g.idemKey,
+      // สร้างครั้งเดียวตอนกลุ่มนี้ถูกสร้างขึ้น) ให้แล้ว ปลอดภัยถ้ากด "ส่งทั้งหมด" ซ้ำ เหมือนโหมดปกติทุกประการ
+      // (ดูคอมเมนต์เดิมใน renderBillReview) วนเรียกทีละบิลจริงตามลำดับ ไม่ยิงพร้อมกัน
       await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName,
-        photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader
+        photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader,
+        idempotencyKey: g.idemKey
       }, false, undefined, BILL_API_URL);
       g.submitted = true;
     }catch(err){
@@ -2292,7 +2323,7 @@ function renderBillBatchRegroup(app){
         gr.photoIndices = gr.photoIndices.filter(i=> !selected.includes(i));
         return gr.photoIndices.length > 0;
       });
-      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, duplicateBillWarning: res.duplicateBillWarning||null, reviewed:false, submitted:false });
+      state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, duplicateBillWarning: res.duplicateBillWarning||null, reviewed:false, submitted:false, idemKey: genIdemKey() });
       go('billBatchReview');
     }catch(err){
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
@@ -2410,6 +2441,7 @@ async function renderBillPendingList(app){
         <div class="pr-body">
           <div class="pr-title">${sup ? sup.name : b.supplierId}</div>
           <div class="pr-sub">ถ่ายโดย ${b.staffName} · ${b.date}</div>
+          ${b.duplicateBillWarning ? `<div style="display:flex; gap:5px; align-items:flex-start; background:var(--amber-bg); color:var(--amber); font-size:11px; font-weight:600; padding:5px 8px; border-radius:7px; margin-top:7px;"><i class="ti ti-copy" aria-hidden="true" style="flex-shrink:0; margin-top:1px;"></i> อาจซ้ำกับบิลอื่น — ตรวจสอบก่อน</div>` : ''}
         </div>
         <span class="status-pill unmatched">${done}/${b.items.length} จับคู่แล้ว</span>
       </div>`;
@@ -2420,9 +2452,12 @@ async function renderBillPendingList(app){
         billMode:'owner-resume', billResumeBatchId:b.batchId, billSupplierId:b.supplierId,
         billStaffName:b.staffName, billPhotos: String(b.photoUrl||'').split(',').filter(Boolean), billItems:b.items,
         billHeader: b.billHeader || null,
-        // เคลียร์ให้ชัดเจน — คำเตือนนี้มาจาก analyzeBillPhoto ตอนวิเคราะห์สดเท่านั้น บิลค้างจาก
-        // PendingBillReceipts ไม่มีข้อมูลนี้เก็บไว้ (ยังไม่ได้ทำ) กันค่าเก่าจาก session ก่อนหน้าค้างโชว์ผิดบิล
-        billSupplierMismatchWarning: null
+        // เคลียร์ให้ชัดเจน — คำเตือนซัพพลายเออร์ไม่ตรงมาจาก analyzeBillPhoto ตอนวิเคราะห์สดเท่านั้น บิลค้างจาก
+        // PendingBillReceipts ไม่มีข้อมูลนี้เก็บไว้ กันค่าเก่าจาก session ก่อนหน้าค้างโชว์ผิดบิล
+        billSupplierMismatchWarning: null,
+        // ต่างจากข้างบน — คำเตือนบิลซ้ำตอนนี้ backend คำนวณใหม่ทุกครั้งที่โหลดคิวนี้แล้ว (เทียบกับบิลอื่น
+        // ในคิว/ที่บันทึกจริงแล้ว) ส่งต่อเข้าไปให้หน้ารีวิวโชว์ได้เลย ไม่ต้อง null ทิ้ง
+        billDuplicateWarning: b.duplicateBillWarning || null
       });
     });
   }
