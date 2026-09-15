@@ -880,6 +880,24 @@ Executions log แบบรอบนี้อีกแล้ว (log นั้�
 **ยังไม่ได้ทดสอบ**: ยังไม่มีการยืนยันว่าหลัง deploy แล้ว แก้ไขออเดอร์จริง 1 ครั้งแล้วชีต `OrderEditLog` มีแถวขึ้นมาถูกต้อง
 จริงหรือไม่ — session ถัดไปควรถามผลตรงนี้ก่อนถ้ายังไม่ถูกบอก
 
+### สถานะล่าสุด (อัปเดต 13 ก.ย. 69) — เพิ่ม `keepWarm()` กัน cold start ของ Apps Script
+
+**บริบท**: ผู้ใช้เจอ `initAdmin:getAdminOrders: หมดเวลาเชื่อมต่อ (timeout)` ตอนเปิดหน้าแอดมิน — reload อีกรอบเดียวก็หาย
+สรุปว่าเป็น **Apps Script cold start** (สคริปต์ "หลับ" เมื่อไม่มีคนเรียกสักพัก คำขอแรกหลังจากนั้นเลยช้าจนชน timeout
+15 วิ × 2 ครั้ง = ~30 วิ ที่ `initAdmin` ตั้งไว้) ไม่เกี่ยวกับ `updateOrder`/fix อื่นๆ ที่เพิ่งแก้ไปก่อนหน้านี้เลย
+
+**แก้แล้ว (deploy จริงแล้ว, push เข้า `main` แล้ว — commit `d2dbc0a`)**: เพิ่มฟังก์ชัน `keepWarm()` ใน
+`order-app-Code.gs` — ฟังก์ชันเปล่าๆ แค่ log เวลา ไม่แตะ Sheet/Cache/Lock ใดๆ เลย (กินโควต้า execution time
+แทบเป็น 0 วิ/ครั้ง) ผู้ใช้ตั้ง **time-driven trigger เรียกทุก 5 นาที** ใน Apps Script Editor เองแล้ว (Triggers →
+Add Trigger → keepWarm → Time-driven → Minutes timer → Every 5 minutes → Save) — เป้าหมายคือกันไม่ให้สคริปต์
+มีโอกาส "หลับ" ตั้งแต่แรก แทนที่จะให้ผู้ใช้จริงเป็นคนจ่าย cost ของ cold start ตอนเปิดหน้า
+
+⚠️ **[รอผลทดสอบจริง — ยังไม่ได้รับการยืนยัน]** เพิ่งตั้ง trigger เสร็จ ยังไม่มีทางเห็นผลทันที (ทดสอบตอนสคริปต์ยัง
+"ตื่น" อยู่จากการใช้งานเมื่อครู่ ไม่มีทางต่างจากก่อนตั้ง trigger เลย) — จุดที่จะพิสูจน์ได้จริงคือ **ตอนเปิดหน้าแอดมิน
+ครั้งแรกหลังไม่มีคนใช้แอปมาข้ามคืน/หลายชั่วโมง** ถ้าเปิดมาเร็วปกติไม่เจอ timeout อีก แปลว่าได้ผล — session ถัดไป
+ควรถามผลตรงนี้ก่อนถ้ายังไม่ถูกบอก ถ้ายังเจอ timeout อยู่ ให้เช็คก่อนว่า trigger ยังทำงานอยู่จริงไหม (ดู "Last run"
+ในหน้า Triggers หรือกรอง `keepWarm` ใน Executions log ว่ารันสม่ำเสมอทุก 5 นาทีจริงหรือเปล่า)
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
