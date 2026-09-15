@@ -11,8 +11,3295 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    button,input,select,textarea{font-family:inherit}
+    body{font-family:'Sarabun',sans-serif;background:#f5f3f0;color:#1a1a1a}
+    #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:0;background:#D64109}
+    .loading-logo{width:230px;max-width:65vw;height:auto;margin-bottom:28px}
+    .loading-bar-track{width:140px;height:4px;background:rgba(255,255,255,0.25);border-radius:4px;overflow:hidden;margin-bottom:14px}
+    .loading-bar-fill{width:0%;height:100%;background:#fff;border-radius:4px;animation:loadbar 1.4s ease-in-out infinite}
+    @keyframes loadbar{0%{width:10%;margin-left:0%}50%{width:60%;margin-left:20%}100%{width:10%;margin-left:100%}}
+    .loading-text{font-size:13.5px;color:rgba(255,255,255,0.85)}
+    #errorScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:2rem;text-align:center}
+    #errorScreen h2{font-size:22.5px;color:#993c1d}
+    #app,#adminApp{display:none;max-width:600px;margin:0 auto;padding-bottom:100px}
+    .header{background:#D64109;color:#fff;padding:1.25rem 1rem}
+    .header-name{font-size:25px;font-weight:600}
+    .header-sub{font-size:14.5px;opacity:0.8;margin-top:4px}
+    .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
+    .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
+    .tab{flex:1;padding:10px 4px;text-align:center;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent;white-space:nowrap}
+    .tab.active{color:#D64109;border-bottom-color:#D64109;font-weight:500}
+    .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+    .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
+    .product-card.selected{border-color:#D64109}
+    .product-img{width:100%;aspect-ratio:1;object-fit:cover;background:#f0f0f0;display:block}
+    .product-img-placeholder{width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:45px}
+    .product-body{padding:10px}
+    .product-name{font-size:16px;font-weight:500;margin-bottom:3px}
+    .product-price{font-size:14.5px;color:#D64109;margin-bottom:8px}
+    .qty-row{display:flex;align-items:center;gap:8px}
+    .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .qty-num{font-size:16px;font-weight:500;width:48px;text-align:center;border:1px solid #ddd;border-radius:6px;padding:4px 4px;background:#fff}
+    .cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;padding:12px 16px;display:none;z-index:100}
+    .cart-bar.show{display:block}
+    .cart-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .cart-info{font-size:13.5px;color:#888}
+    .cart-total{font-size:20px;font-weight:600}
+    .btn-order{padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer}
+    .history-list,.admin-list{padding:12px;display:flex;flex-direction:column;gap:10px}
+    .order-card{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;overflow:hidden}
+    .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+    .order-id{font-size:13.5px;font-weight:500;font-family:monospace;color:#333}
+    .order-date{font-size:12.5px;color:#aaa;margin-top:2px}
+    .badge{font-size:12.5px;padding:3px 10px;border-radius:20px;font-weight:500;white-space:nowrap;text-align:center;display:inline-block}
+    .badge-pending{background:#faeeda;color:#854f0b}
+    .badge-done{background:#eaf3de;color:#3b6d11}
+    .badge-packing{background:#EEEDFE;color:#3C3489}
+    .badge-confirmed{background:#E6F1FB;color:#185FA5}
+    .hcard-summary{display:flex;flex-direction:column;gap:6px;padding:13px 14px;cursor:pointer}
+    .hcard-summary-top{display:flex;align-items:center;gap:8px}
+    .hcard-summary-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-left:22px}
+    .hcard-chevron{font-size:16px;color:#aaa;transition:transform 0.15s;flex-shrink:0}
+    .hcard-chevron.open{transform:rotate(180deg)}
+    .hcard-idblock{min-width:0;overflow:hidden}
+    .hcard-id{font-size:14px;font-weight:600;font-family:monospace;color:#333;white-space:nowrap}
+    .hcard-date{font-size:12.5px;color:#aaa}
+    .hcard-total{font-size:14.5px;font-weight:600;color:#333;text-align:right;white-space:nowrap}
+    .hcard-total.cancelled{color:#aaa;text-decoration:line-through;font-weight:500}
+    .hcard-badge-wrap{display:flex;align-items:center;gap:8px}
+    .hcard-detail{display:none;padding:0 14px 14px}
+    .hcard-detail.open{display:block}
+    .hcard-divider{border-top:0.5px solid #f0f0f0;padding-top:12px}
+    .date-divider{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;background:#efece6;border-radius:8px;padding:7px 12px}
+    .date-divider-label{font-size:14px;font-weight:500;color:#5f5e5a}
+    .date-divider-sum{font-size:12.5px;color:#888}
+    .order-items-list{margin-bottom:8px}
+    .item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14.5px}
+    .item-row:last-child{border:none}
+    .item-qty{color:#D64109;font-weight:500}
+    .order-note{font-size:13.5px;color:#888;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px}
+    .order-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
+    .order-total{font-size:16px;font-weight:600;color:#D64109}
+    .btn-edit{font-size:13.5px;padding:6px 14px;background:none;border:1px solid #D64109;color:#D64109;border-radius:8px;cursor:pointer}
+    .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
+    .empty-state{text-align:center;padding:3rem 1rem;color:#aaa;font-size:16px}
+    /* ===== จุดกระโดดสามจุด ใช้แทน "กำลังโหลด..." เดิมทุกจุด (เพิ่ม 15 ก.ย. 69) ===== */
+    .loading-dots{display:flex;gap:8px;justify-content:center;align-items:center;padding:6px 0}
+    .loading-dots span{width:10px;height:10px;border-radius:50%;background:#D64109;animation:loadingDotBounce 1s ease-in-out infinite}
+    .loading-dots span:nth-child(2){animation-delay:0.15s}
+    .loading-dots span:nth-child(3){animation-delay:0.3s}
+    @keyframes loadingDotBounce{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-10px);opacity:1}}
+    .home-top{background:#D64109;padding:1.8rem 1.5rem 1rem;text-align:center;color:#fff}
+    .home-logo{margin-bottom:6px}
+    .home-logo img{width:180px;max-width:70vw;height:auto;display:block;margin:0 auto}
+    .home-name{font-size:29px;font-weight:700;letter-spacing:-0.5px}
+    .home-customer{font-size:16px;font-weight:500;opacity:0.95;margin-top:4px}
+    .home-body{padding:20px 16px 32px;display:flex;flex-direction:column;gap:14px}
+    .big-btn{width:100%;padding:22px 20px;border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+    .big-btn:active{transform:scale(0.98)}
+    .big-btn-red{background:#D64109;color:#fff}
+    .big-btn-white{background:#fff;color:#1a1a1a;border:2px solid #e8e2dc}
+    .bb-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
+    .bb-icon-1{background:rgba(255,255,255,0.2)}
+    .bb-icon-2{background:#fff3e0}
+    .bb-icon-3{background:#E6F1FB}
+    .bb-title{font-size:20px;font-weight:700;margin-bottom:4px}
+    .bb-sub{font-size:13.5px;opacity:0.75;line-height:1.4}
+    .bb-badge{display:inline-block;font-size:11px;background:#D64109;color:#fff;padding:2px 8px;border-radius:20px;margin-top:6px;font-weight:500}
+    .bb-badge-dark{background:#1a0a06}
+    .bb-arrow{font-size:25px;opacity:0.35;flex-shrink:0;margin-left:auto}
+    .badge-verified{background:#EAF3DE;color:#3B6D11}
+    .badge-rejected{background:#FCEAEA;color:#A32D2D}
+    .badge-slip{background:#E6F1FB;color:#185FA5}
+    .badge-pay{background:#fff3e0;color:#e65100}
+    .tl{display:flex;flex-direction:column;gap:0;margin:8px 0}
+    .tr{display:flex;align-items:flex-start;gap:8px;padding:4px 0}
+    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+    .d-on{background:#D64109}.d-off{background:#e0d8d4}.d-pay{background:#e65100}.d-blue{background:#185FA5}
+    .tlabel{font-size:13.5px;color:#333;flex:1}.tlabel.muted{color:#aaa}
+    .ttime{font-size:11px;color:#D64109;font-weight:500;white-space:nowrap}
+    .info-box{background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;color:#185FA5}
+    .warn-box-h{background:#FCEAEA;border:1px solid #F09595;border-radius:8px;padding:8px 10px;margin:6px 0}
+    .ok-box-h{background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;color:#3B6D11}
+    .pay-box{background:#fff3e0;border:1px solid #ffb74d;border-radius:10px;padding:12px;margin:8px 0}
+    .pay-title{font-size:14.5px;font-weight:600;color:#e65100;margin-bottom:4px}
+    .pay-sub{font-size:12.5px;color:#bf360c;margin-bottom:8px;line-height:1.5}
+    .bank-box{background:#fff;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .bank-num{font-size:17px;font-weight:700;color:#e65100;letter-spacing:1px;font-family:monospace}
+    .bank-name-s{font-size:11px;color:#888;margin-top:2px}
+    .bank-scb{font-size:11px;background:#4e2e8a;color:#fff;padding:2px 7px;border-radius:4px;margin-bottom:3px;display:inline-block}
+    .total-pay{background:#e65100;border-radius:8px;padding:10px;text-align:center;color:#fff}
+    .total-pay-label{font-size:11px;opacity:0.85;margin-bottom:2px}
+    .total-pay-num{font-size:22.5px;font-weight:700}
+    .slip-upload-inline{margin-top:8px;display:none}
+    .upload-box{border:2px dashed #f5c4b3;border-radius:10px;padding:1rem;text-align:center;background:#fdf5f2;cursor:pointer;margin:6px 0}
+    .slip-img-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin:4px 0}
+    .btn-slip-send{width:100%;padding:10px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:4px}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:200}
+    .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow-y:auto}
+    .modal-header{padding:16px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1}
+    .modal-header h3{font-size:18px;font-weight:500}
+    .btn-close{background:none;border:none;font-size:25px;cursor:pointer;color:#888;line-height:1}
+    .modal-body{padding:16px;display:flex;flex-direction:column;gap:14px}
+    .edit-item{display:flex;align-items:center;gap:12px;padding:10px;background:#f8f8f8;border-radius:12px}
+    .edit-img{width:80px;height:80px;border-radius:10px;object-fit:cover;background:#e8e8e8;flex-shrink:0}
+    .edit-img-placeholder{width:80px;height:80px;border-radius:10px;background:#e8e8e8;display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0}
+    .edit-info{flex:1;min-width:0}
+    .edit-name{font-size:17px;font-weight:500;margin-bottom:3px}
+    .edit-price{font-size:14.5px;color:#888}
+    .edit-qty-row{display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .edit-qty-btn{width:30px;height:30px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
+    .edit-qty-num{font-size:17px;font-weight:500;min-width:22px;text-align:center}
+    .note-section{background:#f8f8f8;border-radius:12px;padding:12px}
+    .note-label{font-size:13.5px;color:#888;margin-bottom:6px}
+    textarea{width:100%;min-height:72px;padding:10px;border:1px solid #e0e0e0;border-radius:10px;font-size:14.5px;font-family:inherit;resize:none}
+    textarea:focus{outline:none;border-color:#D64109}
+    .edit-total{font-size:17px;font-weight:600;color:#D64109;text-align:right;padding:4px 0}
+    .modal-footer{padding:12px 16px;border-top:1px solid #f0f0f0;display:flex;gap:8px;position:sticky;bottom:0;background:#fff}
+    .btn-cancel{flex:1;padding:12px;background:#f5f3f0;border:none;border-radius:10px;font-size:16px;cursor:pointer}
+    .btn-save{flex:2;padding:12px;background:#D64109;border:none;border-radius:10px;font-size:16px;font-weight:500;color:#fff;cursor:pointer}
+    .btn-save:disabled{background:#aaa;cursor:not-allowed}
+    #confirmScreen{display:none;min-height:100vh;background:#f5f3f0}
+    .confirm-header{background:#D64109;color:#fff;padding:1.25rem 1rem;display:flex;align-items:center;gap:12px}
+    .confirm-header h2{font-size:20px;font-weight:500}
+    .back-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:16px;opacity:0.85}
+    .confirm-body{max-width:600px;margin:0 auto;padding:16px}
+    .confirm-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px}
+    .confirm-card h3{font-size:13.5px;color:#888;margin-bottom:10px}
+    .confirm-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:14.5px}
+    .confirm-row.total{border:none;font-weight:600;font-size:16px;padding-top:10px}
+    .confirm-oid{font-size:12.5px;color:#aaa;font-family:monospace;margin-bottom:12px}
+    .btn-confirm{width:100%;padding:14px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer}
+    .btn-confirm:disabled{background:#aaa;cursor:not-allowed}
+    #successScreen{display:none;min-height:100vh;background:#f5f3f0;flex-direction:column}
+    .success-top{text-align:center;padding:1.5rem 1.5rem 0;background:#D64109;color:#fff}
+    .success-icon{font-size:54px;margin-bottom:8px}
+    .success-oid{font-size:12.5px;font-family:monospace;opacity:0.85;margin-top:4px}
+    .success-title{font-size:25px;font-weight:700;margin-bottom:4px}
+    .success-body{padding:12px;display:flex;flex-direction:column;gap:10px;max-width:600px;width:100%;margin:0 auto;padding-bottom:100px}
+    .s-card{background:#fff;border-radius:14px;border:0.5px solid #e8e2dc;padding:1rem}
+    .s-card-title{font-size:13.5px;color:#888;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .s-item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5ede8;font-size:14.5px;color:#333}
+    .s-item-row:last-child{border:none}
+    .s-total-row{display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:700;color:#D64109;border-top:2px solid #f5ede8;margin-top:4px}
+    .pay-card{background:#fff;border-radius:14px;border:2px solid #D64109;padding:1rem}
+    .pay-title{font-size:13.5px;color:#712B13;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .bank-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .bank-logo{width:36px;height:36px;border-radius:8px;background:#4e2e8a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12.5px;font-weight:700;flex-shrink:0}
+    .bank-name{font-size:14.5px;font-weight:500;color:#333}
+    .bank-type{font-size:12.5px;color:#888;margin-top:1px}
+    .acc-box{background:#fdf5f2;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .acc-num{font-size:20px;font-weight:700;color:#D64109;letter-spacing:1px;font-family:monospace}
+    .acc-name{font-size:12.5px;color:#888;margin-top:3px}
+    .btn-copy{font-size:12.5px;padding:6px 12px;background:#D64109;color:#fff;border:none;border-radius:6px;cursor:pointer}
+    .amount-box{background:#D64109;border-radius:10px;padding:12px;text-align:center}
+    .amount-label{font-size:12.5px;color:rgba(255,255,255,0.8);margin-bottom:4px}
+    .amount-num{font-size:31.5px;font-weight:700;color:#fff}
+    .status-row-s{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5ede8}
+    .status-row-s:last-child{border:none}
+    .sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#e0d8d4}
+    .sdot-on{background:#D64109}
+    .s-label{font-size:14.5px;color:#1a1a1a}
+    .s-sub{font-size:12.5px;color:#aaa;margin-top:1px}
+    .s-time{font-size:12.5px;color:#D64109;margin-left:auto;font-weight:500}
+    .copy-toast{background:#1a0a06;color:#fff;padding:7px 14px;border-radius:8px;font-size:13.5px;text-align:center;display:none;margin-top:8px}
+    .warn-box{background:#FCEAEA;border:1px solid #F09595;border-radius:10px;padding:10px 12px;margin:8px 0}
+    .warn-box-title{font-size:14.5px;font-weight:600;color:#A32D2D;margin-bottom:4px}
+    .warn-box-text{font-size:13.5px;color:#A32D2D;line-height:1.6}
+    .info-box{background:#E6F1FB;border:1px solid #B5D4F4;border-radius:10px;padding:10px 12px;margin:8px 0}
+    .info-box-title{font-size:14.5px;font-weight:600;color:#185FA5;margin-bottom:4px}
+    .ok-box{background:#EAF3DE;border:1px solid #C0DD97;border-radius:10px;padding:10px 12px;margin:8px 0}
+    .ok-box-title{font-size:14.5px;font-weight:600;color:#3B6D11;margin-bottom:4px}
+    .history-tl{margin:8px 0}
+    .tl-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0}
+    .tl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px}
+    .tl-on{background:#D64109}
+    .tl-off{background:#e0d8d4}
+    .tl-warn{background:#A32D2D}
+    .tl-label{font-size:13.5px;color:#1a1a1a;flex:1}
+    .tl-label.muted{color:#aaa}
+    .tl-time{font-size:11px;color:#D64109;font-weight:500;white-space:nowrap}
+    .slip-upload-inline{margin-top:8px;display:none}
+    .btn-slip{width:100%;padding:10px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:6px}
+    .badge-verified{background:#EAF3DE;color:#3B6D11}
+    .badge-rejected{background:#FCEAEA;color:#A32D2D}
+    .badge-slip{background:#E6F1FB;color:#185FA5}
+    .btn-ghost{padding:10px 20px;background:#fff;border:1px solid #ddd;border-radius:10px;font-size:14.5px;cursor:pointer}
+    .btn-green{padding:10px 20px;background:#D64109;border:none;border-radius:10px;font-size:14.5px;font-weight:500;cursor:pointer;color:#fff}
+    .btn-row{display:flex;gap:8px;justify-content:center}
+    .admin-header{background:#1a0a06;color:#fff;padding:1.25rem 1rem}
+    .admin-header h1{font-size:22.5px;font-weight:500}
+    .admin-header p{font-size:13.5px;opacity:0.7;margin-top:4px}
+    .admin-order-card{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;overflow:hidden}
+    .admin-order-top{padding:12px;display:flex;justify-content:space-between;align-items:flex-start;background:#fafafa;border-bottom:1px solid #f0f0f0}
+    .admin-customer{font-size:17px;font-weight:500}
+    .admin-order-id{font-size:12.5px;color:#aaa;font-family:monospace;margin-top:2px}
+    .admin-order-time{font-size:12.5px;color:#aaa;margin-top:2px}
+    .btn-done{padding:8px 16px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:500;cursor:pointer}
+    .btn-done:hover{background:#A03015}
+    .admin-items-list{padding:8px 12px}
+    .admin-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px;transition:background 0.15s;margin:0 -4px;padding-left:4px;padding-right:4px}
+    .admin-item-row.picked{background:#EAF3DE}
+    .admin-item-row.picked .admin-item-name{color:#8aa385}
+    .admin-item-img,.admin-item-img-placeholder{cursor:zoom-in}
+    .admin-item-row:last-child{border:none}
+    .admin-item-img{width:72px;height:72px;border-radius:10px;object-fit:cover;background:#f0f0f0;flex-shrink:0}
+    .admin-item-img-placeholder{width:72px;height:72px;border-radius:10px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
+    .admin-item-name{font-size:17px;font-weight:500;flex:1}
+    .admin-item-price{font-size:12.5px;color:#aaa;margin-top:2px;font-weight:400}
+    .admin-item-reason{font-size:11.5px;color:#aaa;margin-top:2px;font-style:italic}
+    .admin-item-reason b{font-weight:600;font-style:normal}
+    .admin-item-qty-row{display:flex;align-items:center;gap:6px}
+    .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    .admin-qty-num{font-size:16px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
+    .admin-order-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #f0f0f0;background:#fafafa}
+    .admin-total{font-size:16px;font-weight:600;color:#D64109}
+    .admin-note{padding:8px 12px;font-size:13.5px;color:#888;background:#fdf5f2;border-top:1px solid #f0e68c}
+    .btn-save-admin{font-size:13.5px;padding:6px 12px;background:#1a0a06;color:#fff;border:none;border-radius:8px;cursor:pointer}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:14.5px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap}
+    .toast.show{opacity:1}
+    .slip-section{margin-top:10px}
+    .upload-box{border:2px dashed #f5c4b3;border-radius:12px;padding:1.25rem;text-align:center;cursor:pointer;background:#fdf5f2}
+    .upload-box:hover{border-color:#D64109;background:#fbeee9}
+    .upload-icon{font-size:31.5px;color:#D64109;margin-bottom:6px}
+    .upload-text{font-size:14.5px;color:#888}
+    .upload-sub{font-size:12.5px;color:#aaa;margin-top:2px}
+    .slip-img{width:100%;max-height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px}
+    .btn-verify-slip{width:100%;padding:11px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+    .verify-box{border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14.5px}
+    .verify-ok{background:#eaf3de;color:#3b6d11}
+    .verify-fail{background:#fceaea;color:#a32d2d}
+    .ai-badge{font-size:11px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:20px;font-weight:500;margin-left:4px}
+  </style>
 </head>
 <body>
-<p>maintenance</p>
+
+<div id="loading"><img class="loading-logo" src="/logo-color.png" alt="ซามูไรไส้กรอก"><div class="loading-bar-track"><div class="loading-bar-fill"></div></div><p class="loading-text">กำลังเตรียมเมนูให้คุณ...</p></div>
+<div id="errorScreen"><h2 id="errorTitle">ไม่พบข้อมูล</h2><p id="errorMsg">ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ</p><button id="errorRetryBtn" onclick="location.reload()" style="display:none;margin-top:8px;padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer">ลองใหม่อีกครั้ง</button></div>
+
+<div id="app">
+  <!-- Homepage -->
+  <div id="homeScreen">
+    <div class="home-top">
+      <div class="home-logo"><img src="/logo-color.png" alt="ซามูไรไส้กรอก"></div>
+      <div style="font-size:16px;color:rgba(255,255,255,0.95);margin-top:15px;letter-spacing:0.3px;font-weight:500">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div>
+      <div class="home-customer" id="customerName">สวัสดีครับ</div>
+    </div>
+    <div class="home-body">
+      <button class="big-btn" style="background:#fff;border:2.5px solid #D64109;color:#1a1a1a" onclick="startNewOrder()">
+        <div class="bb-icon" style="background:#fdf5f2;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0">🛒</div>
+        <div style="flex:1">
+          <div class="bb-title" style="color:#D64109">สั่งสินค้า</div>
+          <div class="bb-sub">เลือกสินค้าและสั่งซื้อได้เลยครับ</div>
+        </div>
+        <div class="bb-arrow" style="color:#D64109;opacity:0.7">›</div>
+      </button>
+      <button class="big-btn big-btn-white" onclick="goSection('track')">
+        <div class="bb-icon bb-icon-3">📦</div>
+        <div style="flex:1">
+          <div class="bb-title" style="color:#185FA5">ติดตามสถานะ</div>
+          <div class="bb-sub">ดูสถานะออเดอร์และประวัติการสั่ง</div>
+        </div>
+        <div class="bb-arrow">›</div>
+      </button>
+      <div style="text-align:center;font-size:12.5px;color:#aaa;margin-top:8px">ซามูไรไส้กรอก</div>
+    </div>
+  </div>
+  <!-- Shop Section -->
+  <div id="shopSection" style="display:none">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
+        <div class="header-name" style="font-size:20px">สั่งสินค้า</div>
+      </div>
+    </div>
+    <button onclick="openReorderModal()" style="width:calc(100% - 24px);margin:10px 12px 4px;background:#fff;border:2px solid #534AB7;border-radius:999px;padding:13px 18px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer">
+      <span style="font-size:21.5px;color:#534AB7">↻</span>
+      <span style="font-size:16px;font-weight:700;color:#534AB7">สั่งซ้ำจากออเดอร์เก่า</span>
+    </button>
+    <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:12.5px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
+    <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
+    <div class="cart-bar" id="cartBar">
+      <div class="cart-inner">
+        <div>
+          <div class="cart-info" id="cartInfo">0 รายการ</div>
+          <div class="cart-total-val" id="cartTotalVal">฿0</div>
+        </div>
+        <button class="btn-order" onclick="showConfirm()">สั่งซื้อ →</button>
+      </div>
+    </div>
+  </div>
+  <!-- Track Section -->
+  <div id="trackSection" style="display:none">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="goHome()" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
+        <div class="header-name" style="font-size:20px">ติดตามสถานะ</div>
+      </div>
+    </div>
+    <div class="history-list" id="trackList"></div>
+  </div>
+  <!-- Reorder Modal -->
+  <div id="reorderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;align-items:flex-end;justify-content:center">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="font-size:18px;font-weight:600">สั่งซ้ำจากประวัติ</h3>
+        <button onclick="closeReorderModal()" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#aaa">✕</button>
+      </div>
+      <div id="reorderModalBody"><div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div></div>
+    </div>
+  </div>
+  <!-- Edit Modal -->
+  <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-end;justify-content:center">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="font-size:18px;font-weight:600">แก้ไขรายการสินค้า</h3>
+        <button onclick="closeEditModal()" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#aaa">✕</button>
+      </div>
+      <div id="editModalBody"></div>
+      <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Reason Modal (แอดมินเท่านั้น — ถามเหตุผลตอนตัด/ลดจำนวนสินค้าในออเดอร์ เช่น ของหมด)
+     ต้องอยู่นอก #app เพราะ show('adminApp') จะตั้ง #app เป็น display:none ทับ ถ้า modal นี้ซ้อนอยู่ข้างในจะไม่มีวันโผล่ตอนอยู่หน้าแอดมิน -->
+<div id="reasonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:center;justify-content:center;padding:24px 16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25)">
+    <div style="padding:1.25rem 1.1rem 0">
+      <h3 style="font-size:16px;font-weight:600;margin:0 0 4px">เหตุผลที่แก้ไขแต่ละรายการ</h3>
+      <div style="color:#888;font-size:12.5px;margin-bottom:8px">แต่ละรายการอาจมีเหตุผลไม่เหมือนกัน (เช่นตัวนึงหมด อีกตัวลูกค้าขอเปลี่ยน) เลือก/พิมพ์แยกทีละรายการได้</div>
+    </div>
+    <div id="reasonModalBody" style="overflow-y:auto;padding:0 1.1rem;flex:1"></div>
+    <div style="display:flex;gap:10px;padding:12px 1.1rem 1.5rem">
+      <button onclick="cancelEditReason()" style="flex:1;padding:11px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:14px;font-weight:600">ยกเลิก</button>
+      <button onclick="confirmEditReason()" style="flex:1;padding:11px;border-radius:10px;border:none;background:#2f7d4f;color:#fff;font-size:14px;font-weight:600">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminApp">
+  <div class="admin-sticky-wrap">
+  <div class="admin-header">
+    <h1>🗂 รายการที่ต้องจัด</h1>
+    <p id="adminHeaderDate" style="font-size:12px;color:#d8a98f;margin:5px 0 0;font-weight:400">📅 <span id="adminHeaderDateText"></span></p>
+    <p id="adminSubtitle" style="display:none">กำลังโหลด...</p>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchAdminTab('pending')" id="adminTabPending">⏳ รอจัด</div>
+    <div class="tab" onclick="switchAdminTab('packing')" id="adminTabPacking">🔄 กำลังจัด</div>
+    <div class="tab" onclick="switchAdminTab('done')" id="adminTabDone">✅ เสร็จสมบูรณ์</div>
+    <div class="tab" onclick="switchAdminTab('overview')" id="adminTabOverview">📊 ภาพรวม</div>
+  </div>
+  <div id="overviewFilterBar" style="display:none;background:#f7f5f2;padding:12px 18px 10px 18px"></div>
+  </div>
+  <div class="admin-list" id="adminList"></div>
+  <div id="adminOverview" style="display:none;padding:12px"></div>
+  <div id="ownerDashboard" style="display:none;padding:14px"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbynqBJX8FTJJukuvyiBOFDXPTV0l-wduxn0bL8RIGT_Qjn4QgpCOg_5awipnzh5YmlT/exec';
+
+function fmtMoney(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtOrderDateTime(ts){
+  if(!ts) return '';
+  const d=new Date(ts);
+  const dateStr=d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const timeStr=d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}).replace(':','.');
+  return`${dateStr} ${timeStr} น.`;
+}
+function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').trim();}
+// กัน stored XSS — note/business note เป็น free text ที่ผู้ใช้พิมพ์เอง เขียนลง Sheet ตรงๆ ไม่ sanitize
+// ต้อง escape ก่อน render ทุกจุดที่ใส่ผ่าน innerHTML (ไม่ escape ตอนเก็บ เพื่อให้ข้อมูลดิบใน Sheet ไม่ถูกบิดเบือน)
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+var ADMIN_KEY='shop123';
+let customer=null,products=[],cart={},pendingOid='',orderIdemKey='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
+var adminQtys={};
+var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
+let pickedItems=new Set();
+var params=new URLSearchParams(window.location.search);
+var isAdmin=params.get('admin')==='true'&&params.get('key')===ADMIN_KEY;
+var customerRef=params.get('ref');
+
+/* ===== Error logging & global safety net ===== */
+function logError(label,err,silent){
+  try{
+    console.error('['+label+']',err);
+    var entry={t:new Date().toISOString(),label:label,msg:(err&&err.message)||String(err)};
+    var log=JSON.parse(localStorage.getItem('ss_errlog')||'[]');
+    log.push(entry);
+    if(log.length>20)log=log.slice(-20);
+    localStorage.setItem('ss_errlog',JSON.stringify(log));
+  }catch(e){}
+  if(!silent)showErrBanner((label?label+': ':'')+((err&&err.message)||String(err)));
+}
+function showErrBanner(msg){
+  var b=document.getElementById('errBanner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='errBanner';
+    b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#A32D2D;color:#fff;font-size:12.5px;padding:8px 12px;z-index:9999;display:flex;justify-content:space-between;align-items:center;gap:8px';
+    document.body.appendChild(b);
+  }
+  b.innerHTML='<span style="flex:1">⚠️ '+msg+'</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer">✕</button>';
+}
+window.onerror=function(msg,src,line,col,err){if(msg==='Script error.'||/^Script error\.?$/.test(msg))return;logError('JS Error',err||{message:msg+' ('+src+':'+line+')'});};
+window.addEventListener('unhandledrejection',function(ev){logError('Promise Error',ev.reason);});
+
+/* ===== Short-lived sessionStorage cache for slow-but-rarely-changing GET calls
+   (product catalog, customer profile) - NOT used for orders/status, which need
+   to stay live. ===== */
+function cacheGet(key){
+  try{
+    const raw=JSON.parse(sessionStorage.getItem('cache_'+key)||'null');
+    if(raw&&(Date.now()-raw.ts)<raw.ttl) return raw.data;
+  }catch(e){}
+  return null;
+}
+function cacheSet(key,data,ttl){
+  try{ sessionStorage.setItem('cache_'+key,JSON.stringify({data,ts:Date.now(),ttl})); }catch(e){}
+}
+
+/* ===== Safe fetch helpers (timeout + JSON guard + fallback) ===== */
+async function safeFetchJSON(url,fallback,label,timeoutMs,retries,silent){
+  timeoutMs=timeoutMs||8000;
+  retries=retries==null?1:retries;
+  for(let attempt=0;attempt<=retries;attempt++){
+    const controller=new AbortController();
+    const t=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const res=await fetch(url,{signal:controller.signal});
+      clearTimeout(t);
+      if(!res.ok){
+        // [แก้ 15 ก.ย. 69] เดิม logError ตัวนี้โผล่แบนเนอร์แดงกวนใจทุกครั้งที่ fetch พลาด แม้แต่ตอนกำลัง
+        // retry อยู่/เป็นแค่ความล่าช้าชั่วคราว ทั้งที่จุดเรียกแทบทุกจุดมี fallback ของตัวเองอยู่แล้ว (หน้า
+        // "โหลดไม่สำเร็จ" พร้อมปุ่มลองใหม่, banner แบบ 3 ครั้งติดของ auto-refresh, หรือ alert() ของ action
+        // นั้นๆ โดยตรง) เลยบังคับ silent เสมอ (log ลง console/localStorage ไว้เหมือนเดิมเพื่อ debug ทีหลัง
+        // ได้ แค่ไม่โผล่ตรงหน้าจอผู้ใช้ซ้ำซ้อน) ยังโชว์ banner นี้เฉพาะ JS error จริง (window.onerror/
+        // unhandledrejection ด้านบน) ที่ต้องการความสนใจจริงๆ เท่านั้น
+        logError(label||'fetch','HTTP '+res.status,true);
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return fallback;
+      }
+      const text=await res.text();
+      try{return JSON.parse(text);}
+      catch(e){
+        logError(label||'fetch','ตอบกลับไม่ใช่ JSON: '+text.slice(0,80),true);
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return fallback;
+      }
+    }catch(e){
+      clearTimeout(t);
+      logError(label||'fetch',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
+      if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+      return fallback;
+    }
+  }
+  return fallback;
+}
+async function postAction(payload,label,timeoutMs,retries){
+  timeoutMs=timeoutMs||15000;
+  retries=retries==null?1:retries;
+  // แนบ ADMIN_KEY ให้ทุกคำขอที่ยิงจากหน้าแอดมินอัตโนมัติ (การ์ดกันสิทธิ์ฝั่ง backend เพิ่งเพิ่ม — ก่อนหน้านี้ backend
+  // ไม่เช็คอะไรเลย) จุดเรียกที่ต้องส่ง customer_id แทน (แก้ไข/ยกเลิกออเดอร์ตัวเองของลูกค้า) ยังคงส่งเองตรงจุดเรียกตามเดิม
+  if(isAdmin&&payload.key===undefined) payload={...payload,key:ADMIN_KEY};
+  for(let attempt=0;attempt<=retries;attempt++){
+    const controller=new AbortController();
+    const t=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal});
+      clearTimeout(t);
+      if(!res.ok){
+        // [แก้ 15 ก.ย. 69] silent เสมอเหมือน safeFetchJSON ด้านบน — ผู้เรียก postAction ทุกจุดมี alert()/
+        // toast ของตัวเองอยู่แล้วเวลา result เป็น null/success===false ไม่ต้องมีแบนเนอร์แดงซ้อนทับอีกชั้น
+        // (เจอจริง: กด "จัดเสร็จแล้ว" ไม่สำเร็จ ขึ้นทั้ง alert() และแบนเนอร์แดงพร้อมกัน ข้อความซ้ำกันเปล่าๆ)
+        logError(label||'postAction','HTTP '+res.status,true);
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return null;
+      }
+      const text=await res.text();
+      let data;
+      try{ data=JSON.parse(text); }
+      catch(e){
+        // backend อาจส่งหน้า error/HTML กลับมาแทน JSON (เช่น exception ที่ยังไม่ได้ครอบ try/catch)
+        // HTTP status เป็น 200 ได้ทั้งที่ไม่สำเร็จจริง เลยต้อง treat แบบนี้เป็น "ไม่สำเร็จ" เสมอ
+        logError(label||'postAction','ตอบกลับไม่ใช่ JSON: '+text.slice(0,120),true);
+        if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+        return null;
+      }
+      if(data&&data.error){
+        logError(label||'postAction','backend error: '+data.error,true);
+        return {success:false,error:data.error};
+      }
+      return data||{success:true};
+    }catch(e){
+      clearTimeout(t);
+      logError(label||'postAction',e.name==='AbortError'?'หมดเวลาเชื่อมต่อ (timeout)':e,true);
+      if(attempt<retries){await new Promise(r=>setTimeout(r,500));continue;}
+      return null;
+    }
+  }
+  return null;
+}
+
+window.onload=()=>{
+  if(isAdmin)initAdmin();
+  else if(customerRef)initCustomer();
+  else if(params.toString())showError();
+  else{
+    // เข้ามาแบบไม่มี query string เลย (พบจริง: PWA ที่ลูกค้ากด "ติดตั้งแอป"/"เพิ่มหน้าจอโฮม" จะเปิดด้วย
+    // manifest.json's start_url="/" เสมอ ไม่ใช่ลิงก์ ?ref=... ที่ลูกค้าใช้ตอนติดตั้ง เพราะ manifest เป็นไฟล์เดียว
+    // ใช้ร่วมกันทุกคน ใส่ ref เฉพาะคนลงไปไม่ได้) เดิมปล่อยให้ไปเจอหน้า home ที่ดูใช้งานได้ปกติแต่ customer เป็น
+    // null อยู่เบื้องหลัง กดปุ่ม "ติดตามสถานะ" แล้วพังทันที — แก้โดยลองเด้งกลับไปที่ ref เดิมที่เคยเข้าสำเร็จก่อน
+    let savedRef=null;
+    try{savedRef=localStorage.getItem('samurai_customer_ref');}catch(e){}
+    if(savedRef){ location.replace(location.pathname+'?ref='+encodeURIComponent(savedRef)); return; }
+    document.getElementById('loading').style.display='none';
+    showError(false);
+  }
+};
+async function initCustomer(){
+  try{
+    const custCacheKey='customer_'+customerRef;
+    let data=cacheGet(custCacheKey);
+    if(!data){
+      data=await safeFetchJSON(`${API}?action=getCustomer&id=${customerRef}`,null,'getCustomer',15000,1);
+      if(data&&!data.error) cacheSet(custCacheKey,data,30000);
+    }
+    // [แก้ 15 ก.ย. 69] เดิม data===null (network/timeout) โชว์หน้า "เชื่อมต่อไม่ได้" เต็มจอพร้อมปุ่มลองใหม่
+    // ให้ลูกค้ากดเอง — ผู้ใช้ (เจ้าของร้าน) ขอให้ไม่ต้องโชว์ error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็ลองใหม่เองในระบบ
+    // เงียบๆ ไปเลย เปลี่ยนเป็นวนลองใหม่อัตโนมัติทุก 3 วิ โดยยังโชว์หน้า loading เดิมค้างไว้ (ไม่มีข้อความ error
+    // ให้เห็นเลย) จนกว่าจะสำเร็จ — ส่วน data.error (เช่น "not found" จริงๆ จาก backend ไม่ใช่ปัญหาเชื่อมต่อ)
+    // ยังโชว์ showError(false) เหมือนเดิม เพราะลองใหม่ไปก็ไม่มีทางสำเร็จ (ลิงก์ผิดจริง ไม่ใช่ปัญหาเน็ต)
+    if(data===null){
+      await new Promise(r=>setTimeout(r,3000));
+      return initCustomer();
+    }
+    if(data.error){showError(false);return;}
+    customer=data;
+    // จำ ref ที่เพิ่งเข้าสำเร็จไว้ ใช้กู้กลับตอนเข้ามาแบบไม่มี query string เลย (ดู window.onload ด้านบน)
+    try{localStorage.setItem('samurai_customer_ref',customerRef);}catch(e){}
+    document.getElementById('customerName').textContent='สวัสดีครับ '+customer.name;
+    document.title='ซามูไรไส้กรอก - '+customer.name;
+    show('app');
+    await loadProducts();
+  }catch(e){logError('initCustomer',e);showError();}
+}
+
+function goHome(skipPush){
+  document.getElementById('homeScreen').style.display='block';
+  document.getElementById('shopSection').style.display='none';
+  document.getElementById('trackSection').style.display='none';
+  document.getElementById('cartBar').classList.remove('show');
+  if(typeof trackRefreshInterval!=='undefined'&&trackRefreshInterval){clearInterval(trackRefreshInterval);trackRefreshInterval=null;}
+  if(!skipPush) history.pushState({section:'home'},'',location.href);
+}
+
+async function goSection(section,skipPush){
+  document.getElementById('homeScreen').style.display='none';
+  document.getElementById('shopSection').style.display=section==='shop'?'block':'none';
+  document.getElementById('trackSection').style.display=section==='track'?'block':'none';
+  if(section==='track') await loadTrackSection();
+  if(section==='shop'){updateCart();}
+  if(!skipPush) history.pushState({section:section},'',location.href);
+}
+
+window.addEventListener('popstate',(e)=>{
+  if(e.state&&e.state.section&&e.state.section!=='home'){
+    goSection(e.state.section,true);
+  }else{
+    goHome(true);
+  }
+});
+
+let trackRefreshInterval=null;
+let trackRefreshFailCount=0;
+let openHistoryCards=new Set();
+let lastTrackOrders=[];
+let lastTrackOrdersHash='';
+async function loadTrackSection(){
+  const list=document.getElementById('trackList');
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  const isCancelled=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='cancelled';};
+  const isDone=o=>{const ds=o.delivery_status||o.status||'';return String(ds).toLowerCase().trim()==='done';};
+  const byTimeDesc=(a,b)=>new Date(b.timestamp)-new Date(a.timestamp);
+  const buildDisplay=orders=>{
+    const active=orders.filter(o=>!isDone(o)&&!isCancelled(o)).sort(byTimeDesc);
+    const doneOrders=orders.filter(isDone).sort(byTimeDesc).slice(0,5);
+    const cancelledOrders=orders.filter(isCancelled).sort(byTimeDesc).slice(0,5);
+    return[...active,...doneOrders,...cancelledOrders].sort(byTimeDesc);
+  };
+  try{
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'loadTrackSection',15000,1);
+    if(orders===null){
+      // [แก้ 15 ก.ย. 69] เดิมโชว์ "โหลดข้อมูลไม่ได้" ค้างไว้เฉยๆ — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+      // initCustomer/loadAdminOrders ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่ต้องรอผู้ใช้กดอะไรเลย
+      await new Promise(r=>setTimeout(r,3000));
+      return loadTrackSection();
+    }
+    lastTrackOrdersHash=JSON.stringify(orders);
+    lastTrackOrders=orders;
+    if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
+    const display=buildDisplay(orders);
+    list.innerHTML=display.map(o=>buildHistoryCard(o)).join('');
+    applyOpenHistoryState();
+  }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+  if(trackRefreshInterval) clearInterval(trackRefreshInterval);
+  trackRefreshFailCount=0;
+  trackRefreshInterval=setInterval(async()=>{
+    const trackVisible=document.getElementById('trackSection')&&document.getElementById('trackSection').style.display!=='none';
+    if(!trackVisible){clearInterval(trackRefreshInterval);trackRefreshInterval=null;return;}
+    try{
+      // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+      // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 10 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
+      const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'autoRefresh:loadTrackSection',15000,1,true);
+      if(orders===null) return;
+      trackRefreshFailCount=0;
+      const text=JSON.stringify(orders);
+      if(text===lastTrackOrdersHash) return;
+      lastTrackOrdersHash=text;
+      lastTrackOrders=orders;
+      if(orders.length){
+        const display=buildDisplay(orders);
+        document.getElementById('trackList').innerHTML=display.map(o=>buildHistoryCard(o)).join('');
+        applyOpenHistoryState();
+      }
+    }catch(e){}
+  },10000);
+}
+
+function applyOpenHistoryState(){
+  openHistoryCards.forEach(orderId=>{
+    const detail=document.getElementById('detail'+orderId);
+    const chev=document.getElementById('chev'+orderId);
+    if(detail){detail.classList.add('open');}
+    if(chev){chev.classList.add('open');}
+  });
+}
+
+async function loadProducts(){
+  const prodCacheKey='products_'+customer.product_group;
+  const cached=cacheGet(prodCacheKey);
+  if(cached){
+    products=cached;
+  } else {
+    products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)',15000,1);
+    if(!Array.isArray(products))products=[];
+    if(products.length) cacheSet(prodCacheKey,products,30000);
+  }
+  renderProducts();
+}
+
+function renderProducts(){
+  const grid=document.getElementById('productGrid');
+  grid.innerHTML='';
+  products.forEach(p=>{
+    const qty=cart[p.product_id]?cart[p.product_id].qty:0;
+    const div=document.createElement('div');
+    div.className='product-card'+(qty>0?' selected':'');
+    div.id='pc'+p.product_id;
+    const imgHtml=p.image_url?`<img class="product-img" src="${p.image_url}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:'' ;
+    const ph=`<div class="product-img-placeholder" ${p.image_url?'style="display:none"':''}>🛍️</div>`;
+    div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${fmtMoney(p.price)}</div><div class="qty-row"><button class="qty-btn" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button><input type="number" class="qty-num" id="qty${p.product_id}" value="${qty}" min="0" max="999" oninput="setQty('${p.product_id}',this.value,'${p.name}',${p.price})"><button class="qty-btn" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button></div></div>`;
+    grid.appendChild(div);
+  });
+}
+
+function chg(id,delta,name,price){
+  const cur=cart[id]?cart[id].qty:0;
+  const nv=Math.max(0,cur+delta);
+  if(nv===0)delete cart[id];else cart[id]={qty:nv,name,price:Number(price)};
+  const el=document.getElementById('qty'+id);if(el)el.value=nv;
+  const pc=document.getElementById('pc'+id);if(pc)pc.classList.toggle('selected',nv>0);
+  updateCart();
+}
+
+function setQty(id,val,name,price){
+  const nv=Math.max(0,Math.min(999,parseInt(val)||0));
+  if(nv===0) delete cart[id]; else cart[id]={qty:nv,name,price:Number(price)};
+  const pc=document.getElementById('pc'+id);
+  if(pc) pc.classList.toggle('selected',nv>0);
+  updateCart();
+}
+function updateCart(){
+  const items=Object.values(cart);
+  const itemCount=items.length; // จำนวนชนิดสินค้า (ไม่ใช่ผลรวม qty)
+  const tp=items.reduce((s,i)=>s+i.qty*i.price,0);
+  const shopVisible=document.getElementById('shopSection')&&document.getElementById('shopSection').style.display!=='none';
+  document.getElementById('cartBar').classList.toggle('show',itemCount>0&&shopVisible);
+  document.getElementById('cartInfo').textContent=itemCount+' รายการที่เลือก';
+  document.getElementById('cartTotalVal').textContent='฿'+fmtMoney(tp);
+}
+
+function genOid(){
+  const d=new Date();
+  const yy=String(d.getFullYear()%100).padStart(2,'0');
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mi=String(d.getMinutes()).padStart(2,'0');
+  const ss=String(d.getSeconds()).padStart(2,'0');
+  return'ORD-'+dd+mm+yy+'-'+hh+mi+ss;
+}
+
+function showConfirm(){
+  pendingOid=genOid();
+  // key เฉพาะรอบเข้าหน้ายืนยันนี้ (สร้างใหม่ทุกครั้งที่กลับมาหน้านี้ เช่น แก้ตะกร้าแล้วกลับมาใหม่) ส่งให้
+  // backend เช็คก่อนสร้างออเดอร์ซ้ำ — ดูเหตุผลเต็มที่ placeOrder()
+  orderIdemKey=pendingOid+'-'+Math.random().toString(36).slice(2,10);
+  document.getElementById('confirmOid').textContent='Order ID: '+pendingOid;
+  document.getElementById('orderNote').value='';
+  const items=Object.values(cart);
+  const total=items.reduce((s,i)=>s+i.qty*i.price,0);
+  document.getElementById('confirmItemCount').textContent='('+items.length+' รายการที่เลือก)';
+  let html=items.map(i=>`<div class="confirm-row"><span style="flex:1">${i.name}</span><span style="width:34px;text-align:right;color:#888">×${i.qty}</span><span style="width:74px;text-align:right">฿${fmtMoney(i.qty*i.price)}</span></div>`).join('');
+  document.getElementById('confirmItems').innerHTML=html;
+  document.getElementById('confirmTotal').textContent='฿'+fmtMoney(total);
+  hide('app');hide('successScreen');
+  document.getElementById('confirmScreen').style.display='block';
+}
+
+function backToShop(){show('app');goSection('shop');}
+function startNewOrder(){cart={};goSection('shop');renderProducts();}
+
+/*
+ * หาออเดอร์ของลูกค้าคนนี้ที่ "รายการ+ยอดรวมตรงกันเป๊ะ" และสร้างภายใน 3 นาทีที่ผ่านมา
+ * ใช้ตอน createOrder รายงานว่าล้มเหลว/timeout เพื่อเช็คก่อนว่าจริงๆ แล้วอาจบันทึกสำเร็จไปแล้ว
+ * (แค่ response หลุด/มาช้าเกิน timeout) ป้องกันการยิงซ้ำจนเกิดออเดอร์ซ้ำ
+ * ยอมรับ trade-off: ถ้าลูกค้าสั่งของเซตเดียวกัน ยอดเท่ากันเป๊ะ ภายใน 3 นาที จะถูกมองว่าเป็นรายการเดียวกัน
+ */
+async function findRecentMatchingOrder(itemsText,total){
+  try{
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
+    if(!orders||!orders.length) return null;
+    const cutoff=Date.now()-3*60*1000;
+    return orders.find(o=>{
+      if(o.delivery_status==='cancelled') return false;
+      if(o.items!==itemsText) return false;
+      if(Number(o.total)!==Number(total)) return false;
+      const t=new Date(o.timestamp).getTime();
+      return !isNaN(t)&&t>=cutoff;
+    })||null;
+  }catch(e){ return null; }
+}
+
+function showOrderSuccessScreen(oid,items){
+  document.getElementById('confirmScreen').style.display='none';
+  const nowDateTimeStr=fmtOrderDateTime(new Date().toISOString());
+  const nowDatePart=nowDateTimeStr.split(' ')[0];
+  const nowTimePart=nowDateTimeStr.split(' ').slice(1).join(' ');
+  document.getElementById('successOid').textContent=oid+' · '+nowDatePart;
+  document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
+  document.getElementById('successTime').textContent=nowTimePart;
+  document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
+  cart={};orderIdemKey='';
+  document.getElementById('successScreen').style.display='flex';
+}
+
+async function placeOrder(){
+  const btn=document.getElementById('btnConfirm');
+  btn.disabled=true;btn.textContent='กำลังส่ง...';
+  const items=Object.values(cart);
+  const total=items.reduce((s,i)=>s+i.qty*i.price,0);
+  const note=document.getElementById('orderNote').value.trim();
+  const itemsText=items.map(i=>`${i.name} x${i.qty}`).join(', ');
+  try{
+    // idempotency_key (สร้างไว้ตอนเข้าหน้ายืนยันใน showConfirm()) ให้ backend เช็คก่อนสร้างออเดอร์ใหม่ —
+    // ยิงซ้ำกี่ครั้งด้วย key เดิมจะได้ order_id เดิมกลับมาเสมอ ไม่สร้างแถวซ้ำ ปลอดภัยพอให้เปิด auto-retry
+    // ของ postAction ได้แล้ว (retries=1) แก้ปัญหาเดิมที่ cold connection ทำให้ createOrder ดู "ไม่สำเร็จ"
+    // ทั้งที่บันทึกจริงแล้ว (เคยต้องปิด retry ทิ้งเพราะ backend ไม่ idempotent — ตอนนี้ idempotent แล้ว)
+    const result=await postAction({action:'createOrder',customer_id:customer.customer_id,customer_name:customer.name,items:itemsText,total,note,customer_group:customer.product_group,idempotency_key:orderIdemKey},'placeOrder',15000,1);
+    // postAction คืน null เมื่อเชื่อมต่อไม่ได้/timeout/ตอบกลับไม่ใช่ JSON
+    // และคืน {success:false,error:...} เมื่อ backend ทำงานแต่บันทึกไม่สำเร็จ
+    // ต้องเช็คทั้งสองกรณีนี้ก่อน ห้ามโชว์หน้าสำเร็จถ้ายังไม่ยืนยันว่าบันทึกจริง
+    if(!result||result.success===false){
+      // ก่อนจะให้ลูกค้ากดลองใหม่ (ซึ่งจะยิง createOrder ซ้ำ) เช็คก่อนว่าออเดอร์นี้อาจสำเร็จไปแล้วจริงๆ
+      const maybeExisting=await findRecentMatchingOrder(itemsText,total);
+      if(maybeExisting){
+        showOrderSuccessScreen(maybeExisting.order_id,items);
+        btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
+        return;
+      }
+      alert('บันทึกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือแจ้งร้านค้าโดยตรงหากยังไม่สำเร็จซ้ำๆ'+(result&&result.error?('\n('+result.error+')'):''));
+      btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
+      return;
+    }
+    // createOrder สำเร็จ (result.success!==false) คืน order_id จริงมาให้ในตัวอยู่แล้ว ไม่ต้องเดาจาก genOid()
+    // หรือยิง getOrders ซ้ำไปเดาเอาจากรายการล่าสุดอีกต่อไป (เดิมทำแบบนั้น เสี่ยงได้ order_id ผิดถ้ามีออเดอร์อื่น
+    // แทรกมาในช่วงเวลาไล่เลี่ยกัน แถมเปลืองคำขอโดยไม่จำเป็นในจุดที่ลูกค้าใช้บ่อยที่สุดของแอป)
+    showOrderSuccessScreen(result.order_id||pendingOid,items);
+  }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
+  btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
+}
+
+function copyAcc(){navigator.clipboard.writeText('123456789').catch(()=>{});const t=document.getElementById('copyToast');t.style.display='block';setTimeout(()=>t.style.display='none',2000);}
+function goHistory(){show('app');goSection('track');}
+function goShop(){show('app');goSection('shop');renderProducts();updateCart();}
+
+async function switchTab(tab){
+  document.getElementById('shopSection').classList.toggle('active',tab==='shop');
+  document.getElementById('trackSection').classList.toggle('active',tab==='history');
+  document.getElementById('shopTab').style.display=tab==='shop'?'block':'none';
+  document.getElementById('trackSection').style.display=tab==='history'?'block':'none';
+  document.getElementById('cartBar').classList.toggle('show',tab==='shop'&&Object.keys(cart).length>0);
+  if(tab==='history')await loadHistory();
+}
+
+async function loadHistory(){
+  const list=document.getElementById('trackList');
+  list.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  try{
+    const orders=await safeFetchJSON(`${API}?action=getOrders&customer_id=${customer.customer_id}`,null,'loadHistory',15000,1);
+    if(orders===null) throw new Error('timeout/fetch-failed');
+    if(!orders.length){list.innerHTML='<div class="empty-state">ยังไม่มีประวัติการสั่ง</div>';return;}
+    list.innerHTML=orders.map(o=>buildHistoryCard(o)).join('');
+  }catch(e){list.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+}
+
+function buildHistoryCard(o){
+  const items=parseItems(o.items);
+  const ds=o.delivery_status||'';
+  const isCancelled=ds==='cancelled'||String(ds).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
+  const isDoneDelivery=ds==='done'||o.status==='done'||String(ds).toLowerCase().trim()==='done'||String(o.status).toLowerCase().trim()==='done';
+  const isPackingDelivery=ds==='packing'||String(ds).toLowerCase().trim()==='packing';
+  const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const dateTimeStr=fmtOrderDateTime(o.timestamp);
+  let badge='';
+  if(isCancelled) badge=`<span class="badge" style="background:#f0f0f0;color:#888">ยกเลิกแล้ว</span>`;
+  else if(isDoneDelivery) badge=`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`;
+  else if(isPackingDelivery) badge=`<span class="badge badge-packing">กำลังจัด</span>`;
+  else badge=`<span class="badge badge-pending">รอดำเนินการ</span>`;
+
+  if(isCancelled){
+    return`<div class="order-card" id="hcard${o.order_id}" style="opacity:0.65">
+      <div class="hcard-summary" onclick="toggleHistoryCard('${o.order_id}')">
+        <div class="hcard-summary-top">
+          <i class="hcard-chevron" id="chev${o.order_id}">▾</i>
+          <div class="hcard-id">${o.order_id}</div>
+        </div>
+        <div class="hcard-summary-bottom">
+          <div class="hcard-date" style="line-height:1.6">${dateTimeStr}<br>${items.length} รายการ</div>
+          <div class="hcard-badge-wrap">
+            <div class="hcard-total cancelled">฿${fmtMoney(o.total)}</div>
+            ${badge}
+          </div>
+        </div>
+      </div>
+      <div class="hcard-detail" id="detail${o.order_id}">
+        <div class="hcard-divider">
+          <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
+          <div style="font-size:12.5px;color:#aaa;margin-top:4px">ยกเลิกเมื่อ ${o.cancelled_at?fmtOrderDateTime(o.cancelled_at):dateTimeStr}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const packTStr=o.packing_at?new Date(o.packing_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const doneTStr=o.done_at?new Date(o.done_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
+  const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว</div><div class="ttime">${tStr}</div></div>`;
+  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">จัดสินค้าสำเร็จ ✓</div><div class="ttime">${doneTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
+  const canEdit=!isDoneDelivery&&!isPackingDelivery;
+  const canCancel=canEdit;
+  const btnStyle='font-size:12.5px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap';
+  let editBtn=canEdit
+    ?`<button style="${btnStyle};background:#fff;border:1px solid #ddd;color:#555" onclick="openEditOrder('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${encodeURIComponent(o.note||'')}')">แก้ไขออร์เดอร์</button>`
+    :'';
+  let cancelBtn=canCancel
+    ?`<button style="${btnStyle};background:#FCEBEB;border:1px solid #F09595;color:#A32D2D" onclick="cancelOrder('${o.order_id}')">ยกเลิกออร์เดอร์</button>`
+    :'';
+  let billBtn=isDoneDelivery
+    ?`<button style="${btnStyle};background:#1a0a06;border:none;color:#fff" onclick="showCustomerBill('${o.order_id}')">🧾 ใบวางบิล</button>`
+    :'';
+  let reorderBtn=isDoneDelivery
+    ?`<button style="${btnStyle};background:#D64109;border:none;color:#fff;font-weight:500" onclick="openReorderFromHistory('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${o.timestamp}')">↻ สั่งซ้ำ</button>`
+    :'';
+  return`<div class="order-card" id="hcard${o.order_id}">
+    <div class="hcard-summary" onclick="toggleHistoryCard('${o.order_id}')">
+      <div class="hcard-summary-top">
+        <i class="hcard-chevron" id="chev${o.order_id}">▾</i>
+        <div class="hcard-id">${o.order_id}</div>
+      </div>
+      <div class="hcard-summary-bottom">
+        <div class="hcard-date" style="line-height:1.6">${dateTimeStr}<br>${items.length} รายการ</div>
+        <div class="hcard-badge-wrap">
+          <div class="hcard-total">฿${fmtMoney(o.total)}</div>
+          ${badge}
+        </div>
+      </div>
+    </div>
+    <div class="hcard-detail" id="detail${o.order_id}">
+      <div class="hcard-divider">
+        <div class="order-items-list">${items.map(i=>`<div class="item-row"><span>${i.name}</span><span class="item-qty">x${i.qty}</span></div>`).join('')}</div>
+        ${cleanNote(o.note)?`<div class="order-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
+        <div class="tl">${tl1}${tl2}${tl3}</div>
+        <div class="order-footer">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">${billBtn}${reorderBtn}${cancelBtn}${editBtn}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleHistoryCard(orderId){
+  const detail=document.getElementById('detail'+orderId);
+  const chev=document.getElementById('chev'+orderId);
+  if(!detail) return;
+  const isOpen=detail.classList.contains('open');
+  detail.classList.toggle('open',!isOpen);
+  if(chev) chev.classList.toggle('open',!isOpen);
+  if(isOpen) openHistoryCards.delete(orderId);
+  else openHistoryCards.add(orderId);
+}
+
+function openEditOrder(orderId,itemsEncoded,total,noteEncoded){
+  const itemsText=decodeURIComponent(itemsEncoded);
+  const note=decodeURIComponent(noteEncoded);
+  const orderedItems=parseItems(itemsText);
+  const orderedMap={};
+  orderedItems.forEach(i=>{orderedMap[i.name]=i.qty;});
+  const allItems=products.map(p=>({name:p.name,qty:orderedMap[p.name]||0,price:Number(p.price)||0}));
+  editingOrder={orderId,items:allItems,total,note};
+  editQtys={};
+  allItems.forEach((item,idx)=>{editQtys[idx]=item.qty;});
+  renderEditModal(allItems,note);
+  document.getElementById('editModal').style.display='flex';
+}
+
+function renderEditModal(items,note){
+  const prodMap={};
+  products.forEach(p=>{prodMap[p.name]=p;});
+  let html=items.map((item,idx)=>{
+    const prod=prodMap[item.name]||{};
+    const price=Number(prod.price)||item.price||0;
+    const imgHtml=prod.image_url
+      ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
+      :`<div class="edit-img-placeholder">🛍️</div>`;
+    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" onclick="editChg(${idx},1)">+</button></div></div>`;
+  }).join('');
+  html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" placeholder="หมายเหตุ...">${escapeHtml(note)}</textarea></div>`;
+  html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${fmtMoney(calcEditTotal())}</span></div>`;
+  document.getElementById('editModalBody').innerHTML=html;
+}
+
+function editChg(idx,delta){
+  editQtys[idx]=Math.max(0,(editQtys[idx]||0)+delta);
+  const el=document.getElementById('eq'+idx);if(el)el.value=editQtys[idx];
+  document.getElementById('editTotalDisplay').textContent=fmtMoney(calcEditTotal());
+}
+
+function editSet(idx,val){
+  editQtys[idx]=Math.max(0,Math.min(999,parseInt(val)||0));
+  document.getElementById('editTotalDisplay').textContent=fmtMoney(calcEditTotal());
+}
+
+function calcEditTotal(){
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  return editingOrder.items.reduce((sum,item,idx)=>{
+    const price=prodMap[item.name]||item.price||0;
+    return sum+(editQtys[idx]||0)*price;
+  },0);
+}
+
+async function saveEdit(){
+  const btn=document.getElementById('btnSaveEdit');
+  btn.disabled=true;btn.textContent='กำลังบันทึก...';
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  const newItems=editingOrder.items.map((item,idx)=>({...item,qty:editQtys[idx]||0})).filter(i=>i.qty>0);
+  const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||i.price||0),0);
+  const newNote=document.getElementById('editNote').value.trim();
+  const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+  const newTimestamp=new Date().toISOString();
+  try{
+    const result=await postAction({action:'updateOrder',order_id:editingOrder.orderId,customer_id:customer.customer_id,items:itemsText,total:newTotal,note:newNote,timestamp:newTimestamp},'saveEdit');
+    if(!result||result.success===false){
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+      return;
+    }
+    closeEditModal();
+    showToast('บันทึกเรียบร้อยแล้ว ✓');
+    await new Promise(r=>setTimeout(r,1200));
+    await loadTrackSection();
+  }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
+  btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+}
+
+function closeEditModal(){document.getElementById('editModal').style.display='none';}
+
+/**
+ * ===== เหตุผลแก้ไขออเดอร์ แยกทีละรายการ (เพิ่ม 14 ก.ย. 69, แก้เป็นรายรายการ 14 ก.ย. 69) — เฉพาะแอดมิน =====
+ * แสดงถามเหตุผลเฉพาะตอนมีรายการสินค้าถูกตัด/ลดจำนวนจริง (diff.length>0) เท่านั้น ไม่รบกวนถ้าไม่มีอะไรเปลี่ยน
+ * แต่ละรายการที่เปลี่ยนมีช่องเหตุผลของตัวเอง เพราะแก้พร้อมกันหลายรายการอาจคนละเหตุผลกัน (เช่นตัวนึงหมด
+ * อีกตัวลูกค้าขอเปลี่ยน) — รวมเป็นเหตุผลเดียวแบบเดิมจะผิด ไม่ตรงกับรายการจริง
+ * คืน Promise<{[itemName]:reason}|null> — null แปลว่าแอดมินกด "ยกเลิก" (ผู้เรียกต้องเลิกบันทึกด้วย ไม่ใช่แค่ข้ามเหตุผล)
+ * ปุ่ม "หมด" กดแล้วกรอกให้อัตโนมัติจบเลย ไม่ต้องพิมพ์ ส่วน "อื่นๆ" ให้พิมพ์เหตุผลเองในช่องของรายการนั้น
+ */
+let editReasonResolver=null;
+let editReasonDiffs=[];
+const REASON_CHIP_NORMAL='padding:7px 12px;border-radius:20px;border:1px solid #ddd;font-size:12.5px;cursor:pointer';
+const REASON_CHIP_SELECTED='padding:7px 12px;border-radius:20px;border:1px solid #2f7d4f;background:#2f7d4f;color:#fff;font-size:12.5px;cursor:pointer';
+function buildItemsDiffLine(itemsBeforeText,itemsAfterText){
+  const before={};parseItems(itemsBeforeText).forEach(i=>{before[i.name]=i.qty;});
+  const after={};parseItems(itemsAfterText).forEach(i=>{after[i.name]=i.qty;});
+  const names=new Set([...Object.keys(before),...Object.keys(after)]);
+  const diffs=[];
+  names.forEach(name=>{
+    const b=before[name]||0,a=after[name]||0;
+    if(b!==a) diffs.push({name,before:b,after:a});
+  });
+  return diffs;
+}
+function promptEditReason(itemsBeforeText,itemsAfterText){
+  const diffs=buildItemsDiffLine(itemsBeforeText,itemsAfterText);
+  if(!diffs.length) return Promise.resolve({}); // ไม่มีอะไรเปลี่ยนเลย -> ไม่ต้องถาม
+  editReasonDiffs=diffs;
+  document.getElementById('reasonModalBody').innerHTML=diffs.map((d,idx)=>`
+    <div style="border:1px solid #eee;border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="font-size:13.5px;font-weight:600;margin-bottom:8px">${escapeHtml(d.name)}: x${d.before}→x${d.after}</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <div id="reasonChipOut${idx}" onclick="selectItemReasonChip(${idx},'หมด')" style="${REASON_CHIP_NORMAL}">หมด</div>
+        <div id="reasonChipOther${idx}" onclick="selectItemReasonChip(${idx},'')" style="${REASON_CHIP_NORMAL}">อื่นๆ</div>
+      </div>
+      <textarea id="reasonInput${idx}" placeholder="ระบุเหตุผลของรายการนี้" style="width:100%;min-height:44px;border:1px solid #ddd;border-radius:10px;padding:8px;font-size:13.5px;box-sizing:border-box;font-family:inherit"></textarea>
+    </div>`).join('');
+  document.getElementById('reasonModal').style.display='flex';
+  return new Promise(resolve=>{editReasonResolver=resolve;});
+}
+function selectItemReasonChip(idx,val){
+  const outChip=document.getElementById('reasonChipOut'+idx),otherChip=document.getElementById('reasonChipOther'+idx);
+  const input=document.getElementById('reasonInput'+idx);
+  if(val==='หมด'){outChip.style.cssText=REASON_CHIP_SELECTED;otherChip.style.cssText=REASON_CHIP_NORMAL;input.value='หมด';}
+  else{otherChip.style.cssText=REASON_CHIP_SELECTED;outChip.style.cssText=REASON_CHIP_NORMAL;input.value='';input.focus();}
+}
+function cancelEditReason(){
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(null);editReasonResolver=null;}
+}
+function confirmEditReason(){
+  const reasons={};
+  editReasonDiffs.forEach((d,idx)=>{
+    const val=(document.getElementById('reasonInput'+idx).value||'').trim();
+    reasons[d.name]=val||'(ไม่ระบุเหตุผล)';
+  });
+  document.getElementById('reasonModal').style.display='none';
+  if(editReasonResolver){editReasonResolver(reasons);editReasonResolver=null;}
+}
+
+let adminRefreshInterval=null;
+let adminEditBusy=false; // true ตลอดช่วง markDone/saveAdminEdit ที่มีการแก้จำนวน กันไม่ให้ auto-refresh ชิงทับข้อมูลกลางทาง (ดู setInterval ด้านล่าง)
+let lastAdminOrdersHash='';
+let lastAdminOrdersFullHash='';
+let adminRefreshFailCount=0;
+
+// [แก้ 15 ก.ย. 69] เดิมหน้าแอดมิน (แท็บรอจัด/กำลังจัด/เสร็จสมบูรณ์) ไม่มี client-side cache เลย ต่างจาก
+// stock-check.html's renderBillPendingList ที่แก้ปัญหาเดียวกันไปแล้ว (cold-start ของ Apps Script ทำให้
+// round-trip แรกของ session ช้า) — ทุกครั้งที่เปิด/รีเฟรชหน้าแอดมินเลยต้องรอจุดกระโดดสามจุดค้างจนกว่า
+// getAdminOrders จะตอบจริงก่อนถึงจะเห็นอะไรเลย ใช้ pattern เดียวกัน: โชว์รายการล่าสุดที่เคยโหลดได้ทันทีจาก
+// cache ก่อน แล้วรีเฟรชเงียบๆ เบื้องหลังทับด้วยข้อมูลจริง (ดู initAdmin ด้านล่าง)
+//
+// [แก้ 15 ก.ย. 69 — ต่อ] ใช้ sessionStorage รอบแรกแล้วพบว่าไม่ช่วยอะไรเลยบนมือถือ (ยังช้า 20-30 วิเท่าเดิม
+// ทั้งที่เดสก์ท็อปเร็วขึ้นจริง) — สาเหตุ: แอปนี้ติดตั้งเป็น "Add to Home Screen" บน iOS ได้ (manifest.json
+// display:standalone) ซึ่ง iOS สร้าง WKWebView instance ใหม่ทุกครั้งที่แตะไอคอนเปิดแอป — sessionStorage
+// ผูกกับ instance นั้นเท่านั้น ไม่รอดข้ามการเปิดแอปแต่ละรอบ (ต่างจากเดสก์ท็อปที่แท็บเบราว์เซอร์มักถูกเปิดค้าง/
+// ใช้ซ้ำ) ส่วน localStorage ผูกกับ origin ไม่ใช่ instance เลยรอดข้ามการเปิดแอปใหม่ทุกรอบจริง — เปลี่ยนมาใช้
+// localStorage แทนเฉพาะ 2 cache นี้ (ไม่แตะ cacheGet/cacheSet เดิมของ products_ALL ที่ตั้งใจให้เป็น
+// short-lived ต่อ tab อยู่แล้ว)
+// [กันโควต้า] localStorage รวมทั้ง origin ปกติมีเพดานแค่ ~5MB (iOS Safari ต่ำสุดที่มักเจอ) ต่างจาก
+// sessionStorage เดิมที่หายไปเองตอนปิด/เปลี่ยน instance — ก้อนนี้ไม่มีวันหมดอายุเอง ถ้าเขียนข้อมูลใหญ่เกินไป
+// ลงไปเรื่อยๆ (โดยเฉพาะ getAdminOrdersFull ที่ไม่กรองช่วงวันที่เลย โตขึ้นเรื่อยๆ ตามอายุร้าน — backend เองก็
+// เจอปัญหาเดียวกันจนต้องข้าม CacheService cache ถ้าเกิน 100KB) มีความเสี่ยงเบียดพื้นที่ localStorage ของ
+// key อื่นที่ฟีเจอร์อื่นพึ่งพาอยู่ (ss_errlog, samurai_customer_ref) จนเขียนไม่ได้ไปด้วย — ใส่เพดานขนาดกันไว้
+// เอง (เผื่อพื้นที่กว้างมาก ต่ำกว่าเพดานจริงหลายเท่า) ถ้าเกินข้ามการ cache ไปเงียบๆ เหมือน pattern เดียวกับ
+// backend ไม่ error ทุก read/write ทั้งหมดใน 2 ฟังก์ชันนี้ wrap try/catch ไว้แล้ว พังแล้วแค่เสียประโยชน์ cache
+// ไป ไม่กระทบฟีเจอร์อื่นเลย
+const ADMIN_CACHE_MAX_CHARS=2000000; // ~2MB ต่อ key เผื่อพื้นที่เหลือมากสำหรับ key อื่นที่ต้องพึ่ง localStorage
+const ADMIN_ORDERS_CACHE_KEY='samurai_admin_orders_cache_v1';
+function readAdminOrdersCache(){
+  try{ const d=JSON.parse(localStorage.getItem(ADMIN_ORDERS_CACHE_KEY)); return Array.isArray(d)?d:null; }catch(e){ return null; }
+}
+function writeAdminOrdersCache(text){
+  if(text.length>ADMIN_CACHE_MAX_CHARS) return;
+  try{ localStorage.setItem(ADMIN_ORDERS_CACHE_KEY,text); }catch(e){}
+}
+// เดียวกันสำหรับแท็บ "ภาพรวม" (getAdminOrdersFull) — ข้อมูลหนักกว่า/ช้ากว่าเดิมอยู่แล้ว (ดูหัวข้อ cache
+// ฝั่ง backend ที่เพิ่งทำ) ยิ่งได้ประโยชน์จาก cache ฝั่ง client ข้ามการเปิดแอปแต่ละรอบ
+const ADMIN_ORDERS_FULL_CACHE_KEY='samurai_admin_orders_full_cache_v1';
+function readAdminOrdersFullCache(){
+  try{ const d=JSON.parse(localStorage.getItem(ADMIN_ORDERS_FULL_CACHE_KEY)); return Array.isArray(d)?d:null; }catch(e){ return null; }
+}
+function writeAdminOrdersFullCache(text){
+  if(text.length>ADMIN_CACHE_MAX_CHARS) return;
+  try{ localStorage.setItem(ADMIN_ORDERS_FULL_CACHE_KEY,text); }catch(e){}
+}
+
+// โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
+// (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
+// เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
+/**
+ * ===== ลูกค้าที่ไม่ต้องนับในภาพรวม/แดชบอร์ด (เพิ่ม 14 ก.ย. 69) =====
+ * เช่น "ซูโม่ Sausage" — จริงๆ เป็นร้านของเจ้าของเองอีกร้าน เอามาใช้ order web app นี้แค่ทำบิลระหว่างร้าน
+ * ไม่ใช่ลูกค้าจริง ต้องยังเห็น/จัดของ/ติดตามสถานะได้ปกติทุกอย่าง (ไม่แตะ allAdminOrders ที่ใช้ในแท็บ
+ * รอจัด/กำลังจัด/เสร็จสมบูรณ์เลย) แค่ไม่ต้องเอายอดไปรวมคำนวณในหน้า "ภาพรวม" (ยอดขาย/กราฟ/เทียบเดือน) เท่านั้น
+ * กรองตรงจุดเดียวที่นี่ (ต้นทางของ allAdminOrdersFull ซึ่งเป็นแหล่งข้อมูลเดียวที่ทุกฟังก์ชันในหน้าภาพรวมใช้
+ * ร่วมกัน — renderAdminOverview/ov_doneOrdersInRange/db_doneOrders/getAvailableOverviewMonths) แทนที่จะ
+ * ไปกรองซ้ำทีละฟังก์ชัน ถ้ามีลูกค้าลักษณะนี้เพิ่มอีกในอนาคต เพิ่มชื่อเข้า array นี้ได้เลย
+ */
+const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage'];
+
+async function fetchFullAdminOrders(silent){
+  const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',35000,1,silent);
+  if(data===null) return false;
+  const text=JSON.stringify(data);
+  writeAdminOrdersFullCache(text);
+  if(text===lastAdminOrdersFullHash) return false;
+  lastAdminOrdersFullHash=text;
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
+  return true;
+}
+
+// ---- บันทึกเหตุการณ์สำคัญ (BusinessNote) — log อิสระ ไม่ผูกกับเดือน ----
+let businessNotes=[];
+// ---- วันหยุดนักขัตฤกษ์ไทย cache ตามปี (ค.ศ.) เพื่อไม่ต้องยิง API ซ้ำ ----
+let thaiHolidaysCache={}; // { [year]: {'YYYY-MM-DD': 'ชื่อวันหยุด'} }
+let thaiHolidaysLoading={};
+
+async function ensureThaiHolidaysLoaded(year){
+  if(thaiHolidaysCache[year]||thaiHolidaysLoading[year])return;
+  thaiHolidaysLoading[year]=true;
+  const list=await safeFetchJSON(`${API}?action=getThaiHolidays&year=${year}`,[],'getThaiHolidays',10000,1,true);
+  const map={};
+  (Array.isArray(list)?list:[]).forEach(h=>{ if(h&&h.date) map[h.date]=h.name; });
+  thaiHolidaysCache[year]=map;
+  thaiHolidaysLoading[year]=false;
+  if(adminCurrentTab==='overview') renderAdminOverview();
+}
+
+async function loadBusinessNotes(){
+  const data=await safeFetchJSON(`${API}?action=getBusinessNotes`,[],'loadBusinessNotes',10000,1,true);
+  businessNotes=Array.isArray(data)?data:[];
+}
+
+async function initAdmin(){
+  document.title='Admin - รายการจัดสินค้า';
+  show('adminApp');
+
+  // [แก้ 15 ก.ย. 69] cache-first: มีรายการล่าสุดที่เคยโหลดได้จากเครื่องนี้ไหม (localStorage — รอดข้ามการ
+  // เปิดแอปแต่ละรอบ ไม่ใช่แค่ tab เดียว ดู comment ของ ADMIN_ORDERS_CACHE_KEY ด้านบน) โชว์ทันทีเลยไม่ต้องรอ
+  // fetch ก่อน — ถ้าไม่มี (เปิดเครื่องนี้ครั้งแรกสุด/เคย clear ข้อมูลเว็บไป) ค่อย fallback ไปโชว์จุดกระโดด
+  // สามจุดเหมือนเดิมระหว่างรอของจริง
+  const cachedOrders=readAdminOrdersCache();
+  if(cachedOrders&&cachedOrders.length){
+    allAdminOrders=cachedOrders.filter(o=>o&&o.order_id);
+    lastAdminOrdersHash=JSON.stringify(cachedOrders);
+    renderAdminOrders();
+  }else{
+    document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  }
+
+  // เดิม: รอ getProducts ให้เสร็จก่อน (สูงสุด 30 วิ ถ้า timeout+retry) แล้วค่อยเริ่มโหลดออเดอร์
+  // ทำให้ถ้า getProducts ช้า/timeout จะ "บล็อก" การขึ้นตัวเลขรอจัด/กำลังจัด/เสร็จ ไปด้วยทั้งที่ไม่เกี่ยวกัน
+  // แก้ด้วยการยิงทั้งสอง request พร้อมกัน (ไม่ต้องรอกัน) แล้วค่อยประมวลผลรวมทีเดียว
+  const adminProdCached=cacheGet('products_ALL');
+  const productsPromise=adminProdCached
+    ? Promise.resolve(adminProdCached)
+    : safeFetchJSON(`${API}?action=getProducts&group=ALL`,[],'initAdmin:getProducts',15000,1);
+  const ordersPromise=safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'initAdmin:getAdminOrders',15000,1);
+
+  const[productsResult,ordersData]=await Promise.all([productsPromise,ordersPromise]);
+
+  products=Array.isArray(productsResult)?productsResult:[];
+  if(!adminProdCached&&products.length) cacheSet('products_ALL',products,30000);
+
+  if(ordersData===null){
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — เปลี่ยนเป็นเรียก loadAdminOrders() ที่วนลองใหม่
+    // อัตโนมัติเงียบๆ แทน (ดู comment ของ loadAdminOrders ด้านบน) ไม่ต้องรอผู้ใช้กดอะไรเลย
+    // ถ้ามี cache โชว์อยู่แล้วตั้งแต่ต้นฟังก์ชัน ปล่อยผ่านเงียบๆ ไม่ต้องเปลี่ยนหน้าจอไปโชว์ loading ทับ — auto-
+    // refresh (setInterval ด้านล่าง ทุก 30 วิ) จะลองใหม่ให้เองอยู่แล้ว เหมือน background refresh ของ stock-check
+    if(!cachedOrders||!cachedOrders.length) await loadAdminOrders();
+  }else{
+    const text=JSON.stringify(ordersData);
+    writeAdminOrdersCache(text);
+    if(text!==lastAdminOrdersHash){
+      lastAdminOrdersHash=text;
+      allAdminOrders=(Array.isArray(ordersData)?ordersData:[]).filter(o=>o&&o.order_id);
+      renderAdminOrders();
+    }
+  }
+
+  loadBusinessNotes().then(()=>{ if(adminCurrentTab==='overview') renderAdminOverview(); });
+  if(adminRefreshInterval) clearInterval(adminRefreshInterval);
+  adminRefreshFailCount=0;
+  adminRefreshInterval=setInterval(async()=>{
+    const reorderOpen=document.getElementById('reorderModal')&&document.getElementById('reorderModal').style.display==='flex';
+    const editOpen=document.getElementById('editModal')&&document.getElementById('editModal').style.display==='flex';
+    const reasonOpen=document.getElementById('reasonModal')&&document.getElementById('reasonModal').style.display==='flex';
+    // [แก้ 14 ก.ย. 69] เดิมไม่เช็ค reasonModal/adminEditBusy เลย — ถ้า auto-refresh (ทุก 30 วิ) ดันดึงข้อมูล
+    // เก่าจากเซิร์ฟเวอร์มาทับ allAdminOrders ระหว่างที่แอดมินกำลังกรอกเหตุผล/กำลังบันทึกการแก้ไขจำนวนอยู่พอดี
+    // (ใช้เวลานานกว่าจุดอื่นเพราะต้องรอคนพิมพ์) หน้าสรุปตอนจบจะไปอ่าน allAdminOrders ที่ถูกข้อมูลเก่าทับไปแล้ว
+    // ทำให้ยอด/จำนวนที่โชว้ตอนจบดูเหมือน "ย้อนกลับ" ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่ดี — เพิ่ม adminEditBusy
+    // (ตั้งจาก markDone/saveAdminEdit ตลอดช่วงแก้ไข ไม่ใช่แค่ตอน modal เปิดอยู่) กันไว้อีกชั้น เผื่อ request
+    // ค้างอยู่ก่อน modal จะเปิดด้วย (ดูจุดเช็คซ้ำก่อน apply ผลด้านล่าง)
+    if(reorderOpen||editOpen||reasonOpen||adminEditBusy) return;
+    // [แก้ 15 ก.ย. 69] เดิมพลาด 3 ครั้งติดจะโชว์แบนเนอร์เตือน — ผู้ใช้ขอไม่ต้องมี ปล่อยให้ interval รอบถัดไป
+    // ลองเองเงียบๆ ต่อไปเรื่อยๆ (interval เดิมทุก 30 วิ ก็คือ "ลองใหม่อัตโนมัติ" อยู่แล้วในตัว)
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'autoRefresh:getAdminOrders',15000,1,true);
+    if(data===null) return;
+    if(adminEditBusy) return; // request นี้อาจค้างอยู่ตั้งแต่ก่อนแอดมินเริ่มแก้ไข -> ผลที่ได้กลับมาอาจเก่ากว่าที่กำลังแก้อยู่ ทิ้งไปอย่าเอามาทับ
+    const text=JSON.stringify(data);
+    if(text!==lastAdminOrdersHash){
+      lastAdminOrdersHash=text;
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      writeAdminOrdersCache(text);
+      if(adminCurrentTab!=='overview') renderAdminOrders();
+    }
+    // แท็บภาพรวมต้องดูข้อมูลเต็มทุกปี (allAdminOrders ด้านบนถูกจำกัดแค่ 60 วันแล้ว) รีเฟรชแยกเฉพาะตอนเปิดแท็บนี้อยู่
+    if(adminCurrentTab==='overview'){
+      const changed=await fetchFullAdminOrders(true);
+      if(changed) renderAdminOverview();
+    }
+  },30000);
+}
+
+// [แก้ 15 ก.ย. 69] เดิมโหลดไม่สำเร็จโชว์ "โหลดข้อมูลไม่สำเร็จ" + ปุ่มลองใหม่ให้กดเอง — ขอให้ไม่ต้องโชว์
+// error อะไรเลย ถ้ารู้ว่าโหลดไม่ได้ก็วนลองใหม่อัตโนมัติในระบบเงียบๆ ไปเลย เปลี่ยนเป็น loop ทุก 3 วิ ค้างหน้า
+// "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ ไม่มีข้อความ error/ปุ่มให้กดเลย
+async function loadAdminOrders(){
+  document.getElementById('adminList').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  while(true){
+    const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'loadAdminOrders',15000,1);
+    if(data!==null){
+      const text=JSON.stringify(data);
+      allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+      lastAdminOrdersHash=text;
+      writeAdminOrdersCache(text);
+      renderAdminOrders();
+      return;
+    }
+    await new Promise(r=>setTimeout(r,3000));
+  }
+}
+
+async function switchAdminTab(tab){
+  adminCurrentTab=tab;
+  document.getElementById('adminTabPending').classList.toggle('active',tab==='pending');
+  document.getElementById('adminTabPacking').classList.toggle('active',tab==='packing');
+  document.getElementById('adminTabDone').classList.toggle('active',tab==='done');
+  document.getElementById('adminTabOverview').classList.toggle('active',tab==='overview');
+  document.getElementById('adminList').style.display=tab==='overview'?'none':'flex';
+  document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
+  document.getElementById('overviewFilterBar').style.display=tab==='overview'?'block':'none';
+  document.getElementById('ownerDashboard').style.display='none';
+  if(tab==='overview'){
+    // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
+    // [แก้ 15 ก.ย. 69] cache-first เหมือนแท็บหลัก — ถ้ายังไม่มีในหน่วยความจำ (ยังไม่เคยเปิดแท็บนี้ใน session
+    // นี้) ลองอ่านจาก sessionStorage ก่อน โชว์ตัวเลขล่าสุดที่เคยเห็นทันทีระหว่างรอของจริงมาแทนที่เงียบๆ
+    if(!allAdminOrdersFull){
+      const cachedFull=readAdminOrdersFullCache();
+      if(cachedFull&&cachedFull.length){
+        lastAdminOrdersFullHash=JSON.stringify(cachedFull);
+        allAdminOrdersFull=cachedFull.filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
+        renderAdminOverview();
+      }else{
+        document.getElementById('adminOverview').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+      }
+    }
+    await fetchFullAdminOrders();
+    // [แก้ 15 ก.ย. 69] เดิมโชว์ error + ปุ่มลองใหม่ให้กดเอง — วนลองใหม่อัตโนมัติเงียบๆ แทน (เหตุผลเดียวกับ
+    // loadAdminOrders/initCustomer ด้านบน) ค้างหน้า "กำลังโหลด..." ไว้จนกว่าจะสำเร็จ
+    while(!allAdminOrdersFull){
+      await new Promise(r=>setTimeout(r,3000));
+      await fetchFullAdminOrders();
+    }
+    renderAdminOverview();
+  } else {
+    renderAdminOrders();
+  }
+}
+
+function buildAdminItemsHtml(o,canAdjustQty){
+  const items=parseItems(o.items);
+  const prodMap=getOrderProdFullMap(o);
+  if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
+  return items.map((item,idx)=>{
+    const prod=prodMap[item.name]||{};
+    const rowKey=o.order_id+'_'+idx;
+    const isPicked=canAdjustQty&&pickedItems.has(rowKey);
+    const imgHtml=prod.image_url
+      ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
+      :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
+    const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
+    const unitPrice=Number(prod.price)||0;
+    const lineTotal=unitPrice*item.qty;
+    const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+    const reasonHtml=buildItemEditNoteHtml(o,item.name);
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+  }).join('');
+}
+
+/**
+ * ===== โน้ตเหตุผลแก้ไขใต้รายการที่เพิ่งแก้ (เพิ่ม 14 ก.ย. 69) =====
+ * โชว์เฉพาะรายการที่ถูกแก้จำนวนในรอบล่าสุด (ตั้งแต่คลิก "จัดเสร็จแล้ว" ครั้งแรกที่บันทึกการแก้ไข — ดู markDone)
+ * เก็บไว้แค่ใน memory (o.itemEditNotes) ไม่ได้บันทึกถาวรในหน้านี้ — พอ auto-refresh ดึงข้อมูลใหม่จาก
+ * เซิร์ฟเวอร์มาแทนที่ orders array (ไม่มีฟิลด์นี้ติดมาด้วย เพราะไม่ใช่คอลัมน์ในชีต) โน้ตนี้จะหายไปเอง
+ * ตั้งใจให้เป็นแบบนั้น เพราะจุดประสงค์คือให้แอดมินทวนดูทันทีก่อนกดจัดเสร็จรอบสอง ไม่ใช่ประวัติถาวร
+ * (ประวัติถาวรจริงๆ อยู่ใน Google Sheet "OrderEditLog" อยู่แล้ว)
+ */
+function buildItemEditNoteHtml(o,itemName){
+  const note=o.itemEditNotes&&o.itemEditNotes[itemName];
+  if(!note) return '';
+  return `<div class="admin-item-reason">แก้จาก x${note.before} → <b>x${note.after}</b> — ${escapeHtml(note.reason)}</div>`;
+}
+
+let openAdminPendingCards=new Set();
+function toggleAdminPendingCard(orderId){
+  if(openAdminPendingCards.has(orderId)) openAdminPendingCards.delete(orderId);
+  else openAdminPendingCards.add(orderId);
+  renderAdminOrders();
+}
+
+function buildPendingAdminCard(o){
+  const items=parseItems(o.items);
+  const isOpen=openAdminPendingCards.has(o.order_id);
+  const note=cleanNote(o.note);
+  const itemsHtml=buildAdminItemsHtml(o,false);
+  const tStr=fmtOrderDateTime(o.timestamp);
+  return`<div class="order-card">
+    <div class="hcard-summary" onclick="toggleAdminPendingCard('${o.order_id}')">
+      <div class="hcard-summary-top">
+        <i class="hcard-chevron ${isOpen?'open':''}">▾</i>
+        <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
+      </div>
+      <div class="hcard-summary-bottom">
+        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${tStr}<br>${items.length} รายการ</div>
+        <div class="hcard-badge-wrap">
+          <div class="hcard-total">฿${fmtMoney(o.total)}</div>
+          <span class="badge badge-pending">รอจัด</span>
+        </div>
+      </div>
+    </div>
+    <div class="hcard-detail ${isOpen?'open':''}">
+      <div class="hcard-divider">
+        <div class="admin-items-list" style="padding:0 0 8px">${itemsHtml}</div>
+        ${note?`<div class="order-note">📝 ${escapeHtml(note)}</div>`:''}
+        <div class="order-footer" style="justify-content:space-between">
+          <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
+          <button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="event.stopPropagation();markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAdminOrders(){
+  const hdrDateEl=document.getElementById('adminHeaderDateText');
+  if(hdrDateEl) hdrDateEl.textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
+  const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
+  const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
+  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
+  const isToday=o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return false;
+    const d=new Date(t);
+    const n=new Date();
+    return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+  };
+  let filtered;
+  if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
+  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
+  else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
+  const list=document.getElementById('adminList');
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
+  const pendingCount2=allAdminOrders.filter(ds_pending).length;
+  const packingCount2=allAdminOrders.filter(ds_packing).length;
+  const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
+  document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
+  document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
+  document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
+  document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
+  if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
+  if(adminCurrentTab==='done'){
+    const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
+    const groups=[];
+    let curKey='';
+    sorted.forEach(o=>{
+      const tStamp=o.done_at||o.timestamp;
+      const d=tStamp?new Date(tStamp):null;
+      const key=d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'ไม่ทราบวันที่';
+      if(key!==curKey){groups.push({key,orders:[]});curKey=key;}
+      groups[groups.length-1].orders.push(o);
+    });
+    list.innerHTML=groups.map(g=>{
+      const dayTotal=g.orders.reduce((sum,o)=>sum+(Number(o.total)||0),0);
+      const header=`<div class="date-divider"><span class="date-divider-label">${g.key}</span><span class="date-divider-sum">${g.orders.length} ออเดอร์ · ฿${fmtMoney(dayTotal)}</span></div>`;
+      const cards=g.orders.map(o=>buildDoneAdminCard(o)).join('');
+      return header+cards;
+    }).join('');
+    return;
+  }
+  if(adminCurrentTab==='pending'){
+    const sorted=[...filtered].sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+    list.innerHTML=sorted.map(o=>buildPendingAdminCard(o)).join('');
+    return;
+  }
+  list.innerHTML=filtered.map(o=>{
+    const items=parseItems(o.items);
+    const prodMap=getOrderProdFullMap(o);
+    if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
+    const isPending=ds_pending(o);
+    const isPacking=ds_packing(o);
+    const isDone=ds_done(o);
+    const canAdjustQty=isPacking;
+    const itemsHtml=items.map((item,idx)=>{
+      const prod=prodMap[item.name]||{};
+      const rowKey=o.order_id+'_'+idx;
+      const isPicked=canAdjustQty&&pickedItems.has(rowKey);
+      const imgHtml=prod.image_url
+        ?`<img class="admin-item-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${prod.image_url}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-item-img-placeholder" style="display:none" onclick="event.stopPropagation()">🛍️</div>`
+        :`<div class="admin-item-img-placeholder" onclick="event.stopPropagation()">🛍️</div>`;
+      const rowClick=canAdjustQty?` onclick="toggleItemPicked('${rowKey}',this)"`:'';
+      const unitPrice=Number(prod.price)||0;
+      const lineTotal=unitPrice*item.qty;
+      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+      const reasonHtml=buildItemEditNoteHtml(o,item.name);
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+    }).join('');
+    let topBadge='';
+    if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
+    else if(isPacking) topBadge=`<span class="badge" style="background:#EEEDFE;color:#3C3489">กำลังจัด</span>`;
+    else topBadge=`<span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>`;
+    let footerBtns='';
+    if(isPending) footerBtns=`<button class="btn-done" id="btnMarkPacking_${o.order_id}" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}',this)">เริ่มจัดสินค้า</button>`;
+    else if(isPacking) footerBtns=`<button class="btn-done" id="btnMarkDone_${o.order_id}" style="background:#639922;font-size:13.5px" onclick="markDone('${o.order_id}',this)">✓ จัดเสร็จแล้ว</button>`;
+    else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="showOrderSummary('${o.order_id}')">⬇ บันทึกรูปภาพ</button>`;
+    return`<div class="admin-order-card">
+      <div class="admin-order-top">
+        <div><div class="admin-customer">${o.customer_name}</div><div class="admin-order-id">${o.order_id}</div><div class="admin-order-time">${o.timestamp?fmtOrderDateTime(o.timestamp):''}</div></div>
+        ${topBadge}
+      </div>
+      <div class="admin-items-list">${itemsHtml}</div>
+      ${cleanNote(o.note)?`<div class="admin-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
+      <div class="admin-order-footer">
+        <div><div class="admin-total" id="atotal${o.order_id}">฿${fmtMoney(o.total)}</div><div style="font-size:12.5px;color:#888;margin-top:2px">${items.length} รายการ</div></div>
+        ${footerBtns}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let openAdminDoneCards=new Set();
+function toggleAdminDoneCard(orderId){
+  if(openAdminDoneCards.has(orderId)) openAdminDoneCards.delete(orderId);
+  else openAdminDoneCards.add(orderId);
+  renderAdminOrders();
+}
+
+function buildDoneAdminCard(o){
+  const items=parseItems(o.items);
+  const prodMap=getOrderProdFullMap(o);
+  const isOpen=openAdminDoneCards.has(o.order_id);
+  const note=cleanNote(o.note);
+  const itemsHtml=items.map(item=>{
+    const unitPrice=prodMap[item.name]?Number(prodMap[item.name].price)||0:0;
+    const lineTotal=unitPrice*item.qty;
+    return`<div style="display:flex;align-items:baseline;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14.5px">
+      <span style="flex:1.8">${item.name}</span>
+      <span style="flex:0.5;text-align:center;color:#888">x${item.qty}</span>
+      <span style="flex:0.85;text-align:right;color:#888">${fmtMoney(unitPrice)}</span>
+      <span style="flex:0.85;text-align:right;font-weight:600;color:#D64109">${fmtMoney(lineTotal)}</span>
+    </div>`;
+  }).join('');
+  const tStamp=o.done_at||o.timestamp;
+  const dateStr=fmtOrderDateTime(tStamp);
+  return`<div class="order-card">
+    <div class="hcard-summary" onclick="toggleAdminDoneCard('${o.order_id}')">
+      <div class="hcard-summary-top">
+        <i class="hcard-chevron ${isOpen?'open':''}">▾</i>
+        <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
+      </div>
+      <div class="hcard-summary-bottom">
+        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${dateStr}<br>${items.length} รายการ</div>
+        <div class="hcard-badge-wrap">
+          <div class="hcard-total">฿${fmtMoney(o.total)}</div>
+          <span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>
+        </div>
+      </div>
+    </div>
+    <div class="hcard-detail ${isOpen?'open':''}">
+      <div class="hcard-divider">
+        <div style="display:flex;font-size:11px;color:#999;margin-bottom:4px;font-weight:500">
+          <span style="flex:1.8">รายการ</span>
+          <span style="flex:0.5;text-align:center">จำนวน</span>
+          <span style="flex:0.85;text-align:right">ราคา/หน่วย</span>
+          <span style="flex:0.85;text-align:right">รวม</span>
+        </div>
+        ${itemsHtml}
+        ${note?`<div class="order-note" style="margin-top:8px">📝 ${escapeHtml(note)}</div>`:''}
+        <div class="order-footer" style="justify-content:space-between">
+          <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
+          <button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="event.stopPropagation();showOrderSummary('${o.order_id}')">🧾 ใบวางบิล</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+let overviewSearchTerm='';
+let overviewView='customer';
+let overviewSortMode='recent';
+let openOverviewCustomers=new Set();
+let overviewDateMode='today'; // 'today' | 'month' | 'all'
+let overviewSelectedMonth=''; // 'YYYY-M' (ค.ศ., M=0-indexed) ใช้เมื่อ overviewDateMode==='month'
+
+// เดือนปัจจุบันในรูปแบบ 'YYYY-M' (M = 0-indexed ตาม JS Date)
+function currentMonthKey(){
+  const now=new Date();
+  return now.getFullYear()+'-'+now.getMonth();
+}
+
+// รายการเดือนที่ "มีข้อมูลจริง" ใน order ทั้งหมด (คำนวณจาก allAdminOrders ที่ได้จาก backend
+// ซึ่งรวมทุก sheet order ข้ามปีมาแล้ว — ดู getAllOrderRows() ฝั่ง Code.gs)
+// เรียงล่าสุดก่อน ใช้ generate month picker ให้ตรงกับข้อมูลจริงเท่านั้น (ไม่โชว์เดือนว่าง)
+function getAvailableOverviewMonths(){
+  const set=new Set();
+  (allAdminOrdersFull||[]).forEach(o=>{
+    const t=o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(isNaN(d))return;
+    set.add(d.getFullYear()+'-'+d.getMonth());
+  });
+  const arr=Array.from(set).map(k=>{const[y,m]=k.split('-').map(Number);return{key:k,y,m};});
+  arr.sort((a,b)=>(b.y-a.y)||(b.m-a.m));
+  return arr;
+}
+
+function monthLabelTh(y,m){
+  return new Date(y,m,1).toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+}
+
+function getOverviewRange(){
+  const now=new Date();
+  const startOfDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
+  const endOfDay=d=>{const x=new Date(d);x.setHours(23,59,59,999);return x;};
+  if(overviewDateMode==='all'){return[new Date(2000,0,1),endOfDay(now)];}
+  if(overviewDateMode==='month'){
+    const[y,m]=(overviewSelectedMonth||currentMonthKey()).split('-').map(Number);
+    const s=new Date(y,m,1);
+    const e=new Date(y,m+1,0);
+    return[startOfDay(s),endOfDay(e)];
+  }
+  return[startOfDay(now),endOfDay(now)];
+}
+
+// ช่วงวันที่ของเดือนใดๆ (ใช้คำนวณ MoM/YoY โดยไม่ต้องผ่าน overviewSelectedMonth)
+function monthRange(y,m){
+  const s=new Date(y,m,1);const sx=new Date(s);sx.setHours(0,0,0,0);
+  const e=new Date(y,m+1,0);const ex=new Date(e);ex.setHours(23,59,59,999);
+  return[sx,ex];
+}
+
+function overviewDateLabel(){
+  if(overviewDateMode==='all')return'ทั้งหมด';
+  if(overviewDateMode==='today')return'วันนี้';
+  if(overviewDateMode==='month'){
+    const[y,m]=(overviewSelectedMonth||currentMonthKey()).split('-').map(Number);
+    return monthLabelTh(y,m);
+  }
+  return'วันนี้';
+}
+
+function setOverviewDateMode(mode){
+  overviewDateMode=mode;
+  if(mode==='month'&&!overviewSelectedMonth){
+    const months=getAvailableOverviewMonths();
+    overviewSelectedMonth=months.length?months[0].key:currentMonthKey();
+  }
+  renderAdminOverview();
+}
+
+function onOverviewMonthChange(val){
+  overviewSelectedMonth=val;
+  overviewDateMode='month';
+  renderAdminOverview();
+}
+
+function setOverviewView(view){
+  overviewView=view;
+  renderAdminOverview();
+}
+
+function setOverviewSortMode(mode){
+  overviewSortMode=mode;
+  renderAdminOverview();
+}
+
+// ---- helper สถานะออเดอร์ (ใช้ร่วมกันทั้ง list หลัก, กราฟเทรนด์, และส่วนเปรียบเทียบ) ----
+function ov_isCancelled(o){return o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';}
+function ov_isDone(o){return o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';}
+
+// ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่กำหนด (ใช้เป็น scope เดียวกับ stat cards หลัก)
+function ov_doneOrdersInRange(start,end){
+  return (allAdminOrdersFull||[]).filter(o=>{
+    if(ov_isCancelled(o)||!ov_isDone(o))return false;
+    const tStamp=o.done_at||o.timestamp;
+    if(!tStamp)return false;
+    const t=new Date(tStamp);
+    return t>=start&&t<=end;
+  });
+}
+
+// ---- กราฟเทรนด์ยอดขายรายวันของเดือนที่เลือก (แท่ง) + วันหยุดนักขัตฤกษ์จริง + ไอคอนโน้ตมุมบนขวา ----
+function renderOverviewMonthChart(rangeOrders,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  ensureThaiHolidaysLoaded(y); // fire-and-forget, จะ re-render เองเมื่อโหลดเสร็จ
+  const holidays=thaiHolidaysCache[y]||{};
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const byDay=new Array(daysInMonth+1).fill(0);
+  rangeOrders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(d.getFullYear()===y&&d.getMonth()===m) byDay[d.getDate()]+=Number(o.total)||0;
+  });
+  const maxRaw=Math.max(1,...byDay.slice(1));
+  const gridStep=niceStepTh(maxRaw);
+  const gridMax=Math.ceil(maxRaw/gridStep)*gridStep;
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+
+  // เส้น gridline บอกสเกลยอดขาย (ฉากหลังบางๆ ให้กะยอดได้โดยไม่ต้องแตะทุกแท่ง)
+  let gridlines='';
+  for(let v=0; v<=gridMax; v+=gridStep){
+    const pct=(v/gridMax)*100;
+    gridlines+=`<div style="position:absolute;left:0;right:0;bottom:${pct}%;border-top:1px dashed #ececec">
+      <div style="position:absolute;left:0;top:-8px;font-size:10px;color:#bbb;background:#fff;padding-right:4px">${v>=1000?Math.round(v/1000)+'k':v}</div>
+    </div>`;
+  }
+
+  let bars='';
+  const monthHolidayEntries=[];
+  for(let day=1;day<=daysInMonth;day++){
+    const val=byDay[day];
+    const hPct=Math.max((val/gridMax)*100,val>0?2:0);
+    const showLabel=(day===1||day===daysInMonth||day%showLabelEvery===0);
+    const dateKey=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow=new Date(y,m,day).getDay();
+    const isWeekend=dow===0||dow===6;
+    const holidayName=holidays[dateKey];
+    if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    bars+=`<div onclick="showOverviewChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
+      <div id="ovBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
+    </div>`;
+  }
+
+  const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#888;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
+  </div>`;
+
+  const holidayOpen=overviewHolidayListOpen;
+  const holidayToggle=`<div onclick="toggleOverviewHolidayList()" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;margin-top:10px;border-top:1px solid #f2ede8;cursor:pointer">
+    <div style="font-size:12px;color:#777">🎌 วันหยุดนักขัตฤกษ์เดือนนี้ (${monthHolidayEntries.length})</div>
+    <div style="font-size:10px;color:#bbb;transform:rotate(${holidayOpen?180:0}deg);transition:transform .2s">▾</div>
+  </div>`;
+  const holidayList=holidayOpen
+    ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+        ${monthHolidayEntries.length?monthHolidayEntries.map(h=>`<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#555"><span style="flex-shrink:0;width:60px;color:#5a67c9;font-weight:600">${h.day} ${monthLabelTh(y,m).split(' ')[0].slice(0,3)}. (${dayNamesTh[h.dow]})</span><span>${h.name}</span></div>`).join(''):(thaiHolidaysCache[y]?`<div style="font-size:11.5px;color:#bbb;font-style:italic">ไม่มีวันหยุดนักขัตฤกษ์ในเดือนนี้</div>`:`<div style="font-size:11.5px;color:#bbb">กำลังโหลดข้อมูลวันหยุด...</div>`)}
+      </div>`
+    : '';
+
+  return`
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">${renderOverviewNoteIconButton(monthKey)}</div>
+    ${overviewNotePanelOpen?renderOverviewNotePanel(monthKey):''}
+    <div style="position:relative;height:180px;margin-bottom:6px">
+      ${gridlines}
+      <div style="position:absolute;left:34px;right:0;top:0;bottom:0;display:flex;align-items:flex-end;gap:3px">${bars}</div>
+    </div>
+    <div id="ovTooltipBox" style="display:none;margin-top:10px;background:#faf8f5;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#555"></div>
+    ${legend}
+    ${holidayToggle}
+    ${holidayList}
+  `;
+}
+
+// หาสเกลกริดที่ดูกลมๆ (ปัดขึ้นเป็น 1/2/5 x 10^n) จากยอดสูงสุดในกราฟ
+function niceStepTh(maxVal){
+  const rough=maxVal/4;
+  const mag=Math.pow(10,Math.floor(Math.log10(rough||1)));
+  const norm=rough/mag;
+  if(norm<1.5)return 1*mag;
+  if(norm<3.5)return 2*mag;
+  if(norm<7.5)return 5*mag;
+  return 10*mag;
+}
+
+function showOverviewChartTooltip(day,dow,val,isWeekend,holidayName){
+  document.querySelectorAll('[id^="ovBar-"]').forEach(el=>el.style.outline='none');
+  const barEl=document.getElementById('ovBar-'+day);
+  if(barEl) barEl.style.outline='2px solid #1a0a06';
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const box=document.getElementById('ovTooltipBox');
+  if(!box)return;
+  box.style.display='block';
+  const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
+}
+
+let overviewHolidayListOpen=false;
+function toggleOverviewHolidayList(){
+  overviewHolidayListOpen=!overviewHolidayListOpen;
+  renderAdminOverview();
+}
+
+// ---- บันทึกเหตุการณ์สำคัญ: ยังเก็บแบบ log อิสระในฝั่ง backend (ไม่ผูกเดือนใน schema)
+// แต่ตอนแสดงผล กรองด้วยวันที่ของโน้ตให้ตรงกับเดือนที่กำลังดูอยู่ ("บอกแค่ว่าเดือนนั้นๆ มีอะไร") ----
+let overviewNotePanelOpen=false;
+let overviewNoteFormOpen=false;
+function toggleOverviewNotePanel(){
+  overviewNotePanelOpen=!overviewNotePanelOpen;
+  if(!overviewNotePanelOpen) overviewNoteFormOpen=false;
+  renderAdminOverview();
+}
+function toggleOverviewNoteForm(show){
+  overviewNoteFormOpen=show;
+  renderAdminOverview();
+  if(show){
+    const el=document.getElementById('overviewNoteInput');
+    if(el) el.focus();
+  }
+}
+function notesInMonth(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  return businessNotes.filter(n=>{
+    const d=new Date(n.date);
+    return !isNaN(d)&&d.getFullYear()===y&&d.getMonth()===m;
+  });
+}
+function renderOverviewNoteIconButton(monthKey){
+  const count=notesInMonth(monthKey).length;
+  return`<div onclick="toggleOverviewNotePanel()" title="บันทึกเหตุการณ์เดือนนี้" style="position:relative;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#faf8f5;border:1px solid #efe9e3;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer">
+    📝
+    ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#D64109;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
+  </div>`;
+}
+async function addOverviewNote(monthKey){
+  const input=document.getElementById('overviewNoteInput');
+  const text=(input?input.value:'').trim();
+  if(!text)return;
+  const btn=document.getElementById('overviewNoteSaveBtn');
+  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก...';}
+  // ให้โน้ตอ้างอิง "เดือนที่กำลังดูอยู่ตอนพิมพ์" ไม่ใช่วันที่จริงของตอนนี้เสมอไป
+  // (ถ้าวันนี้อยู่ในเดือนนั้นอยู่แล้วก็ใช้เวลาจริงตามปกติ เพื่อให้เรียงลำดับล่าสุดถูกต้อง)
+  const[y,m]=monthKey.split('-').map(Number);
+  const now=new Date();
+  const noteDate=(now.getFullYear()===y&&now.getMonth()===m)?now:new Date(y,m,15,12,0,0);
+  try{
+    const result=await postAction({action:'addBusinessNote',text,date:noteDate.toISOString()},'addBusinessNote');
+    if(!result||result.success===false){
+      // ไม่ปิดฟอร์ม ไม่ล้างข้อความที่พิมพ์ไว้ เผื่อผู้ใช้กดบันทึกซ้ำได้โดยไม่ต้องพิมพ์ใหม่
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่')+'\n\nเช็คว่ามี sheet ชื่อ "BusinessNote" พร้อมหัวคอลัมน์ note_id/date/text ในไฟล์ Google Sheet หรือยัง');
+      if(btn){btn.disabled=false;btn.textContent='บันทึก';}
+      return;
+    }
+    overviewNoteFormOpen=false;
+    await loadBusinessNotes();
+    renderAdminOverview();
+  }catch(e){
+    alert('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+    if(btn){btn.disabled=false;btn.textContent='บันทึก';}
+  }
+}
+async function deleteOverviewNote(noteId){
+  if(!confirm('ลบบันทึกนี้?'))return;
+  try{
+    const result=await postAction({action:'deleteBusinessNote',note_id:noteId},'deleteBusinessNote');
+    if(!result||result.success===false){
+      alert('ลบไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      return;
+    }
+    await loadBusinessNotes();
+    renderAdminOverview();
+  }catch(e){ alert('ลบไม่สำเร็จ กรุณาลองใหม่'); }
+}
+function formatNoteDateTh(iso){
+  const d=new Date(iso);
+  if(isNaN(d))return iso;
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+function renderOverviewNotePanel(monthKey){
+  const notes=notesInMonth(monthKey);
+  const[y,m]=monthKey.split('-').map(Number);
+  const formHtml=`<button id="overviewNoteAddBtn" onclick="toggleOverviewNoteForm(true)" style="background:#fdf1ea;color:#D64109;width:100%;padding:8px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;margin-bottom:10px;${overviewNoteFormOpen?'display:none':''}">+ เพิ่มโน้ตสำหรับเดือนนี้</button>
+  <div style="${overviewNoteFormOpen?'':'display:none'}">
+    <textarea id="overviewNoteInput" placeholder="เช่น เดือนนี้โรงเรียนปิดเทอม, ช่วงนี้มีเทศกาล, ปิดร้าน 3 วัน..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;resize:none;height:56px;background:#fff;margin-bottom:8px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button onclick="toggleOverviewNoteForm(false)" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#eee;color:#888">ยกเลิก</button>
+      <button id="overviewNoteSaveBtn" onclick="addOverviewNote('${monthKey}')" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
+    </div>
+  </div>`;
+  const listHtml=notes.length
+    ? `<div style="display:flex;flex-direction:column;gap:8px">${notes.map(n=>`
+        <div style="background:#fff;border:1px solid #f0eae4;border-radius:8px;padding:9px 11px;position:relative">
+          <button onclick="deleteOverviewNote('${n.note_id}')" style="position:absolute;top:8px;right:9px;font-size:11px;color:#c99;background:none;border:none;cursor:pointer">ลบ</button>
+          <div style="font-size:10.5px;color:#b5a89a;font-weight:600;margin-bottom:3px">${formatNoteDateTh(n.date)}</div>
+          <div style="font-size:13px;color:#444;line-height:1.6;padding-right:24px">${escapeHtml(n.text)}</div>
+        </div>`).join('')}</div>`
+    : `<div style="font-size:12.5px;color:#bbb;font-style:italic;text-align:center;padding:8px 0">ยังไม่มีบันทึกสำหรับเดือนนี้</div>`;
+  return`<div style="background:#faf8f5;border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12px;color:#999;margin-bottom:10px">📝 เหตุการณ์ในเดือน${monthLabelTh(y,m)}</div>
+    ${formHtml}
+    ${listHtml}
+  </div>`;
+}
+
+// ---- Accordion card แบบทั่วไป (พับ/กาง) — ลดความสูงหน้าจอเพราะ header ด้านบนถูก freeze ไว้ ----
+let overviewAccordionOpen={chart:false,comparison:false};
+function toggleOverviewAccordion(key){
+  overviewAccordionOpen[key]=!overviewAccordionOpen[key];
+  renderAdminOverview();
+}
+function renderAccordionCard(key,title,subtitle,isOpen,bodyHtml){
+  return`<div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;margin-bottom:10px;overflow:hidden">
+    <div onclick="toggleOverviewAccordion('${key}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px;cursor:pointer;-webkit-tap-highlight-color:transparent">
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:#333">${title}</div>
+        <div style="font-size:11.5px;color:#999">${subtitle}</div>
+      </div>
+      <div style="font-size:11px;color:#bbb;flex-shrink:0;margin-left:8px;transform:rotate(${isOpen?180:0}deg);transition:transform .2s">▾</div>
+    </div>
+    ${isOpen?`<div style="padding:0 12px 12px">${bodyHtml}</div>`:''}
+  </div>`;
+}
+
+// ---- เปรียบเทียบยอดขาย: กราฟแท่งยอดขายรวมรายเดือน 6 เดือนล่าสุด (ไม่ใช่รายวัน)
+// ดูภาพเดียวจบ: รูปทรงแท่งบอกแนวโน้มยาว + badge % บนแท่งปัจจุบันบอกเทียบเดือนก่อนหน้า ----
+const THAI_MONTH_ABBR=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function renderOverviewMonthlyTrend(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i, yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const total=ov_doneOrdersInRange(s,e).reduce((sum,o)=>sum+Number(o.total),0);
+    months.push({y:yy,m:mm,total,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.total));
+
+  let bars='';
+  months.forEach((mo,i)=>{
+    const pctHeight=Math.max((mo.total/maxVal)*100,mo.total>0?2:0);
+    let badgeHtml='';
+    if(mo.current&&i>0){
+      const prevTotal=months[i-1].total;
+      const pct=prevTotal>0?((mo.total-prevTotal)/prevTotal*100):(mo.total>0?100:0);
+      const up=pct>=0;
+      badgeHtml=`<div style="position:absolute;top:-2px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:20px;white-space:nowrap;color:${up?'#3B6D11':'#A32D2D'};background:${up?'#EAF3DE':'#FCEAEA'}">${up?'▲':'▼'} ${Math.abs(pct).toFixed(0)}%</div>`;
+    }
+    bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative">
+      ${badgeHtml}
+      <div style="font-size:${mo.current?'11.5px':'10.5px'};color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-bottom:4px;white-space:nowrap">${Math.round(mo.total/1000)}k</div>
+      <div style="width:100%;max-width:34px;height:${pctHeight}%;border-radius:5px 5px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-top:7px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  });
+
+  const cur=months[months.length-1];
+  const prev=months[months.length-2];
+  const momPct=prev.total>0?((cur.total-prev.total)/prev.total*100):(cur.total>0?100:0);
+  const first=months[0];
+  const trendPct=first.total>0?((cur.total-first.total)/first.total*100):(cur.total>0?100:0);
+
+  return`
+    <div style="font-size:11.5px;color:#999;margin-bottom:16px">ยอดขายรวม 6 เดือนล่าสุด</div>
+    <div style="position:relative;height:150px;display:flex;align-items:flex-end;gap:10px;padding-top:24px">${bars}</div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f2ede8;font-size:12.5px;color:#555;line-height:1.6">
+      เดือนนี้<b style="color:#D64109">${momPct>=0?'เพิ่มขึ้น':'ลดลง'} ${Math.abs(momPct).toFixed(0)}%</b> จากเดือนก่อน และเมื่อเทียบกับ 6 เดือนที่แล้ว ยอดขายโดยรวม<b style="color:#D64109">${trendPct>=0?'เติบโต':'ลดลง'} ${Math.abs(trendPct).toFixed(0)}%</b>
+    </div>
+  `;
+}
+
+
+function renderAdminOverview(){
+  const wrap=document.getElementById('adminOverview');
+  const ds_cancelled=ov_isCancelled;
+  const ds_done=ov_isDone;
+  const activeOrders=(allAdminOrdersFull||[]).filter(o=>!ds_cancelled(o));
+
+  const[rangeStart,rangeEnd]=getOverviewRange();
+  // ออเดอร์ที่ "จัดเสร็จแล้ว" และอยู่ในช่วงวันที่ที่เลือก — ใช้เป็น scope เดียวกันทั้ง stat cards และ ranking
+ const rangeOrders=activeOrders.filter(o=>{
+  if(!ds_done(o))return false;
+  const tStamp=o.done_at||o.timestamp;
+  if(!tStamp)return false;
+  const t=new Date(tStamp);
+  return t>=rangeStart&&t<=rangeEnd;
+});
+  const totalToday=rangeOrders.reduce((s,o)=>s+Number(o.total),0);
+
+  const byCustomer={};
+  rangeOrders.forEach(o=>{
+    const name=o.customer_name||'ไม่ระบุชื่อ';
+    if(!byCustomer[name]) byCustomer[name]={orders:[],total:0,lastDoneAt:0};
+    byCustomer[name].orders.push(o);
+    byCustomer[name].total+=Number(o.total);
+    const t=o.done_at||o.timestamp;
+    const ts=t?new Date(t).getTime():0;
+    if(ts>byCustomer[name].lastDoneAt) byCustomer[name].lastDoneAt=ts;
+  });
+  // นับจำนวนลูกค้าจาก byCustomer โดยตรง (แหล่งเดียวกับ ranking ด้านล่าง) แทนการสร้าง Set แยกจาก customer_name ดิบ
+  // ป้องกันตัวเลขไม่ตรงกันเวลามีออเดอร์ที่ customer_name ว่าง/undefined
+  const customerCount=Object.keys(byCustomer).length;
+
+  const topCustomers=Object.keys(byCustomer)
+    .sort((a,b)=>byCustomer[b].total-byCustomer[a].total)
+    .slice(0,5);
+
+  const byProduct={};
+  rangeOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{
+      if(!byProduct[it.name]) byProduct[it.name]=0;
+      byProduct[it.name]+=it.qty;
+    });
+  });
+  const topProducts=Object.keys(byProduct)
+    .sort((a,b)=>byProduct[b]-byProduct[a])
+    .slice(0,5);
+
+  const chip=(mode,label)=>{
+    const active=overviewDateMode===mode;
+    return`<button onclick="setOverviewDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#D64109':'#ddd'};background:${active?'#D64109':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
+  };
+  const availableMonths=getAvailableOverviewMonths();
+  // dropdown เลือกเดือน: label คงที่ "เลือกเดือน" เสมอ ไม่โชว์ชื่อเดือนที่เลือกอยู่บนตัวปุ่ม
+  const monthSelect=`<div style="position:relative;flex-shrink:0">
+    <select onchange="onOverviewMonthChange(this.value)" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#D64109':'#fff'};border:1px solid ${overviewDateMode==='month'?'#D64109':'#ddd'};cursor:pointer;font-family:inherit">
+      <option value="" disabled selected hidden>เลือกเดือน</option>
+      ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}">${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
+    </select>
+  </div>`;
+  const filterHtml=`<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+    ${chip('today','วันนี้')}
+    ${monthSelect}
+    ${chip('all','ทั้งหมด')}
+  </div>`;
+  const filterBarEl=document.getElementById('overviewFilterBar');
+  if(filterBarEl) filterBarEl.innerHTML=filterHtml;
+
+  const statCards=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+    <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
+      <div style="font-size:19px;font-weight:600;color:#D64109">${customerCount}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ลูกค้าที่จัดเสร็จ (${overviewDateLabel()})</div>
+    </div>
+    <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
+      <div style="font-size:19px;font-weight:600;color:#D64109">฿${fmtMoney(totalToday)}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
+    </div>
+  </div>`;
+
+  const rankingSection=(title,rows)=>{
+    if(!rows.length) return `<div style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">${title}</div>
+      <div class="empty-state" style="padding:16px">ยังไม่มีออเดอร์ในช่วงนี้</div>
+    </div>`;
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px">${title}</div>
+      <div style="background:#fff;border-radius:10px;border:0.5px solid #e8e2dc;overflow:hidden">
+        ${rows}
+      </div>
+    </div>`;
+  };
+
+  const customerRows=topCustomers.map((name,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;${idx<topCustomers.length-1?'border-bottom:0.5px solid #f0f0f0':''}">
+      <span style="font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${idx+1}. ${name}</span>
+      <span style="font-size:13.5px;font-weight:600;color:#D64109;flex-shrink:0">฿${fmtMoney(byCustomer[name].total)}</span>
+    </div>`).join('');
+
+  const productRows=topProducts.map((name,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;${idx<topProducts.length-1?'border-bottom:0.5px solid #f0f0f0':''}">
+      <span style="font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${idx+1}. ${name}</span>
+      <span style="font-size:13.5px;color:#888;flex-shrink:0">${byProduct[name]} ชิ้น</span>
+    </div>`).join('');
+
+  const dashboardBtn=`<button onclick="openOwnerDashboard()" style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #D64109;background:#fff;color:#D64109;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด</button>`;
+
+  wrap.innerHTML=statCards
+    + rankingSection('ลูกค้าอันดับต้น',customerRows)
+    + rankingSection('สินค้าขายดี',productRows)
+    + dashboardBtn;
+}
+
+/* ============================================================
+   OWNER DASHBOARD (ฉบับแรก — จะพัฒนาเพิ่มทีหลัง)
+   หมายเหตุสำคัญเรื่องความแม่นยำของข้อมูล (assumption ที่ยังไม่ได้ confirm 100%):
+   - "วันขายจริง" ในเดือนนั้นๆ คำนวณจาก "จำนวนวันที่มีออเดอร์จัดเสร็จเกิดขึ้นจริงอย่างน้อย 1 ออเดอร์"
+     ไม่ได้ใช้ระบบมาร์กวันหยุดร้านแบบ manual (ยังไม่ได้สร้างฟีเจอร์นั้น) — เป็นค่าประมาณที่สมเหตุสมผล
+     แต่ถ้าร้านปิดทั้งเดือนไม่มีจัดเสร็จเลย จะนับเป็น 0 วันขาย (หารด้วย 0 ต้องเช็คป้องกันไว้)
+   - churn risk: ต้องมีออเดอร์ >=3 ครั้งขึ้นไปถึงจะคำนวณ "รอบซื้อปกติ" แบบ adaptive ได้
+     ถ้าน้อยกว่านั้น fallback ใช้เกณฑ์คงที่ 30 วัน
+   ============================================================ */
+let dbCurrentTab='sales';
+let dbSalesMonth='';      // 'YYYY-M' ใช้ร่วมกันทั้งแท็บยอดขาย/สินค้า
+let dbCompareMode='mom';  // 'mom' | 'yoy'
+let dbSelectedProduct='';
+
+function openOwnerDashboard(){
+  if(window.innerWidth<768){
+    document.getElementById('adminList').style.display='none';
+    document.getElementById('adminOverview').style.display='none';
+    document.getElementById('overviewFilterBar').style.display='none';
+    const wrap=document.getElementById('ownerDashboard');
+    wrap.style.display='block';
+    wrap.innerHTML=`<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:32px;margin-bottom:12px">💻</div>
+      <div style="font-size:15px;font-weight:600;color:#333;margin-bottom:6px">แดชบอร์ดนี้ออกแบบมาสำหรับหน้าจอกว้าง</div>
+      <div style="font-size:13px;color:#888;line-height:1.6;margin-bottom:20px">แนะนำเปิดบน iPad หรือคอมพิวเตอร์ เพื่อดูข้อมูลได้ครบและอ่านง่ายกว่า</div>
+      <button onclick="closeOwnerDashboard()" style="padding:10px 20px;border-radius:10px;border:0.5px solid #ddd;background:#fff;font-size:13px;color:#555">← กลับไปหน้าภาพรวม</button>
+    </div>`;
+    return;
+  }
+  if(!dbSalesMonth){
+    const months=getAvailableOverviewMonths();
+    dbSalesMonth=months.length?months[0].key:currentMonthKey();
+  }
+  document.getElementById('adminList').style.display='none';
+  document.getElementById('adminOverview').style.display='none';
+  document.getElementById('overviewFilterBar').style.display='none';
+  document.getElementById('ownerDashboard').style.display='block';
+  dbCurrentTab='sales';
+  renderOwnerDashboard();
+}
+
+function closeOwnerDashboard(){
+  document.getElementById('ownerDashboard').style.display='none';
+  switchAdminTab('overview');
+}
+
+function dbSwitchTab(tab){
+  dbCurrentTab=tab;
+  renderOwnerDashboard();
+}
+
+function dbSetCompareMode(mode){
+  dbCompareMode=mode;
+  renderOwnerDashboard();
+}
+
+function dbOnMonthChange(val){
+  dbSalesMonth=val;
+  renderOwnerDashboard();
+}
+
+// ---- helper ข้อมูลร่วม ----
+function db_doneOrders(){
+  return (allAdminOrdersFull||[]).filter(o=>!ov_isCancelled(o)&&ov_isDone(o));
+}
+
+// จำนวน "วันขายจริง" ในช่วง = จำนวนวันปฏิทินที่มีออเดอร์จัดเสร็จเกิดขึ้นอย่างน้อย 1 ออเดอร์ (ดูหมายเหตุด้านบน)
+function db_sellingDaysCount(orders){
+  const days=new Set();
+  orders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(isNaN(d))return;
+    days.add(d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate());
+  });
+  return days.size;
+}
+
+function db_prevMonthKey(y,m){
+  let mm=m-1,yy=y;
+  if(mm<0){mm=11;yy--;}
+  return{y:yy,m:mm};
+}
+
+// แยก contribution ของยอดขายที่เปลี่ยนไประหว่าง 2 ช่วงเวลา: ลูกค้าเดิมซื้อเพิ่ม/ลด, ลูกค้าใหม่, ลูกค้าหาย
+function db_decomposeSalesChange(currOrders,prevOrders){
+  const currByCust={},prevByCust={};
+  currOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';currByCust[n]=(currByCust[n]||0)+Number(o.total);});
+  prevOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';prevByCust[n]=(prevByCust[n]||0)+Number(o.total);});
+  let continuingDelta=0,newTotal=0,churnedTotal=0;
+  const newNames=[],churnedNames=[];
+  Object.keys(currByCust).forEach(n=>{
+    if(prevByCust.hasOwnProperty(n)) continuingDelta+=(currByCust[n]-prevByCust[n]);
+    else{newTotal+=currByCust[n];newNames.push({name:n,total:currByCust[n]});}
+  });
+  Object.keys(prevByCust).forEach(n=>{
+    if(!currByCust.hasOwnProperty(n)){churnedTotal+=prevByCust[n];churnedNames.push({name:n,total:prevByCust[n]});}
+  });
+  newNames.sort((a,b)=>b.total-a.total);
+  churnedNames.sort((a,b)=>b.total-a.total);
+  return{continuingDelta,newTotal,newNames,churnedTotal,churnedNames};
+}
+
+function renderOwnerDashboard(){
+  const wrap=document.getElementById('ownerDashboard');
+  const availableMonths=getAvailableOverviewMonths();
+  const tabBtn=(tab,label)=>`<button onclick="dbSwitchTab('${tab}')" style="padding:10px 18px;font-size:13.5px;font-weight:500;border:none;background:none;cursor:pointer;color:${dbCurrentTab===tab?'#1a1a1a':'#999'};border-bottom:2px solid ${dbCurrentTab===tab?'#D64109':'transparent'}">${label}</button>`;
+  const monthSelect=`<select onchange="dbOnMonthChange(this.value)" style="padding:6px 10px;border-radius:8px;font-size:12.5px;border:1px solid #ddd;font-family:inherit">
+    ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}" ${mo.key===dbSalesMonth?'selected':''}>${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
+  </select>`;
+
+  let bodyHtml='';
+  if(dbCurrentTab==='sales') bodyHtml=renderDashboardSales();
+  else if(dbCurrentTab==='product') bodyHtml=renderDashboardProduct();
+  else bodyHtml=renderDashboardCustomer();
+
+  wrap.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <button onclick="closeOwnerDashboard()" style="border:none;background:none;color:#888;font-size:13px;cursor:pointer">← กลับ</button>
+      ${monthSelect}
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:0.5px solid #eee">
+      ${tabBtn('sales','ยอดขาย')}
+      ${tabBtn('product','สินค้า')}
+      ${tabBtn('customer','ลูกค้า')}
+    </div>
+    <div>${bodyHtml}</div>
+  `;
+}
+
+// ---------------- แท็บยอดขาย ----------------
+// เดือนที่ยังไม่จบ (เดือนปัจจุบันจริงๆ) เทียบกับเดือนก่อนแบบตรงๆ ไม่ได้ เพราะเดือนนี้มีข้อมูลแค่ไม่กี่วัน
+// แต่เดือนก่อนมีข้อมูลเต็มเดือน ทำให้ % ที่ได้ดูแย่เกินจริงเสมอ (เทียบกันคนละปริมาณวัน)
+function isInProgressMonth(y,m){
+  const now=new Date();
+  return y===now.getFullYear()&&m===now.getMonth();
+}
+
+function renderDashboardSales(){
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const[curS,curE]=monthRange(y,m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+
+  let prevY=y,prevM,prevS,prevE;
+  if(dbCompareMode==='yoy'){prevY=y-1;prevM=m;}
+  else{const pv=db_prevMonthKey(y,m);prevY=pv.y;prevM=pv.m;}
+  [prevS,prevE]=monthRange(prevY,prevM);
+
+  // เดือนที่ดูอยู่ยังไม่จบ -> ตัดช่วงเดือนที่เทียบให้เหลือแค่ "วันที่ 1 ถึงวันเดียวกับวันนี้" เท่านั้น
+  // (cap ไม่ให้เกินจำนวนวันจริงของเดือนที่เทียบ เช่นเทียบกับ ก.พ.) แทนที่จะเอาทั้งเดือนมาเทียบ
+  const inProgress=isInProgressMonth(y,m);
+  let periodNote='';
+  if(inProgress){
+    const todayDay=new Date().getDate();
+    const daysInPrevMonth=new Date(prevY,prevM+1,0).getDate();
+    const cappedDay=Math.min(todayDay,daysInPrevMonth);
+    const cappedEnd=new Date(prevY,prevM,cappedDay);cappedEnd.setHours(23,59,59,999);
+    prevE=cappedEnd;
+    periodNote=` (เทียบเฉพาะวันที่ 1-${cappedDay} เท่ากันทั้งสองช่วง เพราะเดือนนี้ยังไม่จบ)`;
+  }
+
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+
+  const currTotal=currOrders.reduce((s,o)=>s+Number(o.total),0);
+  const prevTotal=prevOrders.reduce((s,o)=>s+Number(o.total),0);
+  const changePct=prevTotal>0?((currTotal-prevTotal)/prevTotal*100):(currTotal>0?100:0);
+  const sellingDays=db_sellingDaysCount(currOrders);
+  const avgPerDay=sellingDays>0?currTotal/sellingDays:0;
+  const aov=currOrders.length>0?currTotal/currOrders.length:0;
+
+  const decomp=db_decomposeSalesChange(currOrders,prevOrders);
+  const compareLabel=dbCompareMode==='yoy'?'ปีก่อนช่วงเดียวกัน':'เดือนก่อน';
+
+  const compareToggle=`<div style="display:flex;gap:4px;margin-bottom:8px">
+    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#D64109':'#ddd'};background:${dbCompareMode==='mom'?'#D64109':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
+    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#D64109':'#ddd'};background:${dbCompareMode==='yoy'?'#D64109':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
+  </div>`;
+
+  const nameChips=(list,color)=>list.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
+    ${list.map(x=>`<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:#fff;color:${color};border:0.5px solid ${color}">${x.name} (฿${fmtMoney(x.total)})</span>`).join('')}
+  </div>`:'';
+
+  const insightHtml=`<div style="padding:10px 12px;background:#fdf1ea;border-radius:10px;font-size:12.5px;color:#333;line-height:1.7;margin-bottom:12px">
+    ยอดขายเดือนนี้ <b>฿${fmtMoney(currTotal)}</b> ${changePct>=0?'เพิ่มขึ้น':'ลดลง'} <b style="color:${changePct>=0?'#3B6D11':'#A32D2D'}">${Math.abs(changePct).toFixed(0)}%</b> จาก${compareLabel} (฿${fmtMoney(prevTotal)})${periodNote}<br>
+    · ลูกค้าเดิมซื้อ${decomp.continuingDelta>=0?'เพิ่ม':'ลด'} ฿${fmtMoney(Math.abs(decomp.continuingDelta))}
+    <div style="margin-top:8px">🆕 ลูกค้าใหม่ ${decomp.newNames.length} เจ้า (รวม฿${fmtMoney(decomp.newTotal)}) ${nameChips(decomp.newNames,'#3B6D11')}</div>
+    <div style="margin-top:8px">📉 ลูกค้าที่หายไปเดือนนี้ ${decomp.churnedNames.length} เจ้า (รวม-฿${fmtMoney(decomp.churnedTotal)}) ${nameChips(decomp.churnedNames,'#A32D2D')}</div>
+    <div style="font-size:11px;color:#aaa;margin-top:8px">* "ใหม่/หาย" ในบทวิเคราะห์นี้ หมายถึงเทียบกับ${compareLabel}เท่านั้น (ซื้อช่วงนี้แต่ไม่ซื้อช่วงก่อน หรือกลับกัน) ไม่เหมือนกับ "ลูกค้าเงียบผิดปกติ" ในแท็บลูกค้าที่ดูยาวนานกว่านั้น</div>
+  </div>`;
+
+  const statCards=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(currTotal)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ยอดขายรวม</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(avgPerDay)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">เฉลี่ย/วันขาย</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${sellingDays}</div><div style="font-size:10.5px;color:#999;margin-top:2px">วันขายจริง</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(aov)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">AOV</div></div>
+  </div>`;
+
+  const chartCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">เทรนด์ยอดขายรายวัน</div>
+    ${renderDashboardMonthChart(currOrders,dbSalesMonth)}
+  </div>`;
+
+  const aovTrendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">AOV เทรนด์ 6 เดือนล่าสุด</div>
+    <div style="font-size:11px;color:#999;margin-bottom:8px">AOV (Average Order Value) = ยอดขายรวม ÷ จำนวนออเดอร์ในเดือนนั้น พูดง่ายๆ คือ "ลูกค้าจ่ายเฉลี่ยครั้งละเท่าไหร่" — ถ้าตัวเลขนี้สูงขึ้นเรื่อยๆ แปลว่าลูกค้าซื้อต่อครั้งเยอะขึ้น ไม่ใช่แค่มาซื้อบ่อยขึ้น</div>
+    ${renderDashboardAOVTrend(dbSalesMonth)}
+  </div>`;
+
+  return compareToggle+insightHtml+statCards+chartCard+aovTrendCard;
+}
+
+function renderDashboardMonthChart(rangeOrders,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  ensureThaiHolidaysLoaded(y);
+  const holidays=thaiHolidaysCache[y]||{};
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const byDay=new Array(daysInMonth+1).fill(0);
+  rangeOrders.forEach(o=>{
+    const t=o.done_at||o.timestamp;
+    if(!t)return;
+    const d=new Date(t);
+    if(d.getFullYear()===y&&d.getMonth()===m) byDay[d.getDate()]+=Number(o.total)||0;
+  });
+  const maxRaw=Math.max(1,...byDay.slice(1));
+  const gridStep=niceStepTh(maxRaw);
+  const gridMax=Math.ceil(maxRaw/gridStep)*gridStep;
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const showLabelEvery=daysInMonth>20?5:daysInMonth>10?2:1;
+
+  let gridlines='';
+  for(let v=0; v<=gridMax; v+=gridStep){
+    const pct=(v/gridMax)*100;
+    gridlines+=`<div style="position:absolute;left:0;right:0;bottom:${pct}%;border-top:1px dashed #ececec">
+      <div style="position:absolute;left:0;top:-8px;font-size:10px;color:#bbb;background:#faf8f5;padding-right:4px">${v>=1000?Math.round(v/1000)+'k':v}</div>
+    </div>`;
+  }
+
+  let bars='';
+  const monthHolidayEntries=[];
+  for(let day=1;day<=daysInMonth;day++){
+    const val=byDay[day];
+    const hPct=Math.max((val/gridMax)*100,val>0?2:0);
+    const showLabel=(day===1||day===daysInMonth||day%showLabelEvery===0);
+    const dateKey=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dow=new Date(y,m,day).getDay();
+    const isWeekend=dow===0||dow===6;
+    const holidayName=holidays[dateKey];
+    if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    bars+=`<div onclick="showDashboardChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
+      <div id="dbBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
+    </div>`;
+  }
+
+  const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#888;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
+  </div>`;
+
+  // แสดงชื่อวันหยุดนักขัตฤกษ์ตรงๆ เสมอ ไม่ต้องกดขยาย (ต่างจากหน้าภาพรวมที่เป็น dropdown)
+  const holidayList=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2ede8">
+    <div style="font-size:12px;color:#777;margin-bottom:6px">🎌 วันหยุดนักขัตฤกษ์เดือนนี้ (${monthHolidayEntries.length})</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${monthHolidayEntries.length?monthHolidayEntries.map(h=>`<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#555"><span style="flex-shrink:0;width:60px;color:#5a67c9;font-weight:600">${h.day} ${monthLabelTh(y,m).split(' ')[0].slice(0,3)}. (${dayNamesTh[h.dow]})</span><span>${h.name}</span></div>`).join(''):(thaiHolidaysCache[y]?`<div style="font-size:11.5px;color:#bbb;font-style:italic">ไม่มีวันหยุดนักขัตฤกษ์ในเดือนนี้</div>`:`<div style="font-size:11.5px;color:#bbb">กำลังโหลดข้อมูลวันหยุด...</div>`)}
+    </div>
+  </div>`;
+
+  return`
+    <div style="position:relative;height:180px;margin-bottom:6px">
+      ${gridlines}
+      <div style="position:absolute;left:34px;right:0;top:0;bottom:0;display:flex;align-items:flex-end;gap:3px">${bars}</div>
+    </div>
+    <div id="dbTooltipBox" style="display:none;margin-top:10px;background:#fff;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#555"></div>
+    ${legend}
+    ${holidayList}
+  `;
+}
+
+function showDashboardChartTooltip(day,dow,val,isWeekend,holidayName){
+  document.querySelectorAll('[id^="dbBar-"]').forEach(el=>el.style.outline='none');
+  const barEl=document.getElementById('dbBar-'+day);
+  if(barEl) barEl.style.outline='2px solid #1a0a06';
+  const dayNamesTh=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const box=document.getElementById('dbTooltipBox');
+  if(!box)return;
+  box.style.display='block';
+  const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
+}
+
+function renderDashboardAOVTrend(monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const ord=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=s&&d<=e;});
+    const total=ord.reduce((sum,o)=>sum+Number(o.total),0);
+    const aov=ord.length>0?total/ord.length:0;
+    months.push({y:yy,m:mm,aov,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.aov));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.aov/maxVal)*100,mo.aov>0?2:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">฿${Math.round(mo.aov)}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:110px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
+}
+
+// ---------------- แท็บสินค้า ----------------
+function renderDashboardProduct(){
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const[curS,curE]=monthRange(y,m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+  const pv=db_prevMonthKey(y,m);
+  const[prevS,prevE]=monthRange(pv.y,pv.m);
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+
+  const prodMap={};
+  products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+
+  const byQty={},byBaht={},prevByQty={};
+  currOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{
+      byQty[it.name]=(byQty[it.name]||0)+it.qty;
+      byBaht[it.name]=(byBaht[it.name]||0)+it.qty*(prodMap[it.name]||0);
+    });
+  });
+  prevOrders.forEach(o=>{
+    parseItems(o.items).forEach(it=>{prevByQty[it.name]=(prevByQty[it.name]||0)+it.qty;});
+  });
+
+  const topByQty=Object.keys(byQty).sort((a,b)=>byQty[b]-byQty[a]).slice(0,10);
+  const topByBaht=Object.keys(byBaht).sort((a,b)=>byBaht[b]-byBaht[a]).slice(0,10);
+
+  // สินค้าขายช้าลง: ต้องมียอดเดือนก่อน >=5 ชิ้น กันไม่ให้ตัวอย่างน้อยเกินไปมาสรุปเกินจริง
+  const declining=Object.keys(prevByQty)
+    .filter(n=>prevByQty[n]>=5)
+    .map(n=>{
+      const cur=byQty[n]||0;
+      const pct=((cur-prevByQty[n])/prevByQty[n])*100;
+      return{name:n,pct,cur,prev:prevByQty[n]};
+    })
+    .filter(x=>x.pct<0)
+    .sort((a,b)=>a.pct-b.pct)
+    .slice(0,5);
+
+  const listCard=(title,rows,rightFn)=>{
+    if(!rows.length) return `<div style="background:#faf8f5;border-radius:10px;padding:12px"><div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">${title}</div><div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูลในเดือนนี้</div></div>`;
+    return `<div style="background:#faf8f5;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">${title}</div>
+      ${rows.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<rows.length-1?'border-bottom:0.5px solid #eee':''}"><span>${n}</span><span style="font-weight:500;color:#D64109">${rightFn(n)}</span></div>`).join('')}
+    </div>`;
+  };
+
+  const topGrid=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    ${listCard('ขายดี Top 10 (ตามยอด฿)',topByBaht,n=>'฿'+fmtMoney(byBaht[n]))}
+    ${listCard('ขายดี Top 10 (ตามชิ้น)',topByQty,n=>byQty[n]+' ชิ้น')}
+  </div>`;
+
+  const decliningCard=declining.length?`<div style="background:#fdf6e8;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#854F0B;margin-bottom:8px">⚠️ สินค้าที่ขายช้าลง (เทียบเดือนก่อน)</div>
+    ${declining.map(x=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;color:#333"><span>${x.name} (${x.prev}→${x.cur} ชิ้น)</span><span style="color:#A32D2D">▼ ${Math.abs(x.pct).toFixed(0)}%</span></div>`).join('')}
+  </div>`:'';
+
+  const allProductNames=Array.from(new Set(currOrders.flatMap(o=>parseItems(o.items).map(it=>it.name)))).sort((a,b)=>a.localeCompare(b,'th'));
+  if(!dbSelectedProduct&&allProductNames.length) dbSelectedProduct=allProductNames[0];
+  const drilldownCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">เทรนด์รายสินค้า (6 เดือนล่าสุด)</div>
+    <select onchange="dbSelectProduct(this.value)" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #ddd;font-size:12.5px;margin-bottom:10px;font-family:inherit">
+      ${allProductNames.map(n=>`<option value="${n}" ${n===dbSelectedProduct?'selected':''}>${n}</option>`).join('')}
+    </select>
+    ${dbSelectedProduct?renderDashboardProductTrend(dbSelectedProduct,dbSalesMonth):'<div style="font-size:12px;color:#aaa">เลือกสินค้าเพื่อดูเทรนด์</div>'}
+  </div>`;
+
+  return topGrid+decliningCard+drilldownCard;
+}
+
+function dbSelectProduct(name){
+  dbSelectedProduct=name;
+  renderOwnerDashboard();
+}
+
+function renderDashboardProductTrend(productName,monthKey){
+  const[y,m]=monthKey.split('-').map(Number);
+  const allDone=db_doneOrders();
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const ord=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=s&&d<=e;});
+    let qty=0;
+    ord.forEach(o=>{parseItems(o.items).forEach(it=>{if(it.name===productName)qty+=it.qty;});});
+    months.push({y:yy,m:mm,qty,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.qty));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.qty/maxVal)*100,mo.qty>0?2:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.qty}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:100px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
+}
+
+// ---------------- แท็บลูกค้า (ใช้ประวัติทั้งหมด ไม่ผูกกับเดือนที่เลือก) ----------------
+function renderDashboardCustomer(){
+  const allDone=db_doneOrders();
+  const byCust={};
+  allDone.forEach(o=>{
+    const n=o.customer_name||'ไม่ระบุชื่อ';
+    if(!byCust[n]) byCust[n]={orders:[],total:0};
+    byCust[n].orders.push(o);
+    byCust[n].total+=Number(o.total);
+  });
+
+  const names=Object.keys(byCust);
+  const now=new Date();
+  const firstOrderByCust={}; // name -> Date แรกสุด (ใช้ทั้งจุด "ใหม่เดือนนี้" และกราฟเทรนด์ลูกค้าใหม่ 6 เดือน)
+
+  // ----- ใหม่/หายไป: ผูกกับเดือนที่เลือก (dbSalesMonth) -----
+  const[y,m]=dbSalesMonth.split('-').map(Number);
+  const[curS,curE]=monthRange(y,m);
+  const pv=db_prevMonthKey(y,m);
+  const[prevS,prevE]=monthRange(pv.y,pv.m);
+  const currOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=curS&&d<=curE;});
+  const prevOrders=allDone.filter(o=>{const t=o.done_at||o.timestamp;if(!t)return false;const d=new Date(t);return d>=prevS&&d<=prevE;});
+  const monthDecomp=db_decomposeSalesChange(currOrders,prevOrders);
+  names.forEach(n=>{
+    const first=byCust[n].orders.map(o=>new Date(o.done_at||o.timestamp)).filter(d=>!isNaN(d)).sort((a,b)=>a-b)[0];
+    if(first) firstOrderByCust[n]=first;
+  });
+  // "ใหม่จริง" = เพิ่งมีออเดอร์แรกสุดในเดือนที่เลือก (ต่างจาก newNames ของ decompose ซึ่งหมายถึงแค่ "ไม่ซื้อเดือนก่อน")
+  const trueNewNames=names.filter(n=>firstOrderByCust[n]&&firstOrderByCust[n]>=curS&&firstOrderByCust[n]<=curE);
+
+  // ----- อันดับลูกค้าเปลี่ยนยังไงเทียบเดือนก่อน (ใช้ยอดของเดือนนั้นๆ ไม่ใช่ยอดสะสม) -----
+  const currMonthTotals={},prevMonthTotals={};
+  currOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';currMonthTotals[n]=(currMonthTotals[n]||0)+Number(o.total);});
+  prevOrders.forEach(o=>{const n=o.customer_name||'ไม่ระบุชื่อ';prevMonthTotals[n]=(prevMonthTotals[n]||0)+Number(o.total);});
+  const currRanked=Object.keys(currMonthTotals).sort((a,b)=>currMonthTotals[b]-currMonthTotals[a]);
+  const prevRanked=Object.keys(prevMonthTotals).sort((a,b)=>prevMonthTotals[b]-prevMonthTotals[a]);
+  const prevRankOf={};
+  prevRanked.forEach((n,idx)=>{prevRankOf[n]=idx+1;});
+  const rankMovement=currRanked.slice(0,10).map((n,idx)=>{
+    const currRank=idx+1;
+    const prevRank=prevRankOf[n];
+    return{name:n,currRank,prevRank:prevRank||null,movement:prevRank?prevRank-currRank:null};
+  });
+
+  // ----- ลูกค้าเงียบผิดปกติ: ใช้ประวัติทั้งหมด ไม่ผูกเดือน (นับถึงวันนี้เสมอ) -----
+  const churnList=[];
+  const freqByName={};
+  const avgBasket={},avgItemsPerOrder={};
+  names.forEach(n=>{
+    const ordersSorted=byCust[n].orders
+      .map(o=>new Date(o.done_at||o.timestamp))
+      .filter(d=>!isNaN(d))
+      .sort((a,b)=>a-b);
+    if(!ordersSorted.length)return;
+    avgBasket[n]=byCust[n].total/byCust[n].orders.length;
+    const totalItems=byCust[n].orders.reduce((s,o)=>s+parseItems(o.items).length,0);
+    avgItemsPerOrder[n]=totalItems/byCust[n].orders.length;
+
+    const lastOrderDate=ordersSorted[ordersSorted.length-1];
+    const daysSinceLast=(now-lastOrderDate)/(1000*60*60*24);
+
+    let normalGap=null;
+    if(ordersSorted.length>=3){
+      const gaps=[];
+      for(let i=1;i<ordersSorted.length;i++) gaps.push((ordersSorted[i]-ordersSorted[i-1])/(1000*60*60*24));
+      gaps.sort((a,b)=>a-b);
+      const mid=Math.floor(gaps.length/2);
+      normalGap=gaps.length%2?gaps[mid]:(gaps[mid-1]+gaps[mid])/2; // median รอบซื้อ ทนทานต่อค่าผิดปกติกว่าค่าเฉลี่ย
+      freqByName[n]=normalGap;
+    }
+
+    const threshold=normalGap!==null?normalGap*2:30; // fallback 30 วันถ้าออเดอร์ไม่ถึง 3 ครั้ง (ยังคำนวณรอบซื้อปกติแบบเชื่อถือได้ไม่ได้)
+    if(daysSinceLast>threshold){
+      churnList.push({name:n,daysSinceLast:Math.round(daysSinceLast),normalGap:normalGap?Math.round(normalGap):null,ratio:normalGap?(daysSinceLast/normalGap):null});
+    }
+  });
+  churnList.sort((a,b)=>b.daysSinceLast-a.daysSinceLast); // เรียงจากห่างนานสุดไปน้อยสุด
+
+  const topLTV=names.slice().sort((a,b)=>byCust[b].total-byCust[a].total).slice(0,10);
+  const topBasket=names.slice().filter(n=>avgBasket[n]!==undefined).sort((a,b)=>avgBasket[b]-avgBasket[a]).slice(0,10);
+
+  const dbScrollBtn=id=>`onclick="(function(){var t=document.getElementById('${id}');var h=document.querySelector('.admin-sticky-wrap');var off=h?h.offsetHeight:0;window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-off-12,behavior:'smooth'});})()"`;
+  const statCards=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+    <div ${dbScrollBtn('db-cust-all')} style="cursor:pointer;background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
+    <div ${dbScrollBtn('db-cust-new')} style="cursor:pointer;background:#eaf3de;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#3B6D11">${trueNewNames.length}</div><div style="font-size:10.5px;color:#3B6D11;margin-top:2px">ใหม่เดือนนี้</div></div>
+    <div ${dbScrollBtn('db-cust-churn')} style="cursor:pointer;background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
+  </div>`;
+
+  // รายชื่อใหม่/หายไปของเดือนที่เลือก
+  const monthListCard=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div id="db-cust-new" style="background:#eaf3de;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#3B6D11;margin-bottom:8px">🆕 ลูกค้าใหม่เดือนนี้ (${trueNewNames.length})</div>
+      ${trueNewNames.length?trueNewNames.map(n=>`<div style="font-size:12px;color:#333;padding:4px 0">${n}</div>`).join(''):'<div style="font-size:12px;color:#aaa">ไม่มีลูกค้าใหม่ในเดือนนี้</div>'}
+    </div>
+    <div style="background:#fdf6e8;border-radius:10px;padding:12px">
+      <div style="font-size:12.5px;font-weight:600;color:#854F0B;margin-bottom:8px">📉 หายไปเดือนนี้ (${monthDecomp.churnedNames.length})</div>
+      <div style="font-size:10.5px;color:#a68556;margin-bottom:6px">ซื้อเดือนก่อนแต่เดือนนี้ยังไม่มีออเดอร์เลย</div>
+      ${monthDecomp.churnedNames.length?monthDecomp.churnedNames.map(x=>`<div style="font-size:12px;color:#333;padding:4px 0">${x.name} <span style="color:#aaa">(เดือนก่อน ฿${fmtMoney(x.total)})</span></div>`).join(''):'<div style="font-size:12px;color:#aaa">ไม่มี</div>'}
+    </div>
+  </div>`;
+
+  const churnCard=churnList.length?`<div id="db-cust-churn" style="background:#fceaea;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#A32D2D;margin-bottom:4px">⚠️ ลูกค้าเงียบนานผิดปกติ (นับถึงวันนี้ ไม่ผูกกับเดือนที่เลือก)</div>
+    <div style="font-size:10.5px;color:#c07272;margin-bottom:8px">เรียงจากห่างนานสุดก่อน · ตัวเลขในวงเล็บ = ห่างเกินกว่ารอบซื้อปกติกี่เท่า (ยิ่งมาก ยิ่งผิดปกติ)</div>
+    ${churnList.map(c=>`<div style="font-size:12px;color:#333;padding:5px 0;border-bottom:0.5px solid #f3d9d9">
+      ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:'(ออเดอร์ยังน้อย ใช้เกณฑ์คงที่ 30 วัน)'}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)} เท่าของปกติ)`:''}
+    </div>`).join('')}
+  </div>`:`<div id="db-cust-churn" style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#D64109">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
+
+  const trendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าใหม่ต่อเดือน (6 เดือนล่าสุด)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">นับจากลูกค้าที่มีออเดอร์แรกสุดเกิดขึ้นในเดือนนั้นๆ (เพิ่งถูกพาเข้าแอป)</div>
+    ${renderDashboardNewCustomerTrend(dbSalesMonth,firstOrderByCust)}
+  </div>`;
+
+  const rankMovementCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">อันดับลูกค้าเปลี่ยนแปลง (เทียบเดือนก่อน)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">จัดอันดับตามยอดซื้อ "ของเดือนนั้นๆ" เท่านั้น (ไม่ใช่ยอดสะสม) — Top 10 ของเดือนนี้</div>
+    ${rankMovement.length?rankMovement.map(r=>{
+      let badge;
+      if(r.movement===null) badge=`<span style="color:#5a67c9;font-size:11px">🆕 ไม่ติดอันดับเดือนก่อน</span>`;
+      else if(r.movement>0) badge=`<span style="color:#3B6D11;font-size:11px">▲ ขึ้น ${r.movement} อันดับ (จาก #${r.prevRank})</span>`;
+      else if(r.movement<0) badge=`<span style="color:#A32D2D;font-size:11px">▼ ลง ${Math.abs(r.movement)} อันดับ (จาก #${r.prevRank})</span>`;
+      else badge=`<span style="color:#999;font-size:11px">↔ เท่าเดิม</span>`;
+      return`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:0.5px solid #eee">
+        <span>#${r.currRank} ${r.name}</span>${badge}
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูลในเดือนนี้</div>'}
+  </div>`;
+
+  const ltvCard=`<div id="db-cust-all" style="background:#faf8f5;border-radius:10px;padding:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าอันดับต้น</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">เรียงตามยอดสะสมทั้งหมดตั้งแต่เริ่มเป็นลูกค้าในแอป (มาก→น้อย)</div>
+    ${topLTV.length?topLTV.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topLTV.length-1?'border-bottom:0.5px solid #eee':''}">
+      <span>${idx+1}. ${n}${freqByName[n]?` <span style="color:#aaa">· ทุก ~${Math.round(freqByName[n])} วัน</span>`:''}</span>
+      <span style="font-weight:500;color:#D64109">฿${fmtMoney(byCust[n].total)}</span>
+    </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
+  </div>`;
+
+  const basketCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-top:12px">
+    <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ขนาดตะกร้าเฉลี่ยต่อครั้ง (Basket Size)</div>
+    <div style="font-size:10.5px;color:#999;margin-bottom:8px">ยอดเฉลี่ยและจำนวนสินค้าเฉลี่ยต่อออเดอร์ของลูกค้าแต่ละเจ้า — ต่างจาก "อันดับยอดสะสม" เพราะบางเจ้าซื้อไม่บ่อยแต่ซื้อทีละเยอะ</div>
+    ${topBasket.length?topBasket.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topBasket.length-1?'border-bottom:0.5px solid #eee':''}">
+      <span>${idx+1}. ${n} <span style="color:#aaa">· ${byCust[n].orders.length} ออเดอร์ · เฉลี่ย ${avgItemsPerOrder[n].toFixed(1)} รายการ/ครั้ง</span></span>
+      <span style="font-weight:500;color:#D64109">฿${fmtMoney(avgBasket[n])}/ครั้ง</span>
+    </div>`).join(''):'<div style="font-size:12px;color:#aaa">ยังไม่มีข้อมูล</div>'}
+  </div>`;
+
+  return statCards+trendCard+monthListCard+churnCard+rankMovementCard+ltvCard+basketCard;
+}
+
+function renderDashboardNewCustomerTrend(monthKey,firstOrderByCust){
+  const[y,m]=monthKey.split('-').map(Number);
+  const months=[];
+  for(let i=5;i>=0;i--){
+    let mm=m-i,yy=y;
+    while(mm<0){mm+=12;yy--;}
+    const[s,e]=monthRange(yy,mm);
+    const count=Object.values(firstOrderByCust).filter(d=>d>=s&&d<=e).length;
+    months.push({y:yy,m:mm,count,current:i===0});
+  }
+  const maxVal=Math.max(1,...months.map(mo=>mo.count));
+  const bars=months.map(mo=>{
+    const pct=Math.max((mo.count/maxVal)*100,mo.count>0?4:0);
+    return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
+      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.count}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+    </div>`;
+  }).join('');
+  return`<div style="height:90px;display:flex;align-items:flex-end;gap:8px">${bars}</div>`;
+}
+
+function onOverviewSearch(val){
+  overviewSearchTerm=val;
+  renderAdminOverview();
+  const input=document.getElementById('overviewSearchInput');
+  if(input){input.focus();input.setSelectionRange(val.length,val.length);}
+}
+
+function toggleOverviewCustomer(name){
+  if(openOverviewCustomers.has(name)) openOverviewCustomers.delete(name);
+  else openOverviewCustomers.add(name);
+  renderAdminOverview();
+}
+
+function toggleItemPicked(rowKey,el){
+  if(pickedItems.has(rowKey)){
+    pickedItems.delete(rowKey);
+    el.classList.remove('picked');
+  }else{
+    pickedItems.add(rowKey);
+    el.classList.add('picked');
+  }
+}
+
+function openImageLightbox(url){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:700;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out';
+  overlay.innerHTML=`<img src="${url}" style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain">`;
+  overlay.onclick=()=>overlay.remove();
+  document.body.appendChild(overlay);
+}
+
+function adminChg(orderId,idx,delta){
+  if(!adminQtys[orderId])return;
+  adminQtys[orderId][idx]=Math.max(0,adminQtys[orderId][idx]+delta);
+  const newQty=adminQtys[orderId][idx];
+  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=newQty;
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  if(order){
+    const items=parseItems(order.items);
+    const item=items[idx];
+    const prodMap=getOrderProdMap(order);
+    const unitPrice=prodMap[item.name]||0;
+    const priceEl=document.getElementById(`ap${orderId}_${idx}`);
+    if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
+  }
+  recalcAdminTotal(orderId);
+}
+
+function getOrderProdMap(order){
+  const group=order&&order.customer_group;
+  const list=group?products.filter(p=>p.group===group):products;
+  const source=list.length?list:products;
+  const prodMap={};
+  source.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
+  return prodMap;
+}
+
+// เหมือน getOrderProdMap แต่เก็บ product object เต็ม (มี image_url ด้วย) ใช้ตอนแสดงรายการในแอดมิน
+// ต้อง group-aware เหมือนกัน ไม่งั้นสินค้าชื่อซ้ำกันข้าม group จะได้ราคาผิด (เช่นไข่นกกระทา)
+function getOrderProdFullMap(order){
+  const group=order&&order.customer_group;
+  const list=group?products.filter(p=>p.group===group):products;
+  const source=list.length?list:products;
+  const prodMap={};
+  source.forEach(p=>{prodMap[p.name]=p;});
+  return prodMap;
+}
+
+function recalcAdminTotal(orderId){
+  const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
+  const prodMap=getOrderProdMap(order);
+  const items=parseItems(order.items);
+  const total=items.reduce((s,item,idx)=>s+(adminQtys[orderId][idx]||0)*(prodMap[item.name]||0),0);
+  const el=document.getElementById('atotal'+orderId);if(el)el.textContent='฿'+fmtMoney(total);
+}
+
+async function saveAdminEdit(orderId){
+  const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
+  const prodMap=getOrderProdMap(order);
+  const items=parseItems(order.items);
+  const newItems=items.map((item,idx)=>({...item,qty:adminQtys[orderId][idx]||0})).filter(i=>i.qty>0);
+  const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
+  const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+  const newTimestamp=new Date().toISOString();
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
+  try{
+    const itemReasons=await promptEditReason(order.items,itemsText);
+    if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> เลิกบันทึกทั้งหมด
+    const result=await postAction({action:'updateOrder',order_id:orderId,items:itemsText,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'saveAdminEdit');
+    if(!result||result.success===false){
+      alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
+      return;
+    }
+    order.items=itemsText;order.total=newTotal;order.timestamp=newTimestamp;
+    const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+    const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+    order.itemEditNotes=order.itemEditNotes||{};
+    Object.keys(itemReasons).forEach(name=>{
+      order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+    });
+    renderAdminOrders();
+    showToast('บันทึกการแก้ไขเรียบร้อย ✓');
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{adminEditBusy=false;}
+}
+
+async function markDone(orderId,btnEl){
+  // [เพิ่ม 15 ก.ย. 69] เดิมปุ่มนี้ไม่มี loading state เลย — ระหว่างรอ (refresh products/prompt เหตุผล/
+  // ยิง updateOrder+updateDelivery ซึ่งช้าได้หลายวินาทีโดยเฉพาะช่วงเน็ต/backend ไม่นิ่ง) หน้าจอดูเหมือนค้าง
+  // เฉยๆ ไม่มีสัญญาณอะไรเลย ทำให้พนักงานคิดว่ากดไม่ติด/ไม่ทำงาน แล้วกดซ้ำ กลายเป็นยิง markDone() ซ้อนกัน
+  // 2 รอบพร้อมกันจริงๆ (คนละ call stack แยกกัน ไม่ใช่แค่ UI เด้ง) เสี่ยงข้อมูลชนกัน — กันซ้ำด้วยการเช็ค
+  // disabled ก่อนเริ่ม + ปิดปุ่มเปลี่ยนข้อความทันทีให้เห็นชัดว่ากำลังทำงานอยู่ ไม่ใช่ค้าง
+  if(btnEl&&btnEl.disabled) return;
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  // กัน auto-refresh (ทุก 30 วิ) แทรกทับข้อมูลระหว่างรอแอดมินพิมพ์เหตุผล/บันทึก — เดิมไม่มีการกันตรงนี้เลย
+  // ทำให้บางครั้งข้อมูลที่เพิ่งแก้ (เช่นจำนวนที่เพิ่ม/ลด) ถูก auto-refresh ทับด้วยของเก่าก่อนจะโชว้หน้าสรุป
+  // ทั้งที่ backend บันทึกค่าใหม่ถูกต้องอยู่แล้ว (ดู setInterval ของ initAdmin)
+  adminEditBusy=true;
+  try{
+    if(order&&adminQtys[orderId]){
+      const items=parseItems(order.items);
+      const qtyChanged=items.some((item,i)=>adminQtys[orderId][i]!==item.qty);
+      if(qtyChanged){
+        const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
+        products=freshProducts;
+        if(Array.isArray(freshProducts)&&freshProducts.length) cacheSet('products_ALL',freshProducts,30000);
+        const prodMap=getOrderProdMap(order);
+
+        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]})).filter(i=>i.qty>0);
+        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
+        const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+        const newTimestamp=new Date().toISOString();
+        const itemReasons=await promptEditReason(order.items,itemsStr);
+        if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> ยังไม่จัดเสร็จ ยังไม่บันทึกจำนวนใหม่
+        const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'markDone:updateOrder');
+        if(!updateResult||updateResult.success===false){
+          alert('บันทึกจำนวนที่แก้ไขไม่สำเร็จ: '+(updateResult&&updateResult.error?updateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ ยังไม่ได้บันทึกสถานะจัดเสร็จ');
+          return;
+        }
+        order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;
+        // [เพิ่ม 14 ก.ย. 69] เก็บ before/after/เหตุผลของแต่ละรายการที่เพิ่งแก้ไว้ใน order เอง (ไม่ใช่คอลัมน์ในชีต
+        // แค่ใน memory ของหน้านี้) ให้ buildAdminItemsHtml/รายการในแท็บกำลังจัดโชว์โน้ตเล็กๆ ใต้ราคาทันที ทวนดูได้
+        // ก่อนกด "จัดเสร็จแล้ว" รอบสอง — หายไปเองตอน auto-refresh ครั้งถัดไปได้ข้อมูลจริงจากเซิร์ฟเวอร์มาแทน
+        const beforeQtyMap={};items.forEach(i=>{beforeQtyMap[i.name]=i.qty;});
+        const afterQtyMap={};newItems.forEach(i=>{afterQtyMap[i.name]=i.qty;});
+        order.itemEditNotes=order.itemEditNotes||{};
+        Object.keys(itemReasons).forEach(name=>{
+          order.itemEditNotes[name]={before:beforeQtyMap[name]||0,after:afterQtyMap[name]||0,reason:itemReasons[name]};
+        });
+        // [แก้ 14 ก.ย. 69] เดิมพอบันทึกจำนวนที่แก้เสร็จ ไหลต่อไปจัดเสร็จ (updateDelivery done) ทันทีในคลิกเดียว
+        // ไม่มีจังหวะให้แอดมินทวนดูว่าตัวเลข/โน้ตเหตุผลที่เพิ่งแก้ถูกต้องไหมก่อน — ผู้ใช้ยืนยันว่าไม่ต้องการแบบนั้น
+        // แยกเป็น 2 จังหวะ: คลิกนี้บันทึกแค่การแก้ไข ยังอยู่แท็บ "กำลังจัด" เห็นตัวเลขที่แก้แล้วให้ทวนก่อน ต้องกด
+        // "จัดเสร็จแล้ว" อีกครั้ง (ตอนนั้นจะไม่มี diff แล้ว เลยไม่ถามเหตุผลซ้ำ) ถึงจะจัดเสร็จจริง
+        renderAdminOrders();
+        showToast('บันทึกการแก้ไขแล้ว — กด "จัดเสร็จแล้ว" อีกครั้งเพื่อยืนยัน ✓');
+        return;
+      }
+    }
+    const doneResult=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'done'},'markDone:updateDelivery');
+    if(!doneResult||doneResult.success===false){
+      alert('บันทึกสถานะจัดเสร็จไม่สำเร็จ: '+(doneResult&&doneResult.error?doneResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+      return;
+    }
+    if(order){order.delivery_status='done';order.status='done';}
+    renderAdminOrders();showToast('จัดสินค้าเสร็จแล้ว ✓');
+    if(order) showOrderSummary(orderId);
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{
+    adminEditBusy=false;
+    // ปุ่มเดิมอาจถูกแทนที่ไปแล้วจาก renderAdminOrders() ตอนสำเร็จ (คืนค่าปุ่มที่หลุดจาก DOM ไปแล้วไม่มีผลอะไร)
+    // แต่ตอนยกเลิก/error ที่ไม่ได้ re-render ปุ่มเดิมยังอยู่ ต้องคืนสภาพให้กดใหม่ได้ ไม่งั้นค้าง disabled ตลอดไป
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
+}
+
+async function markPacking(orderId,btnEl){
+  if(btnEl&&btnEl.disabled) return; // กันกดซ้ำระหว่างรอ ดูเหตุผลเดียวกับ markDone ด้านบน
+  const originalText=btnEl?btnEl.textContent:null;
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='กำลังบันทึก...';}
+  try{
+    const order=allAdminOrders.find(o=>o.order_id===orderId);
+    const result=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'packing'},'markPacking');
+    if(!result||result.success===false){
+      alert('บันทึกสถานะไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+      return;
+    }
+    if(order){order.delivery_status='packing';}
+    renderAdminOrders();showToast('เริ่มจัดสินค้าแล้ว 🔄');
+  }catch(e){alert('เกิดข้อผิดพลาด');}
+  finally{
+    if(btnEl&&originalText!==null){btnEl.disabled=false;btnEl.textContent=originalText;}
+  }
+}
+
+function showCustomerBill(orderId){
+  showOrderSummary(orderId);
+}
+
+function showOrderSummary(orderId){
+  const order=allAdminOrders.find(o=>o.order_id===orderId)||lastTrackOrders.find(o=>o.order_id===orderId);
+  if(!order)return;
+  const prodMap=getOrderProdMap(order);
+  const items=parseItems(order.items);
+  const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const itemsHtml=items.map(i=>{
+    const unitPrice=prodMap[i.name]||0;
+    const lineTotal=unitPrice*i.qty;
+    return`<div style="display:flex;align-items:baseline;font-size:14px;padding:7px 0;color:#222;border-bottom:1px solid #f0f0f0">
+      <span style="flex:1.7;font-weight:500">${i.name}</span>
+      <span style="flex:0.55;text-align:center;color:#666;font-family:\'Consolas\',\'Courier New\',monospace">×${i.qty}</span>
+      <span style="flex:0.85;text-align:right;color:#666;font-family:\'Consolas\',\'Courier New\',monospace;font-variant-numeric:tabular-nums">${fmt(unitPrice)}</span>
+      <span style="flex:0.85;text-align:right;font-weight:600;color:#222;font-family:\'Consolas\',\'Courier New\',monospace;font-variant-numeric:tabular-nums">${fmt(lineTotal)}</span>
+    </div>`;
+  }).join('');
+  const dateStr=order.timestamp?fmtOrderDateTime(order.timestamp):fmtOrderDateTime(new Date().toISOString());
+  const overlay=document.createElement('div');
+  overlay.id='orderSummaryOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML=`
+    <div style="width:100%;max-width:360px">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button id="summaryCloseBtn" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;width:32px;height:32px;border-radius:50%;cursor:pointer">✕</button>
+      </div>
+      <div id="summaryCardCapture" style="background:#fff;border-radius:0 0 14px 14px;overflow:hidden;font-family:'Sarabun',sans-serif">
+        <div style="background:#D64109;padding:0.9rem 1.25rem 0.5rem;text-align:center;color:#fff">
+          <div style="font-size:18px;font-weight:700;letter-spacing:0.3px;margin-bottom:10px">สรุปคำสั่งซื้อ</div>
+          <img src="/logo-color.png" style="width:160px;margin:0 auto 6px;display:block">
+          <div style="font-size:14.5px;font-weight:500;opacity:0.95;margin-top:14px">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div>
+          <div style="font-size:14.5px;font-weight:500;opacity:0.95;margin-top:4px">โทร. 096-964-2264</div>
+        </div>
+        <div style="padding:1rem 1.25rem 0.5rem;display:flex;justify-content:space-between;font-size:12.5px;color:#888">
+          <span>เลขที่ ${order.order_id}</span>
+          <span>${dateStr}</span>
+        </div>
+        <div style="padding:0 1.25rem;font-size:13.5px;color:#555;margin-bottom:8px">ลูกค้า: ${order.customer_name}</div>
+        <div style="border-top:1px dashed #ccc;margin:0 1.25rem"></div>
+        <div style="padding:10px 1.25rem">
+          <div style="display:flex;font-size:11px;color:#999;margin-bottom:4px;font-weight:500">
+            <span style="flex:1.7">รายการ</span>
+            <span style="flex:0.55;text-align:center">จำนวน</span>
+            <span style="flex:0.85;text-align:right">ราคา/หน่วย</span>
+            <span style="flex:0.85;text-align:right">รวม</span>
+          </div>
+          ${itemsHtml}
+        </div>
+        <div style="border-top:1px dashed #ccc;margin:0 1.25rem"></div>
+        <div style="padding:12px 1.25rem;display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font-size:14.5px;color:#555">ยอดรวม <span style="font-size:12.5px;color:#aaa">(${items.length} รายการ)</span></span>
+          <span style="font-size:25px;font-weight:600;color:#D64109;font-family:\'Consolas\',\'Courier New\',monospace">฿${fmt(Number(order.total))}</span>
+        </div>
+        <div style="background:#faf8f6;padding:10px 1.25rem;text-align:center;font-size:11px;color:#aaa;border-top:0.5px solid #eee">
+          ขอบคุณที่ใช้บริการครับ
+        </div>
+      </div>
+      <button id="summarySaveBtn" style="width:100%;background:#D64109;color:#fff;border:none;border-radius:10px;padding:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">
+        <span style="font-size:18px">⬇</span> บันทึกรูปภาพ
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#summaryCloseBtn').onclick=()=>overlay.remove();
+  overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
+  overlay.querySelector('#summarySaveBtn').onclick=()=>saveSummaryAsImage(order.order_id);
+}
+
+function saveSummaryAsImage(orderId){
+  const btn=document.getElementById('summarySaveBtn');
+  const card=document.getElementById('summaryCardCapture');
+  if(!card)return;
+  btn.textContent='กำลังบันทึก...';btn.disabled=true;
+  if(typeof html2canvas==='undefined'){
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload=()=>doCaptureSummary(card,orderId,btn);
+    document.head.appendChild(script);
+  }else{
+    doCaptureSummary(card,orderId,btn);
+  }
+}
+
+async function doCaptureSummary(card,orderId,btn){
+html2canvas(card,{scale:2,backgroundColor:'#ffffff'}).then(async canvas=>{
+    canvas.toBlob(async (blob)=>{
+      const fileName=orderId+'.png';
+      const resetBtn=()=>{btn.innerHTML='<span style="font-size:18px">⬇</span> บันทึกรูปภาพ';btn.disabled=false;};
+      const file = new File(
+  [blob],
+  fileName,
+  { type: 'image/png' }
+);
+
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+// iOS: ใช้ navigator.share (Safari ไม่รองรับ anchor download)
+if (
+  isIOS &&
+  navigator.share &&
+  navigator.canShare &&
+  navigator.canShare({ files: [file] })
+) {
+  await navigator.share({
+    files: [file],
+    title: fileName
+  });
+}
+// Android / Desktop: เซฟตรงด้วย anchor download (ไม่เด้ง share sheet)
+else {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = fileName;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+      resetBtn();
+      showToast('บันทึกรูปภาพแล้ว ✓');
+    },'image/png');
+  }).catch(()=>{
+    btn.innerHTML='<span style="font-size:18px">⬇</span> บันทึกรูปภาพ';btn.disabled=false;
+    showToast('บันทึกไม่สำเร็จ กรุณาลองใหม่');
+  });
+}
+
+function cancelOrder(orderId){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px 20px;max-width:320px;width:100%;text-align:center">
+    <div style="font-size:25px;margin-bottom:10px">🗑️</div>
+    <div style="font-size:18px;font-weight:600;color:#1a1a1a;margin-bottom:6px">ยกเลิกออร์เดอร์?</div>
+    <div style="font-size:13.5px;color:#888;margin-bottom:20px;line-height:1.5">ออร์เดอร์ <span style="font-family:monospace;color:#555">${orderId}</span> จะถูกยกเลิก</div>
+    <div style="display:flex;gap:10px">
+      <button id="cancelNo" style="flex:1;padding:12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-size:16px;cursor:pointer;color:#555">ไม่ยกเลิก</button>
+      <button id="cancelYes" style="flex:1;padding:12px;border-radius:10px;border:none;background:#A32D2D;color:#fff;font-size:16px;font-weight:500;cursor:pointer">ยืนยันยกเลิก</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#cancelNo').onclick=()=>overlay.remove();
+  overlay.querySelector('#cancelYes').onclick=async()=>{
+    overlay.remove();
+    try{
+      const result=await postAction({action:'cancelOrder',order_id:orderId,customer_id:customer.customer_id},'cancelOrder');
+      if(!result||result.success===false){
+        alert('ยกเลิกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+        return;
+      }
+      showToast('ยกเลิกออร์เดอร์แล้ว');
+    }catch(e){
+      alert('ยกเลิกไม่สำเร็จ กรุณาลองใหม่');
+      return;
+    }
+    await new Promise(r=>setTimeout(r,1000));
+    await loadTrackSection();
+  };
+}
+
+async function openReorderModal(){
+  document.getElementById('reorderModal').style.display='flex';
+  const body=document.getElementById('reorderModalBody');
+  body.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  try{
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
+    if(orders===null) throw new Error('timeout/fetch-failed');
+    const completed=orders.filter(o=>{
+      const ds=o.delivery_status||o.status||'';
+      return ds==='done'||String(ds).toLowerCase().trim()==='done';
+    });
+    const completedSorted=[...completed].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+    reorderOrdersCache=completedSorted.slice(0,3);
+    if(!completed.length){body.innerHTML='<div class="empty-state">ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์</div>';return;}
+    renderReorderList();
+  }catch(e){body.innerHTML='<div class="empty-state">โหลดข้อมูลไม่ได้</div>';}
+}
+
+function renderReorderList(){
+  const body=document.getElementById('reorderModalBody');
+  body.innerHTML=reorderOrdersCache.map(o=>{
+    const items=parseItems(o.items);
+    const dateTimeStr=o.timestamp?fmtOrderDateTime(o.timestamp):'';
+    const datePart=dateTimeStr?dateTimeStr.split(' ')[0]:'';
+    const timePart=dateTimeStr?dateTimeStr.split(' ').slice(1).join(' '):'';
+    return`<div style="background:#fff;border:0.5px solid #e8e2dc;border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;cursor:pointer" onclick="openReorderPicker('${o.order_id}')">
+      <div>
+        <div style="font-size:16px;font-weight:600;color:#1a1a1a">${datePart} <span style="font-weight:400;color:#aaa;font-size:14.5px">${timePart}</span></div>
+        <div style="font-size:11px;font-family:monospace;color:#aaa;margin-top:3px">${o.order_id}</div>
+        <div style="font-size:12.5px;color:#888;margin-top:3px">${items.length} รายการ</div>
+        <div style="font-size:11px;color:#3B6D11;margin-top:4px">เสร็จสมบูรณ์ ✓</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:19px;font-weight:600;color:#D64109">฿${fmtMoney(o.total)}</div>
+        <div style="font-size:12.5px;color:#888;margin-top:6px">สั่งซ้ำ ›</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function closeReorderModal(){
+  document.getElementById('reorderModal').style.display='none';
+  reorderCurrentOrder=null;
+  reorderSelectedIdx=new Set();
+  reorderBackToList=true;
+}
+
+function openReorderPicker(orderId){
+  const order=reorderOrdersCache.find(o=>o.order_id===orderId);
+  if(!order)return;
+  reorderCurrentOrder=order;
+  reorderBackToList=true;
+  const items=parseItems(order.items);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  renderReorderPicker();
+}
+
+function openReorderFromHistory(orderId,itemsEncoded,total,timestamp){
+  const itemsText=decodeURIComponent(itemsEncoded);
+  reorderCurrentOrder={order_id:orderId,items:itemsText,total:Number(total),timestamp:timestamp};
+  reorderBackToList=false;
+  const items=parseItems(itemsText);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  document.getElementById('reorderModal').style.display='flex';
+  renderReorderPicker();
+}
+
+function renderReorderPicker(){
+  const order=reorderCurrentOrder;
+  if(!order)return;
+  const items=parseItems(order.items);
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
+  const rowsHtml=items.map((item,idx)=>{
+    const selected=reorderSelectedIdx.has(idx);
+    const checkboxHtml=selected
+      ?`<div style="width:22px;height:22px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
+      :`<div style="width:22px;height:22px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
+    return`<div onclick="toggleReorderItem(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 8px;border-bottom:1px solid #f5f5f5;border-radius:8px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">${checkboxHtml}<span style="font-size:15.5px;color:#1a1a1a">${item.name}</span></div>
+      <span style="font-size:14.5px;color:#D64109;font-weight:500;flex-shrink:0;margin-left:8px">x${item.qty}</span>
+    </div>`;
+  }).join('');
+  const selectedCount=reorderSelectedIdx.size;
+  let selectedTotal=0;
+  items.forEach((item,idx)=>{
+    if(!reorderSelectedIdx.has(idx))return;
+    const prod=prodMap[item.name];
+    selectedTotal+=(prod?Number(prod.price)||0:0)*item.qty;
+  });
+  const disabled=selectedCount===0;
+  document.getElementById('reorderModalBody').innerHTML=`
+    <button onclick="${reorderBackToList?'renderReorderList()':'closeReorderModal()'}" style="background:none;border:none;color:#888;font-size:13.5px;cursor:pointer;padding:0;margin-bottom:10px">‹ ${reorderBackToList?'กลับไปเลือกออเดอร์อื่น':'กลับ'}</button>
+    <div style="font-size:12.5px;color:#aaa;margin-bottom:2px">${order.order_id} · ${order.timestamp?fmtOrderDateTime(order.timestamp):''}</div>
+    <div style="font-size:12.5px;color:#888;margin:8px 0 4px;display:flex;justify-content:space-between;align-items:center">
+      <span>แตะรายการที่ไม่ต้องการเพื่อตัดออก</span>
+      <span style="flex-shrink:0;margin-left:8px">
+        <button onclick="reorderSelectAll()" style="background:none;border:none;color:#D64109;font-size:12.5px;cursor:pointer;padding:0;font-weight:500">เลือกทั้งหมด</button>
+        <span style="color:#ddd">|</span>
+        <button onclick="reorderDeselectAll()" style="background:none;border:none;color:#888;font-size:12.5px;cursor:pointer;padding:0">ไม่เลือกทั้งหมด</button>
+      </span>
+    </div>
+    <div>${rowsHtml}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:8px;border-top:1px solid #f0f0f0">
+      <div>
+        <div style="font-size:12.5px;color:#888">${selectedCount} รายการที่เลือก</div>
+        <div style="font-size:18px;font-weight:600;color:#D64109">฿${fmtMoney(selectedTotal)}</div>
+      </div>
+      <button onclick="applyReorderSelected()" ${disabled?'disabled':''} style="padding:11px 22px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer;${disabled?'opacity:0.5;cursor:not-allowed':''}">เพิ่มลงตะกร้า</button>
+    </div>`;
+}
+
+function toggleReorderItem(idx){
+  if(reorderSelectedIdx.has(idx)) reorderSelectedIdx.delete(idx);
+  else reorderSelectedIdx.add(idx);
+  renderReorderPicker();
+}
+
+function reorderSelectAll(){
+  const items=parseItems(reorderCurrentOrder.items);
+  reorderSelectedIdx=new Set(items.map((item,idx)=>idx));
+  renderReorderPicker();
+}
+
+function reorderDeselectAll(){
+  reorderSelectedIdx=new Set();
+  renderReorderPicker();
+}
+
+function applyReorderSelected(){
+  const order=reorderCurrentOrder;
+  if(!order)return;
+  const items=parseItems(order.items);
+  const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
+  let addedCount=0;
+  items.forEach((item,idx)=>{
+    if(!reorderSelectedIdx.has(idx))return;
+    const prod=prodMap[item.name];
+    if(prod){cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};addedCount++;}
+  });
+  closeReorderModal();
+  goSection('shop');
+  renderProducts();
+  updateCart();
+  const toast=document.getElementById('reorderToast');
+  toast.textContent=addedCount?'เติมสินค้าจากออเดอร์เดิมลงตะกร้าแล้ว ✓':'ไม่มีสินค้าที่เลือกถูกเติมลงตะกร้า (สินค้าอาจถูกลบไปแล้ว)';
+  toast.style.display='block';
+  setTimeout(()=>{toast.style.display='none';},4000);
+}
+
+function parseItems(itemsText){
+  if(!itemsText)return[];
+  return itemsText.split(', ').map(item=>{
+    const lastX=item.lastIndexOf(' x');
+    if(lastX===-1)return{name:item,qty:1};
+    const parsed=parseInt(item.substring(lastX+2));
+    return{name:item.substring(0,lastX),qty:isNaN(parsed)?1:parsed};
+  }).filter(i=>i.qty>0);
+}
+
+function statusLabel(s){return{pending:'รอดำเนินการ',slip_uploaded:'รอ verify สลิป',verified:'ยืนยันชำระแล้ว',rejected:'ยอดไม่ตรง',packing:'กำลังจัด',done:'จัดเสร็จแล้ว'}[s]||s;}
+function payLabel(s){return{pending:'ยังไม่จ่าย',slip_uploaded:'รอ verify',verified:'จ่ายแล้ว ✓',rejected:'ยอดไม่ตรง'}[s]||'ยังไม่จ่าย';}
+function delivLabel(s){return{pending:'รอจัด',packing:'กำลังจัด',done:'จัดเสร็จแล้ว ✓',cancelled:'ยกเลิกแล้ว'}[s]||'รอจัด';}
+
+function show(id){
+  ['loading','app','adminApp','errorScreen','confirmScreen','successScreen'].forEach(x=>{
+    const el=document.getElementById(x);
+    if(el)el.style.display=x===id?(x==='successScreen'?'flex':'block'):'none';
+  });
+}
+
+function hide(id){const el=document.getElementById(id);if(el)el.style.display='none';}
+function showError(isNetwork){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('errorTitle').textContent=isNetwork?'เชื่อมต่อไม่ได้':'ไม่พบข้อมูล';
+  document.getElementById('errorMsg').textContent=isNetwork?'สัญญาณอินเทอร์เน็ตอาจมีปัญหา กรุณาลองใหม่อีกครั้ง':'ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ';
+  document.getElementById('errorRetryBtn').style.display=isNetwork?'inline-block':'none';
+  document.getElementById('errorScreen').style.display='flex';
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+/**
+ * ===== ดึงหน้าจอลงเพื่อรีเฟรช (Pull-to-refresh, เพิ่ม 14 ก.ย. 69) =====
+ * เลียนแบบ pattern ของ Facebook/IG — ดึงจอลงจากด้านบนสุดขณะยังไม่ scroll ไปไหน ปล่อยแล้วรีเฟรชข้อมูลของ
+ * หน้าที่กำลังดูอยู่ทันที ไม่ต้องกดปุ่ม/กลับเข้าหน้าใหม่ ใช้ touch events ธรรมดา ไม่พึ่ง library ภายนอก
+ * ทำงานเฉพาะตอน scrollY===0 เท่านั้น (กันชนกับการ scroll ปกติในหน้า) และปิดใช้งานขณะมี modal ใดๆ เปิดอยู่
+ * (editModal/reorderModal/reasonModal/confirmScreen/successScreen) กันดึงจอชนกับการเลื่อนดูเนื้อหาใน modal
+ */
+(function initPullToRefresh(){
+  const THRESHOLD=68;
+  let startY=null,pulling=false,refreshing=false;
+  const indicator=document.createElement('div');
+  indicator.id='pullRefreshIndicator';
+  indicator.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#D64109;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);z-index:9999;transition:height .12s ease-out';
+  indicator.textContent='↓ ดึงลงเพื่อรีเฟรช';
+  document.body.appendChild(indicator);
+
+  function anyModalOpen(){
+    return ['editModal','reorderModal','reasonModal','confirmScreen','successScreen'].some(id=>{
+      const el=document.getElementById(id);
+      return el&&getComputedStyle(el).display!=='none';
+    });
+  }
+
+  document.addEventListener('touchstart',e=>{
+    if(refreshing||anyModalOpen()||window.scrollY>0){startY=null;pulling=false;return;}
+    startY=e.touches[0].clientY;
+    pulling=true;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!pulling||startY===null||refreshing) return;
+    if(window.scrollY>0||anyModalOpen()){pulling=false;indicator.style.height='0px';return;}
+    const dy=e.touches[0].clientY-startY;
+    if(dy<=0){indicator.style.height='0px';return;}
+    const h=Math.min(dy*0.5,THRESHOLD+20);
+    indicator.style.height=h+'px';
+    indicator.textContent=h>=THRESHOLD?'↑ ปล่อยเพื่อรีเฟรช':'↓ ดึงลงเพื่อรีเฟรช';
+  },{passive:true});
+
+  document.addEventListener('touchend',async()=>{
+    if(!pulling||refreshing){pulling=false;return;}
+    const h=parseInt(indicator.style.height,10)||0;
+    pulling=false;
+    if(h<THRESHOLD){indicator.style.height='0px';return;}
+    refreshing=true;
+    indicator.textContent='กำลังรีเฟรช...';
+    indicator.style.height='40px';
+    try{await runPullRefresh();}catch(e){/* ปล่อยผ่าน ไม่ต้อง alert ผู้ใช้ระหว่างรีเฟรชเงียบๆ */}
+    indicator.style.height='0px';
+    refreshing=false;
+  });
+
+  // เลือกฟังก์ชันรีเฟรชตามหน้าที่กำลังแสดงอยู่จริง — ใช้ getComputedStyle แทน inline style เพราะบางหน้า
+  // (เช่น #app/#adminApp) ไม่เคยตั้ง inline style display มาก่อนจนกว่า show() จะถูกเรียกครั้งแรก
+  async function runPullRefresh(){
+    const adminVisible=getComputedStyle(document.getElementById('adminApp')).display!=='none';
+    if(adminVisible){
+      if(adminCurrentTab==='overview'){allAdminOrdersFull=null;await fetchFullAdminOrders();renderAdminOverview();}
+      else{await loadAdminOrders();}
+      await loadBusinessNotes();
+      return;
+    }
+    const appVisible=getComputedStyle(document.getElementById('app')).display!=='none';
+    if(appVisible){
+      const trackVisible=getComputedStyle(document.getElementById('trackSection')).display!=='none';
+      const shopVisible=getComputedStyle(document.getElementById('shopSection')).display!=='none';
+      if(trackVisible){await loadTrackSection();return;}
+      if(shopVisible){await loadProducts();return;}
+    }
+  }
+})();
+</script>
+<!-- Confirm Screen (outside app) -->
+<div id="confirmScreen" style="display:none;min-height:100vh;background:#f5f3f0;flex-direction:column">
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button onclick="backToShop()" style="background:none;border:none;color:#fff;font-size:22.5px;cursor:pointer;padding:0;line-height:1">←</button>
+      <div class="header-name" style="font-size:20px">ยืนยันคำสั่งซื้อ</div>
+    </div>
+  </div>
+  <div style="padding:12px;max-width:600px;margin:0 auto;width:100%">
+    <div class="s-card">
+      <div class="s-card-title">Order ID: <span id="confirmOid" style="font-family:monospace"></span></div>
+      <div class="s-card-title" style="margin-top:8px">รายการสินค้า <span id="confirmItemCount" style="color:#aaa;font-weight:400"></span></div>
+      <div id="confirmItems"></div>
+      <div class="s-total-row"><span>ยอดรวม</span><span id="confirmTotal">฿0</span></div>
+    </div>
+    <div class="s-card">
+      <div class="s-card-title">โน้ตถึงร้าน <span style="color:#aaa">(ไม่บังคับ)</span></div>
+      <textarea id="orderNote" placeholder="เช่น ขอแพ็คแยกถุง, ส่งช่วงบ่าย..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:10px;font-size:14.5px;resize:none;height:80px;font-family:inherit"></textarea>
+    </div>
+    <button class="btn-order" id="btnConfirm" onclick="placeOrder()" style="width:100%;padding:14px;font-size:17px;border-radius:12px;margin-top:4px">✓ ยืนยันสั่งซื้อ</button>
+  </div>
+</div>
+
+<!-- Success Screen (outside app) -->
+<div id="successScreen" style="display:none;min-height:100vh;background:#f5f3f0;flex-direction:column">
+  <div class="success-top">
+    <div class="success-icon">✅</div>
+    <div class="success-title">สั่งซื้อสำเร็จ!</div>
+    <div class="success-oid" id="successOid"></div>
+  </div>
+  <div class="success-body">
+    <div class="s-card">
+      <div class="s-card-title">รายการที่สั่ง</div>
+      <div id="successItems"></div>
+    </div>
+    <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:14.5px;font-weight:600;color:#D64109">✅ ทางร้านได้รับคำสั่งซื้อแล้วครับ</span>
+      </div>
+      <div id="successMsg" style="font-size:13.5px;color:#993C1D;line-height:1.7"></div>
+    </div>
+    <div class="s-card">
+      <div class="s-card-title">สถานะออเดอร์</div>
+      <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว</div></div><div class="s-time" id="successTime"></div></div>
+      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">กำลังจัดสินค้า</div></div></div>
+      <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#aaa">จัดเสร็จแล้ว</div></div></div>
+    </div>
+    <button onclick="show('app');goHome()" style="width:100%;padding:14px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px">
+      🏠 กลับหน้าหลัก
+    </button>
+    <button onclick="show('app');goSection('track')" style="width:100%;padding:9px;background:none;border:none;font-size:13.5px;color:#aaa;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
+      <span style="font-size:14.5px">✏️</span> แก้ไขออเดอร์นี้
+    </button>
+    <div class="copy-toast" id="copyToast">คัดลอกแล้ว ✓</div>
+    <div style="text-align:center;font-size:12.5px;color:#aaa;margin-top:4px">ซามูไรไส้กรอก</div>
+  </div>
+</div>
+
 </body>
 </html>
