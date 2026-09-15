@@ -772,3 +772,16 @@ function batchUpsertProductAlias(supplierId, items, staffName, ts) {
   invalidateProductAliasCache(supplierId);
   return learnedCount;
 }
+
+/* ============ keepWarm ============ */
+// เจอจริง 15 ก.ย. 69: หน้า "บิลรอตรวจสอบ" ครั้งแรกที่เปิดในรอบ (ไม่มี sessionStorage cache) ยังค้างที่
+// "กำลังโหลด..." นานผิดปกติ ทั้งที่ Code.gs หลักได้ keepWarm() ไปแล้วในวันเดียวกัน — สาเหตุคือ
+// BillCapture-Code.gs เป็นโปรเจกต์ Apps Script แยกต่างหาก (ดูคำอธิบายหัวไฟล์) คนละโควต้า/คนละ cold-start
+// กับโปรเจกต์หลัก ตัว keepWarm() ของ Code.gs ช่วยแค่โปรเจกต์หลักเท่านั้น ไม่ครอบคลุมโปรเจกต์นี้เลย เพิ่ม
+// keepWarm() ของตัวเองที่นี่ (mirror ฟังก์ชันเปล่าๆ เดียวกัน ไม่แตะ Sheet/Cache/Lock ใดๆ) — ต้องตั้ง
+// time-driven trigger แยกต่างหากใน Apps Script Editor ของโปรเจกต์ "Samurai BillCapture" เอง (คนละโปรเจกต์
+// กับที่ตั้ง keepWarm ของ Code.gs หลักไปแล้ว อย่าเข้าใจผิดว่าตั้งที่เดียวพอ): Triggers → Add Trigger →
+// keepWarm → Time-driven → Minutes timer → Every 5 minutes → Save
+function keepWarm() {
+  Logger.log('[keepWarm] ' + new Date().toISOString());
+}
