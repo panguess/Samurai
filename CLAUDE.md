@@ -1189,6 +1189,35 @@ Executions log** (ผู้ใช้ไม่สะดวกเช็คตอ�
 - ยังไม่ได้ทดสอบ `keepWarm` trigger (จากอัปเดต 13 ก.ย.) ว่าช่วยจริงไหมกับ incident รอบนี้ — ควรถามผลถ้ายังไม่ถูก
   บอกตอนเริ่ม session ถัดไป
 
+### สถานะล่าสุด (อัปเดต 15 ก.ย. 69 — ต่อ 2) — cache `getAdminOrdersFull` + ขยาย timeout กัน error หน้าภาพรวม
+
+**บริบท**: ผู้ใช้รายงาน error `getAdminOrdersFull: หมดเวลาเชื่อมต่อ (timeout)` ตอนเปิดแท็บ "ภาพรวม" ของหน้าแอดมิน
+(สกรีนช็อตจาก iPad, production `samurai-murex.vercel.app`) — ระบุสาเหตุ: `getAdminOrdersFull()` query ทั้งชีต
+ทุกปีไม่กรองช่วงวันที่เลยทุกครั้งที่เปิดแท็บนี้ (ต่างจาก `getAdminOrders` ที่กรอง 60 วันแล้วตั้งแต่ 7 ก.ย. 69) บวกกับ
+cold-start ของ Apps Script (ปัญหาเดิมที่บันทึกไว้ซ้ำหลายรอบในไฟล์นี้) ทำให้ client timeout เดิม (20 วิ) หลุดบ่อย
+
+**แก้แล้ว push+deploy แล้วทั้งคู่**:
+- `order-app-Code.gs`/`getAdminOrdersFull()`: เพิ่ม `CacheService.getScriptCache()` cache ผลลัพธ์ไว้ 120 วิ
+  (`ADMIN_ORDERS_FULL_CACHE_KEY`/`ADMIN_ORDERS_FULL_CACHE_TTL_SEC`) — ข้ามไปเงียบๆ ไม่ cache ถ้า JSON ยาวเกิน
+  100KB (ข้อจำกัดของ `CacheService` เอง) ไม่ error แค่เสียประโยชน์แคชไปสำหรับร้านที่ข้อมูลใหญ่มากๆ
+- `index.html`/`fetchFullAdminOrders()`: ขยาย timeout จาก 20 วิ → 35 วิ เผื่อ cold start
+- **ตอน push เจอ remote มีคอมมิตใหม่จากอีก session** (งานฝั่งแอปเช็คสต๊อก 5 คอมมิต — `syncProductUnits` trigger,
+  `keepWarm()`, perf หน้าสั่งของ) merge อัตโนมัติสำเร็จไม่มี conflict เพราะคนละไฟล์กัน (ตรวจสอบแล้วว่าโค้ดที่แก้ยัง
+  อยู่ครบถูกต้องหลัง merge)
+- **เจอปัญหาระหว่าง deploy**: ไฟล์ `order-app-Code.gs` ที่ส่งให้ผู้ใช้รอบแรกทาง SendUserFile ถูกส่ง**ก่อน** merge
+  ข้างต้น ทำให้เป็นเวอร์ชันเก่าที่ไม่มีการเปลี่ยนแปลงจาก session อื่น (`keepWarm()`, ฟีเจอร์เหตุผลแก้ไขออเดอร์,
+  `OrderEditLog`) วางทับแล้วชน syntax error ที่ Apps Script Editor (`SyntaxError: Invalid or unexpected token`)
+  — แก้โดยส่งไฟล์เวอร์ชันล่าสุด (หลัง merge) ให้ใหม่ พร้อมย้ำให้ Ctrl+A ลบโค้ดเดิมทั้งหมดก่อนวางทับ (ไม่ใช่วางแทรก/
+  วางทับบางส่วน) — deploy สำเร็จแล้ว **ผู้ใช้ยืนยันแล้วว่า deploy แล้ว**
+
+⚠️ **บทเรียนสำหรับ session ถัดไป**: ถ้า `git push` เจอ remote มีคอมมิตใหม่จากอีก session ระหว่างทำงาน
+(โดยเฉพาะที่แตะ `order-app-Code.gs`/`Code.gs` ร่วมกัน) **ต้อง merge เสร็จเรียบร้อยก่อน แล้วค่อยส่งไฟล์ `.gs` ให้ผู้ใช้
+ทาง SendUserFile เสมอ** อย่าส่งไฟล์ก่อน merge เด็ดขาด ไม่งั้นไฟล์ที่ส่งจะเป็นเวอร์ชันเก่ากว่าที่ push จริงและทำให้
+ผู้ใช้ deploy โค้ดที่ไม่ครบ/ชนกับของเดิมในหน้า Editor
+
+⚠️ **ยังไม่ได้รับการยืนยันผลจริงว่า error timeout หายไปแล้วหรือไม่** — เพิ่งยืนยันแค่ deploy สำเร็จไม่มี syntax error
+เท่านั้น ถ้าคุยเรื่องนี้ต่อให้ถามผลทดสอบจริง (เปิดแท็บภาพรวมอีกครั้งหลัง deploy) ก่อนเป็นอันดับแรก
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
