@@ -2524,8 +2524,13 @@ async function renderSupplierList(app){
     statusList = stockStatusCache;
   } else {
     renderLoading(app, 'กำลังโหลดสถานะร้าน...');
-    try{ statusList = await getStockStatus(); }
-    catch(err){ app.innerHTML = `<div class="empty-state" style="color:var(--danger);">โหลดสถานะไม่สำเร็จ: ${err.message}</div>`; return; }
+    // 17 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที (ต้องกดย้อนกลับแล้วเข้าใหม่เอง) — เปลี่ยนเป็นวนลอง
+    // เงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/renderSupplierCheck() แทน (getStockStatus เป็นแค่ read-only
+    // ลองซ้ำได้ไม่จำกัดโดยไม่มีความเสี่ยงข้อมูลซ้ำซ้อน)
+    for(;;){
+      try{ statusList = await getStockStatus(); break; }
+      catch(err){ await new Promise(r=> setTimeout(r, 3000)); }
+    }
   }
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
