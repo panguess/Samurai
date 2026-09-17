@@ -485,6 +485,18 @@ function callGeminiOnce(url, payload) {
   const code = res.getResponseCode();
   let json;
   try { json = JSON.parse(res.getContentText()); } catch (e) { throw new Error('Gemini ตอบกลับมาไม่ใช่ JSON ที่ใช้ได้'); }
+  // 429 = โควต้า Gemini free tier เต็ม — เจอจริง 17 ก.ย. 69 (limit: 20, retryDelay ที่ Google ส่งมาแค่ไม่กี่วิ
+  // ยืนยันว่าเป็นโควต้าต่อนาที ไม่ใช่ต่อวัน) โควต้านี้นับรวมทั้งร้าน (คนละบัญชีจากที่ใช้แอปแยกต่างหาก แต่ share
+  // API key เดียวกัน) มาร์ค [QUOTA] ให้ frontend แยกแสดงข้อความเข้าใจง่ายกว่า error ดิบของ Gemini + แนบ
+  // retryDelay ที่ Google บอกมา (ถ้ามี) ให้ callGemini() ใช้ตั้งเวลาลองซ้ำให้เหมาะสมกว่าการรอ 3 วิเฉยๆ
+  if (code === 429) {
+    const err = new Error('[QUOTA] Gemini API error (429): ' + (json.error && json.error.message || res.getContentText()));
+    err.isQuotaError = true;
+    const details = (json.error && json.error.details) || [];
+    const retryInfo = details.find(d => d['@type'] && String(d['@type']).indexOf('RetryInfo') !== -1);
+    err.retryDelayMs = retryInfo ? Math.ceil(parseFloat(retryInfo.retryDelay) * 1000) : 0;
+    throw err;
+  }
   if (code !== 200) throw new Error('Gemini API error (' + code + '): ' + (json.error && json.error.message || res.getContentText()));
   const text = json.candidates && json.candidates[0] && json.candidates[0].content &&
     json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text;
@@ -508,7 +520,14 @@ function callGemini(parts) {
   try {
     return callGeminiOnce(url, payload);
   } catch (firstErr) {
-    Utilities.sleep(3000);
+    // โควต้าเป็นแบบต่อนาที (RPM) รอ 3 วิเหมือนเดิมไม่พอ เพราะยังอยู่ในหน้าต่างเดียวกัน ยิงซ้ำทันทีมีแต่จะไป
+    // แย่งคิวที่เต็มอยู่แล้วซ้ำเติมเปล่าๆ — รอนานขึ้น (อย่างน้อย 12 วิ หรือตามที่ Google บอกมาบวกเผื่อ 2 วิ)
+    // ให้หน้าต่างมีโอกาสว่างก่อนลองรอบสุดท้าย ส่วน error อื่น (503/parse ไม่ได้) ยังรอ 3 วิเหมือนเดิม —
+    // จำกัดเพดานไว้ที่ 30 วิ กัน retryDelay ที่ Google อาจส่งมายาวผิดปกติ (เช่นถ้าเป็นโควต้ารายวันจริงๆ)
+    // ทำให้ Utilities.sleep() รอนานจนชน execution limit ของ Apps Script (6 นาที) หรือ timeout ฝั่งเว็บ (270 วิ)
+    // พังด้วย error ที่งงกว่าเดิมแทนที่จะได้ข้อความ "โควต้าเต็ม" ที่ชัดเจน
+    const waitMs = firstErr.isQuotaError ? Math.min(Math.max((firstErr.retryDelayMs || 0) + 2000, 12000), 30000) : 3000;
+    Utilities.sleep(waitMs);
     try {
       return callGeminiOnce(url, payload);
     } catch (secondErr) {

@@ -572,10 +572,28 @@ async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAtt
     try{ return await apiPost(action, payload, false, timeoutMs, baseUrl); }
     catch(err){
       lastErr = err;
+      // เจอจริง 17 ก.ย. 69: โควต้า Gemini free tier เต็ม (backend มาร์ค [QUOTA] ไว้ — ดู callGeminiOnce ใน
+      // BillCapture-Code.gs) เป็น error ที่ backend ยืนยันแล้วจริงๆ ว่าคำขอไม่ผ่าน ไม่ใช่แค่การเชื่อมต่อหลุด —
+      // ต่างจาก error อื่นที่ฟังก์ชันนี้ถูกออกแบบมาให้ลองซ้ำ (Load failed/timeout) ยิงซ้ำถี่ๆ อีก 2-3 ครั้ง
+      // มีแต่จะไปแย่งโควต้าที่มีจำกัดอยู่แล้ว (ต่อนาที รวมทั้งร้าน) ซ้ำเติมเปล่าๆ เจอแล้วหยุดทันที ไม่ลองซ้ำต่อ
+      if(String(err.message||'').indexOf('[QUOTA]') !== -1) throw err;
       if(attempt<maxAttempts) await new Promise(r=> setTimeout(r, 2000)); // เว้นจังหวะสั้นๆ ให้เน็ตนิ่งก่อนลองใหม่
     }
   }
   throw lastErr;
+}
+// error ที่มี marker [QUOTA] มาจาก backend (callGeminiOnce เจอ Gemini 429) — แปลข้อความดิบของ Gemini
+// (เต็มไปด้วยศัพท์เทคนิค/ลิงก์ billing) เป็นข้อความที่พนักงานเข้าใจและรู้ว่าต้องทำอะไรต่อ ใช้ร่วมกันทั้ง 3
+// จุดที่เรียก analyzeBillPhoto/analyzeBillBatch แล้วต้องโชว์ error ให้คนเห็น
+function friendlyBillError(err){
+  const msg = String(err && err.message || '');
+  if(msg.indexOf('[QUOTA]') !== -1){
+    return {
+      title: 'AI อ่านบิลเต็มคิวชั่วคราว',
+      detail: 'อาจมีคนถ่ายบิลพร้อมกันหลายคน หรือถ่ายติดกันถี่เกินไปในเวลาสั้นๆ กรุณารอสัก 1 นาทีแล้วกด "ลองใหม่" อีกครั้ง',
+    };
+  }
+  return { title: null, detail: msg };
 }
 
 /* ============ product photo match screen ============ */
@@ -1467,9 +1485,10 @@ function renderBillAnalyzing(app){
       // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
       // ยืนยันว่า backend สำเร็จทุกครั้ง (ไม่มี [analyzeBillPhoto] prefix แปลว่าพังฝั่ง client ตอนประมวลผล
       // response ไม่ใช่ backend) โชว์ stack trace ชั่วคราวเพื่อไล่หาบรรทัดที่พังจริงจากอุปกรณ์จริง
+      const fe = friendlyBillError(err);
       c.querySelector('.analyzing-wrap').innerHTML = `
-        <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">อ่านบิลไม่สำเร็จ</p>
-        <p style="margin-bottom:16px;">${err.message}</p>
+        <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">${fe.title || 'อ่านบิลไม่สำเร็จ'}</p>
+        <p style="margin-bottom:16px;">${fe.detail}</p>
         ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
         <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
         <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
@@ -1496,9 +1515,10 @@ function renderBillBatchAnalyzing(app){
   app.appendChild(c);
 
   function showError(err){
+    const fe = friendlyBillError(err);
     c.querySelector('.analyzing-wrap').innerHTML = `
-      <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">แยกบิลไม่สำเร็จ</p>
-      <p style="margin-bottom:16px;">${err.message}</p>
+      <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">${fe.title || 'แยกบิลไม่สำเร็จ'}</p>
+      <p style="margin-bottom:16px;">${fe.detail}</p>
       ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
       <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
       <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
@@ -2327,7 +2347,8 @@ function renderBillBatchRegroup(app){
       go('billBatchReview');
     }catch(err){
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
-      alert('วิเคราะห์ไม่สำเร็จ: ' + err.message);
+      const fe = friendlyBillError(err);
+      alert(fe.title ? (fe.title + '\n' + fe.detail) : ('วิเคราะห์ไม่สำเร็จ: ' + fe.detail));
     }
   };
 }
