@@ -179,6 +179,11 @@ function isValidAdminKey(key) {
 
 function doGet(e) {
   const action = e.parameter.action;
+  // [เพิ่ม 18 ก.ย. 69] เดิม Executions log โชว์แค่ "doGet"/"doPost" เฉยๆ ไม่บอกว่าเป็น action ไหน/parameter
+  // อะไร — ไล่บั๊กยอดออเดอร์ไม่ตรงกัน (12 ก.ย. 69) และบั๊กแจ้งเตือนจัดเสร็จซ้ำ (18 ก.ย. 69) ต้องเดาสาเหตุจาก
+  // โค้ดล้วนๆ เพราะ log ไม่มีรายละเอียดให้ดูย้อนหลังเลย เพิ่ม log บรรทัดเดียวนี้ไว้ ครั้งหน้าจะเห็นใน
+  // Executions log ทันทีว่าคำขอไหนเป็น action อะไร
+  Logger.log('[doGet] action=' + action);
   if (action === 'getCustomer') return getCustomer(e.parameter.id);
   if (action === 'getProducts') return getProducts(e.parameter.group);
   if (action === 'getOrders') return getOrders(e.parameter.customer_id);
@@ -193,6 +198,11 @@ function doGet(e) {
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
 
+  // [เพิ่ม 18 ก.ย. 69] เหตุผลเดียวกับ Logger.log ใน doGet ด้านบน — log order_id/delivery_status ด้วยเฉพาะ
+  // ตอนมีค่า (ไม่ log ข้อมูลอ่อนไหวอื่นเช่น items/note/customer_name เต็มๆ)
+  Logger.log('[doPost] action=' + data.action +
+    (data.order_id ? ' order_id=' + data.order_id : '') +
+    (data.delivery_status ? ' delivery_status=' + data.delivery_status : ''));
 
   if (data.action === 'createOrder') return createOrder(data);
   if (data.action === 'updateOrder') return updateOrder(data);
@@ -930,6 +940,23 @@ function updateDelivery(data) {
     // ตอนนี้ปลอดภัยจริงแล้วเพราะมี lock ครอบอยู่ ไม่มี request อื่นมาแทรกระหว่างอ่าน-เขียนได้อีก)
     if (currentStatus === data.delivery_status) {
       return response({ success: true, skipped: true, reason: 'already_in_this_status' });
+    }
+
+    // [เพิ่ม 18 ก.ย. 69] กันสถานะ "ถอยหลัง" — เดิม guard ด้านบนเช็คแค่ "สถานะเดิม==สถานะที่ขอตั้ง" เท่านั้น
+    // ไม่เคยเช็คทิศทางเลย พบเคสจริง: ออเดอร์ถูกจัดเสร็จ (done) ไปแล้ว ส่ง Telegram รอบแรกสำเร็จ แต่มีคำขอ
+    // updateDelivery(packing) แทรกเข้ามาทีหลัง (ปุ่ม "เริ่มจัดสินค้า" จากหน้าจอที่ยังไม่รีเฟรช/ค้างอยู่ตั้งแต่
+    // ก่อนออเดอร์นี้ถูกจัดเสร็จ) — เพราะ currentStatus('done') ไม่ตรงกับ data.delivery_status('packing')
+    // guard เดิมปล่อยผ่านทันที เขียนสถานะย้อนกลับเป็น packing ได้เงียบๆ (ไม่มี Telegram แจ้งตอนนั้นเพราะ
+    // packing ไม่ notify) พอกด "จัดเสร็จแล้ว" ซ้ำอีกครั้งทีหลัง ก็จัดเสร็จ+แจ้งเตือนซ้ำได้จริงอีกรอบ
+    // แก้โดยบังคับว่าแต่ละสถานะต้องมาจากสถานะก่อนหน้าที่ถูกต้องเท่านั้น (pending->packing, packing->done)
+    // ถ้าสถานะปัจจุบันไม่ตรงกับที่ควรจะเป็น (เช่น current เป็น done/cancelled ไปแล้ว) ให้ปฏิเสธแทนที่จะปล่อยผ่าน
+    const REQUIRED_PREVIOUS_STATUS = { packing: 'pending', done: 'packing' };
+    const requiredPrev = REQUIRED_PREVIOUS_STATUS[data.delivery_status];
+    if (requiredPrev && currentStatus && currentStatus !== requiredPrev) {
+      return response({
+        error: 'updateDelivery: สถานะปัจจุบันเป็น "' + currentStatus + '" ไม่สามารถเปลี่ยนเป็น "' +
+          data.delivery_status + '" ได้ (หน้าจอนี้อาจค้างสถานะเก่าอยู่ กรุณารีเฟรชแล้วลองใหม่)'
+      });
     }
 
     sheet.getRange(rowIndex, headers.indexOf('delivery_status') + 1).setValue(data.delivery_status);
