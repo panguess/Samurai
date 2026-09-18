@@ -1299,7 +1299,31 @@ function renderBillStaff(app){
   app.appendChild(topbar('ใครถ่ายบิลนี้?', {back:()=>go('home')}));
   const c = document.createElement('div'); c.className='content';
   const emojis = ['👋','✨','🌸','🔥','🍀'];
+
+  // [เพิ่ม 18 ก.ย. 69] เช็คว่ามีบิลที่ลูกจ้างถ่ายไว้แล้วแต่ยังไม่ได้ "บันทึกรายการนี้" สำเร็จค้างอยู่ในเครื่องไหม
+  // (บันทึกไว้ตอนอยู่หน้าตรวจสอบ — ดู saveDraft() ใน renderBillReview) เกิดจริง 18 ก.ย. 69: ค้างระหว่างส่งแล้ว
+  // ปิด/ถ่ายใหม่จากศูนย์ ทำให้ได้บิลซ้ำ (เลขที่บิลตรงกัน 2 ใบ) — เสนอให้ทำต่อแทนเริ่มถ่ายใหม่ กันปัญหาเดิมซ้ำ
+  // และไม่ต้องจับคู่รายการใหม่ทั้งหมด
+  let staffDraft = null;
+  try{
+    const raw = localStorage.getItem('samurai_staff_bill_draft_v1');
+    if(raw) staffDraft = JSON.parse(raw);
+  }catch(e){ staffDraft = null; }
+  const draftSup = staffDraft ? SUPPLIERS.find(s=>s.id===staffDraft.supplierId) : null;
+
   c.innerHTML = `
+    ${staffDraft ? `
+    <div class="duplicate-bill-warning">
+      <i class="ti ti-history icon" aria-hidden="true"></i>
+      <div style="flex:1; min-width:0;">
+        <p class="dbw-title">มีบิลที่ยังไม่ได้ส่งค้างอยู่</p>
+        <p class="dbw-body">${draftSup ? draftSup.name : staffDraft.supplierId} — จับคู่ไว้แล้ว ${staffDraft.items.length} รายการ (ถ่ายโดย ${staffDraft.staffName || '-'})</p>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" id="resumeStaffDraft" type="button">ทำต่อ</button>
+          <button class="btn" id="discardStaffDraft" type="button">เริ่มบิลใหม่ ทิ้งอันเดิม</button>
+        </div>
+      </div>
+    </div>` : ''}
     <p style="font-size:14px; font-weight:600; margin:0 0 2px;">วันนี้ใครถ่ายบิลนี้? 🙋</p>
     <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 16px;">แตะเลือกชื่อตัวเองได้เลย</p>
     ${STAFF.map((s,i)=>{
@@ -1322,6 +1346,21 @@ function renderBillStaff(app){
     }).join('')}
   `;
   app.appendChild(c);
+
+  if(staffDraft){
+    const resumeBtn = c.querySelector('#resumeStaffDraft');
+    if(resumeBtn) resumeBtn.onclick = ()=> go('billReview', {
+      billSupplierId: staffDraft.supplierId, billStaffName: staffDraft.staffName, billPhotos: staffDraft.photos,
+      billItems: staffDraft.items, billHeader: staffDraft.billHeader,
+      billSupplierMismatchWarning: staffDraft.supplierMismatchWarning, billDuplicateWarning: staffDraft.duplicateBillWarning,
+      billMode:'staff', billSubmitIdemKey: staffDraft.idemKey
+    }, {replace:true});
+    const discardBtn = c.querySelector('#discardStaffDraft');
+    if(discardBtn) discardBtn.onclick = ()=>{
+      try{ localStorage.removeItem('samurai_staff_bill_draft_v1'); }catch(e){}
+      render(); // รีเฟรชหน้าเดิมให้แบนเนอร์หายไป (state ของหน้านี้ไม่ได้เปลี่ยน ไม่ต้อง go() ใหม่)
+    };
+  }
 
   const avatarInput = document.createElement('input');
   avatarInput.type = 'file'; avatarInput.accept = 'image/*'; // ไม่ตั้ง capture — ให้เลือกได้ทั้งถ่ายรูปใหม่หรือเลือกจากคลังภาพ
@@ -1637,13 +1676,37 @@ function renderBillReview(app){
       }
     }catch(e){ try{ localStorage.removeItem(draftKey); }catch(e2){} }
   }
+  // [เพิ่ม 18 ก.ย. 69] โหมดลูกจ้าง (ถ่ายบิลใหม่) ยังไม่มี batchId ให้คีย์แบบ owner-resume (สร้างตอน
+  // submitBillForReview เท่านั้น) — ใช้คีย์คงที่ช่องเดียว (พนักงานถ่ายบิลทีละใบตามการใช้งานจริง) เก็บ state
+  // ทั้งชุดรวม billSubmitIdemKey เอง (ต่างจาก owner-resume ที่เก็บแค่ billItems เพราะข้อมูลอื่นๆ อยู่บนเซิร์ฟเวอร์
+  // แล้ว) เพราะบิลนี้ยังไม่เคยถูกส่งขึ้นเซิร์ฟเวอร์เลย — เจอจริง 18 ก.ย. 69: พนักงานเจอ submitBillForReview ค้าง
+  // ปิด/รีเฟรชแอปแล้วถ่ายบิลใบเดิมใหม่จากศูนย์ ได้ idempotencyKey คนละตัว (เพราะ genIdemKey() สร้างใหม่ทุกครั้ง
+  // ที่ analyzeBillPhoto สำเร็จ ไม่ใช่ตอนกดส่ง) ทำให้เกิดแถวซ้ำจริงใน PendingBillReceipts (เลขที่บิลตรงกันเป๊ะ)
+  // — จุดอ่าน/เสนอกู้คืน draft นี้อยู่ที่ renderBillStaff (หน้าแรกของฝั่งลูกจ้างถ่ายบิล) backend มี
+  // checkDuplicateBill() เป็นชั้นป้องกันที่ 2 อยู่แล้วสำหรับบิลที่มีเลขที่บิล — draft นี้ช่วยเคสบิลเขียนมือที่
+  // ไม่มีเลขที่บิลให้เทียบด้วย และลดงานที่ต้องจับคู่ใหม่ทั้งหมด
+  const STAFF_DRAFT_KEY = 'samurai_staff_bill_draft_v1';
+  const isStaffDraftable = state.billMode === 'staff';
   function saveDraft(){
-    if(!draftKey) return;
-    try{ localStorage.setItem(draftKey, JSON.stringify(state.billItems)); }catch(e){}
+    if(draftKey){ try{ localStorage.setItem(draftKey, JSON.stringify(state.billItems)); }catch(e){} }
+    if(isStaffDraftable){
+      try{
+        const payload = JSON.stringify({
+          supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos,
+          items: state.billItems, billHeader: state.billHeader,
+          supplierMismatchWarning: state.billSupplierMismatchWarning || null,
+          duplicateBillWarning: state.billDuplicateWarning || null,
+          idemKey: state.billSubmitIdemKey, savedAt: Date.now()
+        });
+        // กันเผื่อรูปเยอะ/ใหญ่จนเกือบเต็มโควต้า localStorage ของ origin (~5MB บน iOS Safari) — ข้ามเงียบๆ
+        // ถ้าใหญ่เกินไป ไม่ error (เพดานเดียวกับแคชอื่นในไฟล์นี้)
+        if(payload.length < 4 * 1024 * 1024) localStorage.setItem(STAFF_DRAFT_KEY, payload);
+      }catch(e){}
+    }
   }
   function clearDraft(){
-    if(!draftKey) return;
-    try{ localStorage.removeItem(draftKey); }catch(e){}
+    if(draftKey){ try{ localStorage.removeItem(draftKey); }catch(e){} }
+    if(isStaffDraftable){ try{ localStorage.removeItem(STAFF_DRAFT_KEY); }catch(e){} }
   }
   app.appendChild(topbar('ตรวจสอบรายการ', {
     back: ()=> isResume ? go('billPendingList') : go('billCapture'),
@@ -1958,6 +2021,7 @@ function renderBillReview(app){
         supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems,
         billHeader: state.billHeader, idempotencyKey: state.billSubmitIdemKey
       }, false, undefined, BILL_API_URL);
+      clearDraft(); // ส่งสำเร็จแล้ว (ไม่ว่า backend จะสร้างแถวใหม่จริงหรือแค่คืน batchId เดิมเพราะเลขบิลซ้ำ) — เลิกต้องมี draft ค้างไว้ในเครื่อง
       go('billSuccess', {});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';

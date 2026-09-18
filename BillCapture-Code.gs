@@ -554,6 +554,9 @@ function normalizeAliasKey(text) {
 // เมื่อ 10 ก.ย. 69) ใช้แค่ cache เช็ค-แล้ว-จำเพียงพอกับเคสจริงที่เจอ (พนักงานกดซ้ำห่างกันหลายวินาที ไม่ใช่สอง
 // คำขอมาถึงพร้อมกันในเสี้ยววินาที) — idempotencyKey เป็น optional ไม่บังคับ ไฟล์เว็บเก่าที่ไม่ส่งมายังทำงาน
 // เหมือนเดิมทุกอย่าง (ข้ามการเช็คนี้ไปเฉยๆ)
+// [เพิ่ม 18 ก.ย. 69] idempotencyKey ข้างบนป้องกันได้แค่กดปุ่มเดิมซ้ำในหน้าเดิม — ถ้าพนักงานปิด/รีเฟรชแอป
+// ระหว่างค้างแล้วถ่ายบิลใบเดิมใหม่ทั้งหมด (idemKey คนละตัว) เพิ่มเช็คด้วย checkDuplicateBill() (matchType
+// 'billNumber' เท่านั้น — ดู comment ในตัวฟังก์ชัน) เป็นชั้นป้องกันที่ 2
 function submitBillForReview(body) {
   if (!body.supplierId || !body.staffName || !body.items || !body.items.length) {
     throw new Error('ข้อมูลไม่ครบ (supplierId, staffName หรือรายการสินค้าหายไป)');
@@ -563,6 +566,22 @@ function submitBillForReview(body) {
   if (idemKey) {
     const cached = cacheGet(idemKey);
     if (cached) return cached; // เคยส่งบิลนี้สำเร็จไปแล้ว — คืนผลเดิม ไม่สร้างแถว/อัปโหลดรูปซ้ำ
+  }
+
+  // [เพิ่ม 18 ก.ย. 69] idempotencyKey ข้างบนกันได้แค่ "กดปุ่มเดิมซ้ำในหน้าเดิม" — ถ้าพนักงานเจอค้างระหว่าง
+  // อัปโหลดรูป (ขั้นตอนที่ช้าได้ไม่แน่นอน) แล้วปิด/รีเฟรชแอปแล้วถ่ายบิลใบเดิมใหม่จากศูนย์ จะได้ idemKey คนละตัว
+  // (สร้างใหม่ตอน analyzeBillPhoto สำเร็จ ไม่ใช่ตอนกดส่ง) กันไม่ได้เลย — เกิดจริง 18 ก.ย. 69 (GSB เลขที่บิล
+  // ตรงกันเป๊ะ 2 ใบค้างในคิว) ใช้ checkDuplicateBill() ตัวเดิมที่ใช้เตือนอยู่แล้ว (ผ่านการทดสอบมาก่อน) เช็คซ้ำ
+  // อีกชั้นตรงนี้ — เฉพาะ matchType==='billNumber' เท่านั้นที่ฟันธง 100% (เลขที่บิลเดียวกันไม่มีทางเป็นบิล
+  // คนละใบ) ถึงจะบล็อกไม่สร้างแถวใหม่ (คืนผลเหมือน batch เดิมแทน) — matchType 'items' (รายการซ้ำ >=70%) ยัง
+  // เป็นแค่คำเตือนเหมือนเดิม ไม่บล็อก เพราะมี false positive ได้ (สั่งของเซตเดิมซ้ำจริงในราคาเท่ากัน) ป้องกัน
+  // ได้เฉพาะบิลบริษัทจดทะเบียนที่มีเลขที่บิล — บิลเขียนมือ (ส่วนใหญ่ของซัพพลายเออร์รายวัน) ยังต้องพึ่ง
+  // idemKey ข้างบนอย่างเดียว ไม่มีเลขที่บิลให้เทียบ
+  const dup = checkDuplicateBill(body.supplierId, body.billHeader, body.items, null);
+  if (dup && dup.matchType === 'billNumber') {
+    const result = { ok: true, batchId: dup.batchId, duplicateSkipped: true };
+    if (idemKey) cacheSet(idemKey, result, 300);
+    return result;
   }
 
   const suppliers = readTable('Suppliers');
