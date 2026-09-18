@@ -1038,8 +1038,37 @@ window.addEventListener('beforeunload', (e)=>{
   }
 });
 
+// ตัวจับเวลาบนหน้า "กำลังโหลด" ที่วนลองเชื่อมต่อเงียบๆ ไม่จำกัดรอบ (bootstrap/checkPin/renderSupplierList ฯลฯ)
+// — ผู้ใช้ขอ 17 ก.ย. 69 หลังเจอเคสจริงที่ค้างนานถึง 8 นาทีโดยไม่มีทางรู้เลยว่าแอปยังพยายามอยู่หรือแฮงค์ไปแล้ว
+// มีตัวจับเวลาจะบอกแม่นยำได้ทันทีว่า "ค้างมานานเท่าไหร่" แจ้งกลับมาได้โดยไม่ต้องเปิด Apps Script Executions
+// log มาเทียบเวลาเอง
+// attachLoadingTimer(el): เริ่มนับเวลาบน element ที่ให้มา ไม่โชว์อะไรถ้ายังไม่ถึง 5 วิ (กันกระพริบตอนโหลดเร็ว
+// ปกติ) เช็ค el.isConnected ทุก tick กันกรณีจอเปลี่ยนไปแล้วแต่ retry loop เดิมยังวนอยู่เบื้องหลัง (ไม่เขียนทับ
+// จอใหม่ผิดๆ) — คืน stop() ให้เรียกทันทีที่โหลดสำเร็จ/เลิกใช้เพื่อเคลียร์ interval ทิ้ง
+function attachLoadingTimer(el){
+  const startTs = Date.now();
+  const tick = ()=>{
+    if(!el || !el.isConnected) return;
+    const secs = Math.floor((Date.now()-startTs)/1000);
+    if(secs < 5){ el.textContent=''; return; }
+    const m = Math.floor(secs/60), s = secs%60;
+    el.textContent = 'รอมาแล้ว ' + (m>0 ? (m+' นาที '+s+' วิ') : (s+' วิ'));
+  };
+  const timer = setInterval(tick, 1000);
+  return ()=> clearInterval(timer);
+}
+// สร้าง <p id="..."> ใหม่ให้แปะต่อท้าย innerHTML ของหน้าโหลดแต่ละจุด (id ไม่ซ้ำกันเสมอ กันชนกันเวลามีหลาย
+// หน้าโหลดซ้อนกันในเบื้องหลัง) คืน {id, html} — เอา id ไปหา element จริงด้วย document.getElementById(id) แล้ว
+// ส่งต่อให้ attachLoadingTimer() อีกที
+let _loadingTimerSeq = 0;
+function loadingTimerHtml(){
+  const id = 'loadTimer' + (++_loadingTimerSeq);
+  return { id, html: `<p id="${id}" style="font-size:12px; color:var(--text-secondary); margin-top:8px;"></p>` };
+}
 function renderLoading(app, msg){
-  app.innerHTML = `<div class="empty-state" style="padding:80px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>${msg||'กำลังโหลดข้อมูล...'}</p></div>`;
+  const lt = loadingTimerHtml();
+  app.innerHTML = `<div class="empty-state" style="padding:80px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>${msg||'กำลังโหลดข้อมูล...'}</p>${lt.html}</div>`;
+  return attachLoadingTimer(document.getElementById(lt.id));
 }
 
 const BOOTSTRAP_CACHE_KEY = 'samurai_bootstrap_cache_v1';
@@ -1090,8 +1119,10 @@ async function bootstrap(){
   app.appendChild(buildHero());
   const loadingEl = document.createElement('div');
   loadingEl.className = 'content';
-  loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>กำลังโหลดข้อมูลร้าน...</p></div>`;
+  const lt = loadingTimerHtml();
+  loadingEl.innerHTML = `<div class="empty-state" style="padding:40px 0;"><div style="font-size:30px; margin-bottom:10px;">⏳</div><p>กำลังโหลดข้อมูลร้าน...</p>${lt.html}</div>`;
   app.appendChild(loadingEl);
+  const stopTimer = attachLoadingTimer(document.getElementById(lt.id));
   // เจอจริง 15 ก.ย. 69: เดิมจำกัดแค่ 2 รอบ (10วิ แล้ว 25วิ รวม ~35วิ) แล้วยอมแพ้โชว์ error ให้กดปุ่ม "ลองใหม่"
   // เอง — แต่พบว่าเวลาทดสอบเปิด URL ของ backend ตรงๆ (เบราว์เซอร์ปกติไม่มี timeout ของตัวเอง รอได้ไม่จำกัด)
   // กลับติดสำเร็จทุกครั้ง ทั้งที่แอปพังพอดี แปลว่า backend มักจะสำเร็จจริงอยู่แล้ว แค่ช้ากว่าที่แอปยอมรอ
@@ -1102,6 +1133,7 @@ async function bootstrap(){
   for(;;){
     try{
       const data = await apiGet('bootstrap');
+      stopTimer();
       SUPPLIERS = data.suppliers; PRODUCTS = data.products; STAFF = data.staff;
       writeBootstrapCache(data);
       _bootstrapRefreshTs = Date.now();
@@ -2490,7 +2522,12 @@ async function renderBillPendingList(app){
   // เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทนที่จะโชว์ error ค้างรอให้กดเอง
   // (silent=true ยังคงพฤติกรรมเดิม: มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังแค่ครั้งเดียวไม่ต้อง retry ซ้ำ)
   async function load(silent){
-    if(!silent) c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`;
+    let stopTimer = null;
+    if(!silent){
+      const lt = loadingTimerHtml();
+      c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>${lt.html}`;
+      stopTimer = attachLoadingTimer(document.getElementById(lt.id));
+    }
     for(;;){
       let data;
       try{
@@ -2501,6 +2538,7 @@ async function renderBillPendingList(app){
         await new Promise(r=> setTimeout(r, 3000));
         continue;
       }
+      if(stopTimer) stopTimer();
       writePendingBillsCache(data.batches);
       drawList(data.batches);
       return;
@@ -2523,12 +2561,12 @@ async function renderSupplierList(app){
   if(stockStatusCache){
     statusList = stockStatusCache;
   } else {
-    renderLoading(app, 'กำลังโหลดสถานะร้าน...');
+    const stopTimer = renderLoading(app, 'กำลังโหลดสถานะร้าน...');
     // 17 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที (ต้องกดย้อนกลับแล้วเข้าใหม่เอง) — เปลี่ยนเป็นวนลอง
     // เงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/renderSupplierCheck() แทน (getStockStatus เป็นแค่ read-only
     // ลองซ้ำได้ไม่จำกัดโดยไม่มีความเสี่ยงข้อมูลซ้ำซ้อน)
     for(;;){
-      try{ statusList = await getStockStatus(); break; }
+      try{ statusList = await getStockStatus(); stopTimer(); break; }
       catch(err){ await new Promise(r=> setTimeout(r, 3000)); }
     }
   }
@@ -2635,13 +2673,14 @@ async function renderSupplierCheck(app){
   const sup = SUPPLIERS.find(s=>s.id===state.currentSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
 
-  renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
+  const stopTimer = renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที (ต้องกดย้อนกลับแล้วเข้าใหม่เอง) — เปลี่ยนเป็นวนลอง
   // เงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทน
   let statusList;
   for(;;){
     try{
       statusList = await getStockStatus();
+      stopTimer();
       break;
     }catch(err){
       await new Promise(r=> setTimeout(r, 3000));
@@ -2979,10 +3018,12 @@ function renderOwnerPin(app){
     <p style="font-size:13px; color:var(--text-secondary); margin:0 0 16px;">กรอกรหัสผ่านเพื่อเข้าฝั่งเจ้าของร้าน</p>
     <input type="password" inputmode="numeric" id="pinInput" maxlength="4" placeholder="••••" style="font-size:22px; text-align:center; letter-spacing:6px; padding:14px;">
     <p id="pinError" style="color:var(--danger); font-size:12px; margin:8px 0 0; min-height:16px; text-align:center;"></p>
+    <p id="pinTimer" style="color:var(--text-secondary); font-size:11px; margin:2px 0 0; text-align:center;"></p>
   `;
   app.appendChild(c);
   const input = c.querySelector('#pinInput');
   const errEl = c.querySelector('#pinError');
+  const timerEl = c.querySelector('#pinTimer');
   input.focus();
 
   let checking = false;
@@ -2992,6 +3033,7 @@ function renderOwnerPin(app){
     if(val.length < 4) return;
     checking = true;
     input.disabled = true; errEl.textContent = 'กำลังตรวจสอบ...'; errEl.style.color = 'var(--text-secondary)';
+    const stopTimer = attachLoadingTimer(timerEl);
     // เจอจริง 15 ก.ย. 69: เดิม catch แล้วโชว์ error ทันที ("ตรวจสอบรหัสไม่สำเร็จ: หมดเวลาเชื่อมต่อ...") ทั้งที่
     // backend มักสำเร็จจริงแค่ช้ากว่าที่แอปยอมรอ (เหตุผลเดียวกับที่แก้ bootstrap() ไปแล้ว) — error จาก
     // apiGet('checkPin') ที่นี่มีแต่กรณีเชื่อมต่อไม่สำเร็จเท่านั้น (รหัสผิดไม่ throw error แต่คืน valid:false
@@ -2999,6 +3041,7 @@ function renderOwnerPin(app){
     for(;;){
       try{
         const res = await apiGet('checkPin', {pin: val});
+        stopTimer();
         if(res && res.valid){ go('ownerMenu'); return; }
         errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; errEl.style.color = 'var(--danger)';
         input.value='';
@@ -3038,8 +3081,12 @@ async function renderOwnerStockAnalytics(app){
   tabs.innerHTML = `<div class="tab ${state.ownerTab==='stock'?'active':''}" data-t="stock">สถานะสต๊อก</div>
                      <div class="tab ${state.ownerTab==='analytics'?'active':''}" data-t="analytics">วิเคราะห์การสั่งซื้อ</div>`;
   c.appendChild(tabs);
-  const body = document.createElement('div'); body.innerHTML='<p class="empty-state">กำลังโหลด...</p>'; c.appendChild(body);
+  const body = document.createElement('div');
+  const lt = loadingTimerHtml();
+  body.innerHTML = `<p class="empty-state">กำลังโหลด...</p>${lt.html}`;
+  c.appendChild(body);
   app.appendChild(c);
+  const stopTimer = attachLoadingTimer(document.getElementById(lt.id));
 
   tabs.querySelectorAll('.tab').forEach(t=> t.onclick = ()=>{ go('ownerStockAnalytics', {ownerTab:t.dataset.t}); });
 
@@ -3049,10 +3096,12 @@ async function renderOwnerStockAnalytics(app){
     try{
       if(state.ownerTab === 'stock'){
         const statusList = await getStockStatus();
+        stopTimer();
         statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
         renderStockTab(body);
       } else {
         const analytics = await apiGet('analytics', {range:'7d'});
+        stopTimer();
         renderAnalyticsTab(body, analytics);
       }
       break;
@@ -3132,8 +3181,10 @@ function renderAnalyticsTab(body, analytics){
 async function renderOrderPage(app){
   app.appendChild(topbar('สั่งของ', {back:()=>go('ownerMenu')}));
   const c = document.createElement('div'); c.className='content';
-  c.innerHTML = '<p class="empty-state">กำลังโหลดข้อมูล...</p>';
+  const lt = loadingTimerHtml();
+  c.innerHTML = `<p class="empty-state">กำลังโหลดข้อมูล...</p>${lt.html}`;
   app.appendChild(c);
+  const stopTimer = attachLoadingTimer(document.getElementById(lt.id));
 
   // เดิมยิง 4 คำขอแยก (getStockStatus + orderedToday + confirmedToday + orderedItemsToday) พร้อมกันด้วย
   // Promise.all — เจอ 10 ก.ย. 69 ว่าคำขอที่ควรพร้อมกันเป๊ะกลับมี Start Time ห่างกันหลายวินาทีใน Apps
@@ -3152,6 +3203,7 @@ async function renderOrderPage(app){
   for(;;){
     try{
       await ensureOrderPageData();
+      stopTimer();
       break;
     }catch(err){
       await new Promise(r=> setTimeout(r, 3000));
