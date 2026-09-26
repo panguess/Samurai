@@ -775,7 +775,11 @@ function startNewOrder(){cart={};goSection('shop');renderProducts();}
  */
 async function findRecentMatchingOrder(itemsText,total){
   try{
-    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,0,true);
+    // [แก้ 24 ก.ย. 69] เดิม retries=0 (ยิงครั้งเดียว) — เจอเคสจริงที่ createOrder สำเร็จจริงแต่ response หลุด
+    // ทั้ง 2 attempt ของ postAction (เน็ต/backend ไม่นิ่งช่วงนั้น) แล้ว dedup check นี้ก็โดนปัญหาเดียวกันพัง
+    // ตามไปด้วย (ไม่มี retry เผื่อไว้เลย) ทำให้หลุดไปโชว์ alert "ไม่สำเร็จ" ทั้งที่จริงๆ สั่งสำเร็จแล้ว —
+    // เพิ่ม retry 1 ครั้งให้เหมือน postAction เพื่อลดโอกาสที่ dedup check เองจะพังพร้อมกับคำขอหลัก
+    const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'placeOrder:dedupCheck',15000,1,true);
     if(!orders||!orders.length) return null;
     const cutoff=Date.now()-3*60*1000;
     return orders.find(o=>{
