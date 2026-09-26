@@ -215,6 +215,9 @@
   .ord-card.state-ordered .ord-card-strip{background:var(--green);}
   .ord-card-main{flex:1; min-width:0;}
   .ord-card-head{display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; background:var(--brand-bg);}
+  /* offset ติดลบ (ไม่ใช่ค่าบวกแบบการ์ดอื่น) เพราะ .ord-card แม่มี overflow:hidden ครอบอยู่ — ถ้าใช้ offset
+     บวกแบบเดิม กรอบโฟกัสที่ล้นออกนอกกรอบจะโดนตัดไปครึ่งหนึ่ง มองไม่เห็นเต็มวง */
+  .ord-card-head:focus-visible{outline:2px solid var(--brand); outline-offset:-2px;}
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
   .ord-card.state-ordered .ord-card-head{background:var(--green-bg);}
@@ -275,6 +278,7 @@
   .icon-box{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
   .pick-row{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding:10px 14px; margin-bottom:9px; cursor:pointer;}
   .pick-avatar{width:96px; height:96px; border-radius:50%; border:2px solid var(--text); display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; cursor:zoom-in;}
+  .pick-avatar:focus-visible, .avatar-edit-badge:focus-visible, .staff-pick:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .pick-avatar img{width:100%; height:100%; object-fit:cover; display:block;}
   .avatar-lightbox{position:fixed; inset:0; background:rgba(0,0,0,0.88); display:flex; align-items:center; justify-content:center; z-index:90;}
   .avatar-lightbox img{max-width:82vw; max-height:70vh; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.5);}
@@ -1243,14 +1247,15 @@ function renderStaffName(app){
       const avatarInner = s.avatarUrl
         ? `<img src="${s.avatarUrl}" alt="">`
         : `<i class="ti ti-camera" style="font-size:26px; color:${col.fg};" aria-hidden="true"></i>`;
+      const avatarLabel = s.avatarUrl ? `ซูมดูรูป ${s.name}` : `เพิ่มรูปโปรไฟล์ให้ ${s.name}`;
       return `<div class="pick-row">
         <div class="avatar-wrap">
-          <div class="pick-avatar avatar-pick" data-staff-id="${s.id}" style="background:${col.bg};">
+          <div class="pick-avatar avatar-pick" data-staff-id="${s.id}" style="background:${col.bg};" role="button" tabindex="0" aria-label="${avatarLabel}">
             ${avatarInner}
           </div>
-          <span class="avatar-edit-badge"><i class="ti ti-camera" aria-hidden="true"></i></span>
+          <span class="avatar-edit-badge" role="button" tabindex="0" aria-label="เปลี่ยนรูปโปรไฟล์ ${s.name}"><i class="ti ti-camera" aria-hidden="true"></i></span>
         </div>
-        <div class="staff-pick" data-name="${s.name}" style="display:flex; align-items:center; flex:1; cursor:pointer;">
+        <div class="staff-pick" data-name="${s.name}" style="display:flex; align-items:center; flex:1; cursor:pointer;" role="button" tabindex="0">
           <p style="margin:0; font-size:15px; font-weight:600; flex:1;">${s.name}</p>
           <span style="font-size:17px;">${emojis[i % emojis.length]}</span>
         </div>
@@ -1288,22 +1293,22 @@ function renderStaffName(app){
     document.body.appendChild(lb);
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
-    avatar.onclick = (e)=>{
+    bindActivatable(avatar, (e)=>{
       e.stopPropagation();
       const staffId = avatar.dataset.staffId;
       const s = STAFF.find(x=>x.id===staffId);
       if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl);
       else{ avatarTargetId = staffId; avatarInput.click(); } // ยังไม่มีรูป — ไม่มีอะไรให้ซูม เปิดตัวเลือกรูปแทนเลย
-    };
+    });
   });
   c.querySelectorAll('.avatar-edit-badge').forEach(badge=>{
-    badge.onclick = (e)=>{
+    bindActivatable(badge, (e)=>{
       e.stopPropagation();
       avatarTargetId = badge.closest('.avatar-wrap').querySelector('.avatar-pick').dataset.staffId;
       avatarInput.click();
-    };
+    });
   });
-  c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('supplierList', {staffName: el.dataset.name}));
+  c.querySelectorAll('.staff-pick').forEach(el=> bindActivatable(el, ()=>go('supplierList', {staffName: el.dataset.name})));
 }
 
 /* ============ รับของ — ถ่ายบิล ============ */
@@ -1347,14 +1352,15 @@ function renderBillStaff(app){
       const avatarInner = s.avatarUrl
         ? `<img src="${s.avatarUrl}" alt="">`
         : `<i class="ti ti-camera" style="font-size:26px; color:${col.fg};" aria-hidden="true"></i>`;
+      const avatarLabel = s.avatarUrl ? `ซูมดูรูป ${s.name}` : `เพิ่มรูปโปรไฟล์ให้ ${s.name}`;
       return `<div class="pick-row">
         <div class="avatar-wrap">
-          <div class="pick-avatar avatar-pick" data-staff-id="${s.id}" style="background:${col.bg};">
+          <div class="pick-avatar avatar-pick" data-staff-id="${s.id}" style="background:${col.bg};" role="button" tabindex="0" aria-label="${avatarLabel}">
             ${avatarInner}
           </div>
-          <span class="avatar-edit-badge"><i class="ti ti-camera" aria-hidden="true"></i></span>
+          <span class="avatar-edit-badge" role="button" tabindex="0" aria-label="เปลี่ยนรูปโปรไฟล์ ${s.name}"><i class="ti ti-camera" aria-hidden="true"></i></span>
         </div>
-        <div class="staff-pick" data-name="${s.name}" style="display:flex; align-items:center; flex:1; cursor:pointer;">
+        <div class="staff-pick" data-name="${s.name}" style="display:flex; align-items:center; flex:1; cursor:pointer;" role="button" tabindex="0">
           <p style="margin:0; font-size:15px; font-weight:600; flex:1;">${s.name}</p>
           <span style="font-size:17px;">${emojis[i % emojis.length]}</span>
         </div>
@@ -1405,22 +1411,22 @@ function renderBillStaff(app){
     document.body.appendChild(lb);
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
-    avatar.onclick = (e)=>{
+    bindActivatable(avatar, (e)=>{
       e.stopPropagation();
       const staffId = avatar.dataset.staffId;
       const s = STAFF.find(x=>x.id===staffId);
       if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl);
       else{ avatarTargetId = staffId; avatarInput.click(); }
-    };
+    });
   });
   c.querySelectorAll('.avatar-edit-badge').forEach(badge=>{
-    badge.onclick = (e)=>{
+    bindActivatable(badge, (e)=>{
       e.stopPropagation();
       avatarTargetId = badge.closest('.avatar-wrap').querySelector('.avatar-pick').dataset.staffId;
       avatarInput.click();
-    };
+    });
   });
-  c.querySelectorAll('.staff-pick').forEach(el=> el.onclick = ()=>go('billSupplier', {billStaffName: el.dataset.name}));
+  c.querySelectorAll('.staff-pick').forEach(el=> bindActivatable(el, ()=>go('billSupplier', {billStaffName: el.dataset.name})));
 }
 
 /* ---- 2) เลือกซัพพลายเออร์ ---- */
@@ -3395,9 +3401,26 @@ async function renderOrderPage(app){
         <span class="status-sub">${subText}</span>
       </div>
     `;
+    head.setAttribute('role','button');
+    head.tabIndex = 0;
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
     head.onclick = ()=>{
       if(expandedSuppliers.has(s.id)) expandedSuppliers.delete(s.id); else expandedSuppliers.add(s.id);
       rebuildCard(s);
+      // rebuildCard() ทำ oldCard.replaceWith(newCard) — head เดิมที่เพิ่งรับ focus ไปหลุดออกจาก DOM
+      // ทันที โฟกัสจะร่วงกลับไปที่ <body> เงียบๆ ถ้าไม่ดึงกลับ (เจอจริงตอนทดสอบ: กด Enter ครั้งที่สอง
+      // เพื่อยุบกลับใช้ไม่ได้เลยเพราะไม่มีอะไรโฟกัสอยู่แล้ว) ดึง focus กลับมาที่ head ใบใหม่ในตำแหน่งเดิม
+      // ทำเฉพาะจุดนี้จุดเดียว ไม่แก้ rebuildCard() เองเพราะมีอีก 4 จุดเรียกจากปุ่มอื่นในการ์ด
+      // (เลือกทั้งหมด/งดสั่ง/แก้หน่วย) ที่ไม่ควรถูกแย่ง focus กลับมาที่ header
+      const newHead = groups.querySelector(`[data-supplier-card="${s.id}"] .ord-card-head`);
+      if(newHead) newHead.focus();
+    };
+    // ไม่ใช้ bindActivatable() ตรงๆ เพราะมี .order-done-check ซ้อนอยู่ข้างในอีกที (ดูด้านล่าง) —
+    // keydown ของปุ่มนั้นจะ bubble ขึ้นมาถึง head ด้วย เช็ค e.target===head กันไม่ให้กด Enter/Space
+    // ตอนโฟกัสอยู่ที่ปุ่มยืนยันไป toggle accordion ซ้อนกับที่ปุ่มนั้นทำงานของตัวเองอยู่แล้ว
+    head.onkeydown = (e)=>{
+      if(e.target !== head) return;
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); head.click(); }
     };
     main.appendChild(head);
 
