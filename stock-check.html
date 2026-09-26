@@ -79,6 +79,7 @@
   .progress-track{height:6px; background:var(--bg); border-radius:8px; overflow:hidden; margin:10px 0 14px;}
   .progress-fill{height:100%; background:var(--cream); opacity:0.8; border-radius:8px;}
   .sup-row{display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-md); margin-bottom:6px; cursor:pointer; background:#fff;}
+  .sup-row:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .sup-row.done{opacity:0.5;}
   .sup-thumb{width:44px; height:44px; border-radius:var(--radius-md); background:var(--bg); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:18px; flex-shrink:0;}
   .sup-row p{margin:0; font-size:14px; font-weight:500; flex:1;}
@@ -285,6 +286,7 @@
      ซ้อนอยู่ในการ์ดที่มีบอร์เดอร์+padding อยู่แล้ว รูปเลยดูหดเล็กกว่าที่ควรจะเป็น ตอนนี้ตัดกรอบชั้นในออก
      ให้รูปชนขอบการ์ดแล้วปล่อยให้ overflow:hidden ของการ์ดตัดมุมโค้งให้แทน กรอบเดียวพอ (กรอบการ์ด) */
   .sup-card{display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding-bottom:10px; text-align:center; cursor:pointer; overflow:hidden;}
+  .sup-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .sup-card.done{opacity:0.55;}
   .sup-card.urgent{border:1px solid rgba(163,45,45,0.4); box-shadow:0 0 0 1px rgba(163,45,45,0.12) inset;}
   .sup-icon-wrap{position:relative; width:100%;}
@@ -1432,13 +1434,13 @@ function renderBillSupplier(app){
     listEl.innerHTML = items.map(s=>{
       const n = PRODUCTS.filter(p=>p.supplierId===s.id).length;
       const thumb = s.imageUrl ? `<img src="${s.imageUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '<i class="ti ti-building-store" aria-hidden="true"></i>';
-      return `<div class="sup-row" data-id="${s.id}">
+      return `<div class="sup-row" data-id="${s.id}" role="button" tabindex="0">
         <div class="sup-thumb" style="overflow:hidden;">${thumb}</div>
         <p>${s.name}<br><span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">สินค้า ${n} รายการ</span></p>
         <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
       </div>`;
     }).join('') || `<p class="empty-state">ไม่พบซัพพลายเออร์</p>`;
-    listEl.querySelectorAll('.sup-row').forEach(el=> el.onclick = ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[], billBatchGroups:[]}));
+    listEl.querySelectorAll('.sup-row').forEach(el=> bindActivatable(el, ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[], billBatchGroups:[]})));
   }
   app.appendChild(c);
   draw('');
@@ -2742,7 +2744,9 @@ function supplierCard(s, isDone, idx, statusPill){
     <p style="margin:0; padding:0 8px; font-size:13px; font-weight:600; color:${isDone?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
     ${pillHtml}
   `;
-  card.onclick = ()=>go('supplierCheck', {currentSupplierId: s.id});
+  card.setAttribute('role','button');
+  card.tabIndex = 0;
+  bindActivatable(card, ()=>go('supplierCheck', {currentSupplierId: s.id}));
   return card;
 }
 
