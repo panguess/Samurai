@@ -321,7 +321,7 @@
       <span style="font-size:21.5px;color:#534AB7">↻</span>
       <span style="font-size:16px;font-weight:700;color:#534AB7">สั่งซ้ำจากออเดอร์เก่า</span>
     </button>
-    <div id="reorderToast" style="display:none;background:#EAF3DE;color:#27500A;font-size:12.5px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
+    <div id="reorderToast" aria-live="polite" aria-atomic="true" style="display:none;background:#EAF3DE;color:#27500A;font-size:12.5px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
     <div class="cart-bar" id="cartBar">
       <div class="cart-inner">
@@ -332,6 +332,8 @@
         <button class="btn-order" onclick="showConfirm()">สั่งซื้อ →</button>
       </div>
     </div>
+    <!-- [เพิ่ม 26 ก.ย. 69 — AUD-14] ประกาศจำนวน/ยอดตะกร้าให้ screen reader ตอนเปลี่ยนแปลงจริง (ดู guard ใน updateCart) -->
+    <div id="cartLiveRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
   </div>
   <!-- Track Section -->
   <div id="trackSection" style="display:none">
@@ -387,7 +389,8 @@
   <div class="admin-header">
     <h1>🗂 รายการที่ต้องจัด</h1>
     <p id="adminHeaderDate" style="font-size:12px;color:#d8a98f;margin:5px 0 0;font-weight:400">📅 <span id="adminHeaderDateText"></span></p>
-    <p id="adminSubtitle" style="display:none">กำลังโหลด...</p>
+    <!-- [เพิ่ม 26 ก.ย. 69 — AUD-14] เดิม display:none ทำให้ AT ไม่รู้จักเลย เปลี่ยนเป็น sr-only (มองไม่เห็นแต่ยังอยู่ใน accessibility tree) + aria-live ประกาศสรุปจำนวนรอจัด/กำลังจัด/เสร็จแล้วรวดเดียวตอนเปลี่ยนแปลงจริง (ดู guard ใน renderAdminOrders กันประกาศซ้ำตอนตัวเลขไม่เปลี่ยน) -->
+    <p id="adminSubtitle" class="sr-only" aria-live="polite" aria-atomic="true">กำลังโหลด...</p>
   </div>
   <div class="tabs" role="tablist" aria-label="สถานะออเดอร์">
     <div class="tab active" role="tab" aria-selected="true" tabindex="0" onclick="switchAdminTab('pending')" onkeydown="adminTabKey(event,'pending')" id="adminTabPending">⏳ รอจัด</div>
@@ -402,7 +405,7 @@
   <div id="ownerDashboard" style="display:none;padding:14px"></div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 const API='https://script.google.com/macros/s/AKfycbynqBJX8FTJJukuvyiBOFDXPTV0l-wduxn0bL8RIGT_Qjn4QgpCOg_5awipnzh5YmlT/exec';
@@ -458,6 +461,8 @@ function releaseModalFocus(){
 }
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',orderIdemKey='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
+let lastAdminSubtitleText=''; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนตัวเลขไม่เปลี่ยนจากรอบก่อน
+let lastCartAnnounce=null; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนจำนวน/ยอดตะกร้าไม่เปลี่ยน
 var adminQtys={};
 var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
 let pickedItems=new Set();
@@ -776,6 +781,14 @@ function updateCart(){
   document.getElementById('cartBar').classList.toggle('show',itemCount>0&&shopVisible);
   document.getElementById('cartInfo').textContent=itemCount+' รายการที่เลือก';
   document.getElementById('cartTotalVal').textContent='฿'+fmtMoney(tp);
+  // [เพิ่ม 26 ก.ย. 69 — AUD-14] ประกาศให้ screen reader เฉพาะตอนจำนวน/ยอดเปลี่ยนจริง กันสแปมตอนเรียกซ้ำค่าเดิม
+  const cartAnnounceKey=itemCount+'|'+tp;
+  if(itemCount>0&&cartAnnounceKey!==lastCartAnnounce){
+    document.getElementById('cartLiveRegion').textContent=`ตะกร้า ${itemCount} รายการที่เลือก รวม ฿${fmtMoney(tp)}`;
+    lastCartAnnounce=cartAnnounceKey;
+  }else if(itemCount===0){
+    lastCartAnnounce=null;
+  }
 }
 
 function genOid(){
@@ -947,8 +960,10 @@ function buildHistoryCard(o){
 
   const packTStr=o.packing_at?new Date(o.packing_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
   const doneTStr=o.done_at?new Date(o.done_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
-  const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว</div><div class="ttime">${tStr}</div></div>`;
-  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  // [เพิ่ม 26 ก.ย. 69 — AUD-17] เดิมสถานะ "ทำแล้ว"/"ยังไม่ถึง" แยกด้วยสีจุด+ความจางของตัวหนังสือเป็นหลัก
+  // เพิ่ม "✓" ต่อท้ายทุก step ที่ทำแล้ว (ไม่ใช่แค่ step สุดท้าย) ให้มีตัวช่วยที่ไม่พึ่งสีเพิ่มอีกชั้น
+  const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว ✓</div><div class="ttime">${tStr}</div></div>`;
+  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า ✓</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
   const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">จัดสินค้าสำเร็จ ✓</div><div class="ttime">${doneTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
   const canEdit=!isDoneDelivery&&!isPackingDelivery;
   const canCancel=canEdit;
@@ -1548,7 +1563,8 @@ function renderAdminOrders(){
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
   const packingCount2=allAdminOrders.filter(ds_packing).length;
   const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
-  document.getElementById('adminSubtitle').textContent=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
+  const adminSubtitleText=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
+  if(adminSubtitleText!==lastAdminSubtitleText){document.getElementById('adminSubtitle').textContent=adminSubtitleText;lastAdminSubtitleText=adminSubtitleText;}
   document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
   document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
   document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
@@ -3264,9 +3280,10 @@ function renderReorderPicker(){
   const prodMap={};products.forEach(p=>{prodMap[p.name]=p;});
   const rowsHtml=items.map((item,idx)=>{
     const selected=reorderSelectedIdx.has(idx);
+    // [เพิ่ม 26 ก.ย. 69 — AUD-06] ขยายจาก 22x22 เป็น 24x24 ให้ผ่านเกณฑ์ขนาดพื้นที่กดขั้นต่ำ (2.5.8)
     const checkboxHtml=selected
-      ?`<div style="width:22px;height:22px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
-      :`<div style="width:22px;height:22px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
+      ?`<div style="width:24px;height:24px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
+      :`<div style="width:24px;height:24px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
     // [เพิ่ม 27 ก.ย. 69] เดิมทั้งแถวเป็น div onclick เฉยๆ ไม่มี role/state ให้ AT อ่านเลย — เพิ่ม
     // role="checkbox"/aria-checked/tabindex จริง ผูกชื่อสินค้าผ่าน aria-labelledby (ไม่พิมพ์ซ้ำ)
     return`<div id="reorderRow${idx}" role="checkbox" tabindex="0" aria-checked="${selected?'true':'false'}" aria-labelledby="reorderRowLabel${idx}" onclick="toggleReorderItem(${idx})" onkeydown="if(event.key===' '){event.preventDefault();toggleReorderItem(${idx})}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 8px;border-bottom:1px solid #f5f5f5;border-radius:8px;cursor:pointer">
@@ -3495,7 +3512,8 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     </div>
     <div class="s-card">
       <div class="s-card-title">สถานะออเดอร์</div>
-      <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว</div></div><div class="s-time" id="successTime"></div></div>
+      <!-- [เพิ่ม 26 ก.ย. 69 — AUD-17] เพิ่ม "✓" ให้ step ที่ทำแล้วมีตัวช่วยที่ไม่พึ่งสีเพิ่มอีกชั้น เหมือน timeline ฝั่งประวัติ -->
+      <div class="status-row-s"><div class="sdot sdot-on"></div><div><div class="s-label">รับคำสั่งซื้อแล้ว ✓</div></div><div class="s-time" id="successTime"></div></div>
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#666">กำลังจัดสินค้า</div></div></div>
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#666">จัดเสร็จแล้ว</div></div></div>
     </div>
