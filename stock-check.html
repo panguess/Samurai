@@ -153,6 +153,7 @@
 
   /* owner */
   .nav-tile{background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; cursor:pointer; display:flex; align-items:center; gap:12px; margin-bottom:10px;}
+  .nav-tile:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .nav-tile.featured{border:2px solid var(--brand);}
   .nav-tile p{margin:0; font-weight:500; font-size:14px;}
   .nav-tile small{color:var(--text-secondary); font-size:12px;}
@@ -255,6 +256,7 @@
   .role-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
   .role-label::after{content:''; flex:1; height:1px; background:var(--border-strong);}
   .action-card{display:flex; align-items:center; gap:16px; padding:22px 20px; border-radius:16px; border:1px solid var(--border-strong); background:#fff; cursor:pointer; margin-bottom:10px; -webkit-tap-highlight-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+  .action-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .action-card.primary{background:var(--brand); border-color:transparent;}
   .action-card.primary .act-title{color:var(--cream);}
   .action-card.primary .act-sub{color:rgba(252,249,242,0.45);}
@@ -495,6 +497,18 @@ function genIdemKey(){ return 'BI' + Date.now() + '_' + Math.random().toString(3
 function debounce(fn, wait){
   let t;
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
+}
+
+// ผูก handler ให้ el (การ์ด/แถวที่ทำหน้าที่เหมือนปุ่มแต่ไม่ใช่ <button> จริง) ทำงานได้ทั้งคลิก/แตะ
+// และคีย์บอร์ด (Enter/Space) — el ต้องมี role="button" tabindex="0" ประกาศไว้ใน HTML อยู่แล้ว
+// ใช้เฉพาะจุดที่ el ทำแค่ 1 การกระทำเดียวทั้งก้อน ถ้าในการ์ด/แถวมีปุ่มย่อยซ้อนอยู่ข้างในอีก (เช่น
+// ord-card-head ที่มี .order-done-check ซ้อนอยู่) ห้ามใช้ฟังก์ชันนี้ตรงๆ เพราะ keydown จะ bubble
+// ขึ้นมาชนกับปุ่มข้างในได้ ต้องเขียน handler แยกเฉพาะจุดนั้น
+function bindActivatable(el, handler){
+  el.onclick = handler;
+  el.onkeydown = (e)=>{
+    if(e.key==='Enter' || e.key===' '){ e.preventDefault(); handler(e); }
+  };
 }
 async function apiGet(action, params, timeoutMs, baseUrl){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
@@ -1191,27 +1205,27 @@ function renderHome(app){
 const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <div class="role-label">พนักงาน</div>
-    <div class="action-card primary" id="goStaff">
+    <div class="action-card primary" id="goStaff" role="button" tabindex="0">
       <div class="act-icon" style="background:rgba(255,255,255,0.12);"><i class="ti ti-clipboard-list" style="color:rgba(252,249,242,0.85);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">เช็คของวันนี้</div><div class="act-sub">นับสต๊อกและบันทึกของที่เหลือ</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
-    <div class="action-card bill" id="goBill">
+    <div class="action-card bill" id="goBill" role="button" tabindex="0">
       <div class="act-icon" style="background:rgba(122,70,8,0.12);"><i class="ti ti-camera" style="color:#7A4608;" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">รับของ — ถ่ายบิล</div><div class="act-sub">บันทึกต้นทุนของที่ซัพพลายเออร์ส่งมา</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
     <div class="role-label" style="margin-top:6px;">เจ้าของร้าน</div>
-    <div class="action-card" id="goOwner">
+    <div class="action-card" id="goOwner" role="button" tabindex="0">
       <div class="act-icon" style="background:var(--bg);"><i class="ti ti-layout-dashboard" style="color:var(--text);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">จัดการร้าน</div><div class="act-sub">สั่งของ · ดูสต๊อก · วิเคราะห์ยอด</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
   `;
   app.appendChild(c);
-  c.querySelector('#goStaff').onclick = ()=>go('staffName');
-  c.querySelector('#goOwner').onclick = ()=>go('ownerPin');
-  c.querySelector('#goBill').onclick = ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null, billBatchGroups:[]});
+  bindActivatable(c.querySelector('#goStaff'), ()=>go('staffName'));
+  bindActivatable(c.querySelector('#goOwner'), ()=>go('ownerPin'));
+  bindActivatable(c.querySelector('#goBill'), ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null, billBatchGroups:[]}));
 }
 
 /* ============ STAFF: choose name ============ */
@@ -3124,17 +3138,17 @@ function renderOwnerMenu(app){
   app.appendChild(topbar('ฝั่งเจ้าของร้าน', {back:()=>go('home')}));
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
-    <div class="nav-tile featured" id="goOrder"><i class="ti ti-shopping-cart" style="font-size:20px; color:var(--brand);"></i>
+    <div class="nav-tile featured" id="goOrder" role="button" tabindex="0"><i class="ti ti-shopping-cart" style="font-size:20px; color:var(--brand);" aria-hidden="true"></i>
       <div><p>สั่งของ</p><small>เลือกรายการที่จะสั่ง</small></div></div>
-    <div class="nav-tile" id="goStockAnalytics"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);"></i>
+    <div class="nav-tile" id="goStockAnalytics" role="button" tabindex="0"><i class="ti ti-chart-bar" style="font-size:20px; color:var(--text-secondary);" aria-hidden="true"></i>
       <div><p>สต๊อก & วิเคราะห์</p><small>Dashboard + แนวโน้มการสั่งซื้อ</small></div></div>
-    <div class="nav-tile" id="goPendingBills"><i class="ti ti-clock" style="font-size:20px; color:#7A4608;"></i>
+    <div class="nav-tile" id="goPendingBills" role="button" tabindex="0"><i class="ti ti-clock" style="font-size:20px; color:#7A4608;" aria-hidden="true"></i>
       <div><p>บิลรอตรวจสอบ</p><small>บิลที่ลูกจ้างถ่ายไว้ รอเจ้าของจับคู่+บันทึกต้นทุน</small></div></div>
   `;
   app.appendChild(c);
-  c.querySelector('#goOrder').onclick = ()=>go('orderPage');
-  c.querySelector('#goStockAnalytics').onclick = ()=>go('ownerStockAnalytics', {ownerTab:'stock'});
-  c.querySelector('#goPendingBills').onclick = ()=>go('billPendingList');
+  bindActivatable(c.querySelector('#goOrder'), ()=>go('orderPage'));
+  bindActivatable(c.querySelector('#goStockAnalytics'), ()=>go('ownerStockAnalytics', {ownerTab:'stock'}));
+  bindActivatable(c.querySelector('#goPendingBills'), ()=>go('billPendingList'));
 }
 
 /* ============ OWNER: merged Dashboard + Analytics ============ */
