@@ -135,7 +135,7 @@
   .prod-card.checked .check-toggle{color:#3B6D11;}
   .prod-card-name{font-size:12.5px; font-weight:500; margin:0 0 8px;}
   .unit-steppers-row{display:flex; flex-direction:column; gap:3px;}
-  .unit-stepper{display:flex; align-items:center; gap:4px; background:#fff; border-radius:var(--radius-md); padding:4px 6px;}
+  .unit-stepper{display:flex; align-items:center; gap:7px; background:#fff; border-radius:var(--radius-md); padding:4px 6px;}
   .prod-card.checked .unit-stepper{background:rgba(255,255,255,0.7);}
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
@@ -180,7 +180,7 @@
   .prow.low{background:var(--danger-bg);}
   .prow-top{display:flex; align-items:center; gap:9px;}
   .prow-bottom{display:flex; align-items:center; gap:6px;}
-  .prow input[type=checkbox]{flex-shrink:0; width:17px; height:17px;}
+  .prow input[type=checkbox]{flex-shrink:0; width:24px; height:24px;}
   .prow-name{flex:1; min-width:0; font-size:13px; color:var(--text); line-height:1.3;}
   .prow.low .prow-name{font-weight:600;}
   .prow.skip-set{background:var(--danger-bg);}
@@ -221,7 +221,7 @@
   .ord-card-head .chev{font-size:14px; color:var(--text-tertiary); transition:transform .15s; flex-shrink:0;}
   .ord-card.open .ord-card-head .chev{transform:rotate(180deg);}
   .ord-card.state-ordered .ord-card-head{background:var(--green-bg);}
-  .order-done-check{width:18px; height:18px; border-radius:50%; background:none; border:2px solid var(--green); color:transparent; font-size:11px; font-weight:700; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;}
+  .order-done-check{width:24px; height:24px; border-radius:50%; background:none; border:2px solid var(--green); color:transparent; font-size:13px; font-weight:700; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;}
   .order-done-check.confirmed{background:var(--green); color:#fff;}
   .order-done-check:disabled{opacity:0.5; cursor:default;}
   .ord-card-name{font-weight:600; font-size:14.5px; flex:1; min-width:0;}
@@ -322,7 +322,7 @@
   .bill-photo-strip{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
   .bill-photo-chip{position:relative; width:72px; height:96px; border-radius:8px; overflow:hidden; border:1px solid var(--border-strong); flex-shrink:0; background:var(--bg);}
   .bill-photo-chip img{width:100%; height:100%; object-fit:cover; display:block;}
-  .bill-photo-chip .rm{position:absolute; top:3px; right:3px; width:18px; height:18px; border-radius:50%; background:rgba(28,26,20,0.72); color:#fff; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; font-size:11px; line-height:1;}
+  .bill-photo-chip .rm{position:absolute; top:2px; right:2px; width:24px; height:24px; border-radius:50%; background:rgba(28,26,20,0.72); color:#fff; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; font-size:13px; line-height:1;}
 
   .analyzing-wrap{display:flex; flex-direction:column; align-items:center; justify-content:center; padding:70px 20px; text-align:center;}
   .spin-ring{width:40px; height:40px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--purple); animation:spin 0.9s linear infinite; margin-bottom:18px;}
@@ -569,7 +569,7 @@ async function apiPost(action, payload, retryOnTimeout, timeoutMs, baseUrl){
 function openBillPhotoLightbox(urls){
   const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
   lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
-    <div class="lb-scroll">${urls.map(url=>`<img src="${url}" alt="">`).join('')}</div>`;
+    <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}">`).join('')}</div>`;
   lb.onclick = (e)=>{ if(e.target===lb) lb.remove(); };
   lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
   lb.querySelectorAll('img').forEach(img=>{
@@ -653,10 +653,10 @@ function openPhotoMatchScreen(files, products, onDone){
     row.className = 'match-row';
     const url = URL.createObjectURL(file);
     row.innerHTML = `
-      <img class="match-thumb" src="${url}" alt="" loading="lazy">
+      <img class="match-thumb" src="${url}" alt="รูปสินค้าที่เลือกไว้ ${i+1}: ${file.name}" loading="lazy">
       <div style="flex:1; min-width:0;">
         <p class="match-fname">${file.name}</p>
-        <select data-idx="${i}">
+        <select data-idx="${i}" aria-label="เลือกสินค้าให้ตรงกับรูป ${file.name}">
           <option value="" selected disabled>เลือกสินค้า...</option>
           ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
         </select>
@@ -1285,9 +1285,9 @@ function renderStaffName(app){
   };
   // แตะที่ตัวรูปเอง = ซูมดูรูปใหญ่ (ถ้ามีรูปแล้ว) กันเผลอกดเลือกพนักงานผิดคนตอนแค่อยากดูรูปชัดๆ
   // ส่วนป้ายกล้องเล็กๆ มุมขวาล่างแยกไว้เป็นปุ่ม "เปลี่ยนรูป" โดยเฉพาะ ไม่ปนกับการซูมอีกต่อไป
-  function openAvatarLightbox(url){
+  function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
-    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="">`;
+    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
     lb.onclick = ()=> lb.remove();
     lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
@@ -1297,7 +1297,7 @@ function renderStaffName(app){
       e.stopPropagation();
       const staffId = avatar.dataset.staffId;
       const s = STAFF.find(x=>x.id===staffId);
-      if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl);
+      if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl, s.name);
       else{ avatarTargetId = staffId; avatarInput.click(); } // ยังไม่มีรูป — ไม่มีอะไรให้ซูม เปิดตัวเลือกรูปแทนเลย
     });
   });
@@ -1403,9 +1403,9 @@ function renderBillStaff(app){
       if(targetEl) targetEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
     }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + err.message); }
   };
-  function openAvatarLightbox(url){
+  function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
-    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="">`;
+    lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
     lb.onclick = ()=> lb.remove();
     lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
@@ -1415,7 +1415,7 @@ function renderBillStaff(app){
       e.stopPropagation();
       const staffId = avatar.dataset.staffId;
       const s = STAFF.find(x=>x.id===staffId);
-      if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl);
+      if(s && s.avatarUrl) openAvatarLightbox(s.avatarUrl, s.name);
       else{ avatarTargetId = staffId; avatarInput.click(); }
     });
   });
@@ -1499,7 +1499,7 @@ function renderBillCapture(app){
   function drawPhotos(){
     const strip = c.querySelector('#photoStrip');
     strip.innerHTML = state.billPhotos.map((url,i)=>`
-      <div class="bill-photo-chip"><img src="${url}" alt=""><button class="rm" data-i="${i}">✕</button></div>`).join('');
+      <div class="bill-photo-chip"><img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${state.billPhotos.length}"><button class="rm" data-i="${i}" aria-label="ลบรูปบิลที่ ${i+1}">✕</button></div>`).join('');
     strip.querySelectorAll('.rm').forEach(b=> b.onclick = ()=>{ state.billPhotos.splice(+b.dataset.i,1); drawPhotos(); });
     c.querySelector('#captureLabel').textContent = state.billPhotos.length ? `เลือกไว้ ${state.billPhotos.length} รูป` : 'ยังไม่มีรูปบิล';
     syncAnalyzeBtn();
@@ -1837,15 +1837,15 @@ function renderBillReview(app){
       <div class="bill-header-card">
         <div class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></div>
         <div class="bhc-row">
-          <div class="bhc-field"><label>วันที่บิล</label><input type="text" class="bhDate" value="${h.billDate||''}"></div>
-          <div class="bhc-field"><label>เลขที่บิล</label><input type="text" class="bhNumber" value="${h.billNumber||''}"></div>
+          <div class="bhc-field"><label for="bhDateInput">วันที่บิล</label><input type="text" id="bhDateInput" class="bhDate" value="${h.billDate||''}"></div>
+          <div class="bhc-field"><label for="bhNumberInput">เลขที่บิล</label><input type="text" id="bhNumberInput" class="bhNumber" value="${h.billNumber||''}"></div>
         </div>
         <div class="bhc-row">
-          <div class="bhc-field"><label>ยอดรวมสินค้า (฿)</label><input type="number" step="0.01" class="bhSubtotal" value="${h.subtotal||0}"></div>
-          <div class="bhc-field"><label>ภาษีมูลค่าเพิ่ม (฿)</label><input type="number" step="0.01" class="bhVat" value="${h.vat||0}"></div>
+          <div class="bhc-field"><label for="bhSubtotalInput">ยอดรวมสินค้า (฿)</label><input type="number" step="0.01" id="bhSubtotalInput" class="bhSubtotal" value="${h.subtotal||0}"></div>
+          <div class="bhc-field"><label for="bhVatInput">ภาษีมูลค่าเพิ่ม (฿)</label><input type="number" step="0.01" id="bhVatInput" class="bhVat" value="${h.vat||0}"></div>
         </div>
         <div class="bhc-row" style="margin-bottom:0;">
-          <div class="bhc-field total"><label>ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" class="bhTotal" value="${h.total||0}"></div>
+          <div class="bhc-field total"><label for="bhTotalInput">ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" id="bhTotalInput" class="bhTotal" value="${h.total||0}"></div>
         </div>
         <div id="bhcMismatchSlot"></div>
       </div>`;
@@ -1891,7 +1891,7 @@ function renderBillReview(app){
         bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
-        bodyHtml += `<select class="matchSelect">
+        bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
             ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
           </select>`;
@@ -1899,18 +1899,18 @@ function renderBillReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
       bodyHtml += `
         <div class="item-field-row">
-          <div class="item-field"><label>ตามบิล (${it.unit})</label><input type="number" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
-          <div class="item-field received"><label>รับจริง (${it.unit})</label><input type="number" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
+          <div class="item-field"><label for="qty-${it._id}">ตามบิล (${it.unit})</label><input type="number" id="qty-${it._id}" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
+          <div class="item-field received"><label for="received-${it._id}">รับจริง (${it.unit})</label><input type="number" id="received-${it._id}" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
         </div>
         <div id="driftSlot-${it._id}"></div>
         <div class="item-field-row">
-          <div class="item-field"><label>ราคา/หน่วย (฿)</label><input type="number" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
+          <div class="item-field"><label for="price-${it._id}">ราคา/หน่วย (฿)</label><input type="number" id="price-${it._id}" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
         </div>
         <div class="item-total"><span>รวมรายการนี้ (ตามบิล)</span><b>${fmtMoney(total)}</b></div>`;
     }
@@ -2083,7 +2083,7 @@ function drawBatchCards(c){
   const wrap = c.querySelector('#batchCards');
   wrap.innerHTML = groups.map((g,gi)=>{
     if(g.submitted) return ''; // ส่งไปแล้ว (เหลือจากกด "ส่งทั้งหมด" ที่พังกลางทาง) ไม่ต้องโชว์ซ้ำ
-    const thumbs = g.photoIndices.map(i=>`<div class="bill-photo-chip"><img src="${state.billPhotos[i]}" alt=""></div>`).join('');
+    const thumbs = g.photoIndices.map((i,pos)=>`<div class="bill-photo-chip"><img src="${state.billPhotos[i]}" alt="รูปบิลที่ ${gi+1} หน้าที่ ${pos+1} จาก ${g.photoIndices.length}"></div>`).join('');
     const h = g.billHeader;
     const title = h && h.billNumber ? `บิลที่ ${gi+1} · ${h.billNumber}` : `บิลที่ ${gi+1}`;
     const sub = h && h.billDate ? `${h.billDate} · ${g.photoIndices.length} รูป` : `${g.photoIndices.length} รูป · ไม่พบข้อมูลหัวบิล`;
@@ -2241,15 +2241,15 @@ function renderBillBatchItemReview(app){
       <div class="bill-header-card">
         <div class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></div>
         <div class="bhc-row">
-          <div class="bhc-field"><label>วันที่บิล</label><input type="text" class="bhDate" value="${h.billDate||''}"></div>
-          <div class="bhc-field"><label>เลขที่บิล</label><input type="text" class="bhNumber" value="${h.billNumber||''}"></div>
+          <div class="bhc-field"><label for="bhDateInput">วันที่บิล</label><input type="text" id="bhDateInput" class="bhDate" value="${h.billDate||''}"></div>
+          <div class="bhc-field"><label for="bhNumberInput">เลขที่บิล</label><input type="text" id="bhNumberInput" class="bhNumber" value="${h.billNumber||''}"></div>
         </div>
         <div class="bhc-row">
-          <div class="bhc-field"><label>ยอดรวมสินค้า (฿)</label><input type="number" step="0.01" class="bhSubtotal" value="${h.subtotal||0}"></div>
-          <div class="bhc-field"><label>ภาษีมูลค่าเพิ่ม (฿)</label><input type="number" step="0.01" class="bhVat" value="${h.vat||0}"></div>
+          <div class="bhc-field"><label for="bhSubtotalInput">ยอดรวมสินค้า (฿)</label><input type="number" step="0.01" id="bhSubtotalInput" class="bhSubtotal" value="${h.subtotal||0}"></div>
+          <div class="bhc-field"><label for="bhVatInput">ภาษีมูลค่าเพิ่ม (฿)</label><input type="number" step="0.01" id="bhVatInput" class="bhVat" value="${h.vat||0}"></div>
         </div>
         <div class="bhc-row" style="margin-bottom:0;">
-          <div class="bhc-field total"><label>ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" class="bhTotal" value="${h.total||0}"></div>
+          <div class="bhc-field total"><label for="bhTotalInput">ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" id="bhTotalInput" class="bhTotal" value="${h.total||0}"></div>
         </div>
         <div id="bhcMismatchSlot"></div>
       </div>`;
@@ -2293,7 +2293,7 @@ function renderBillBatchItemReview(app){
         bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
-        bodyHtml += `<select class="matchSelect">
+        bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
             ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
           </select>`;
@@ -2301,18 +2301,18 @@ function renderBillBatchItemReview(app){
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
       bodyHtml += `
         <div class="item-field-row">
-          <div class="item-field"><label>ตามบิล (${it.unit})</label><input type="number" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
-          <div class="item-field received"><label>รับจริง (${it.unit})</label><input type="number" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
+          <div class="item-field"><label for="qty-${it._id}">ตามบิล (${it.unit})</label><input type="number" id="qty-${it._id}" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
+          <div class="item-field received"><label for="received-${it._id}">รับจริง (${it.unit})</label><input type="number" id="received-${it._id}" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
         </div>
         <div id="driftSlot-${it._id}"></div>
         <div class="item-field-row">
-          <div class="item-field"><label>ราคา/หน่วย (฿)</label><input type="number" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
+          <div class="item-field"><label for="price-${it._id}">ราคา/หน่วย (฿)</label><input type="number" id="price-${it._id}" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
         </div>
         <div class="item-total"><span>รวมรายการนี้ (ตามบิล)</span><b>${fmtMoneyBatch(total)}</b></div>`;
     }
@@ -2421,7 +2421,7 @@ function renderBillBatchRegroup(app){
       const ownerGroup = state.billBatchGroups.find(gr=>gr.photoIndices.includes(i));
       const gi = state.billBatchGroups.indexOf(ownerGroup);
       return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}">
-        <div class="bill-photo-chip"><img src="${url}" alt=""></div>
+        <div class="bill-photo-chip"><img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} (ตอนนี้อยู่ในกลุ่มบิลที่ ${gi+1})"></div>
         <span class="rg-badge">บิลที่ ${gi+1}</span>
         <span class="rg-check"><i class="ti ti-check" aria-hidden="true"></i></span>
       </div>`;
@@ -3246,8 +3246,11 @@ function renderAnalyticsTab(body, analytics){
     <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; margin-bottom:12px;">
       <p style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (7 วันล่าสุด)</p>
       <table style="width:100%; font-size:13px;">
+        <thead><tr><th style="text-align:left; font-weight:600;">สินค้า</th><th style="text-align:right; font-weight:600;">จำนวนที่สั่ง</th></tr></thead>
+        <tbody>
         ${rows.length ? rows.map(r=>`<tr><td>${r.name}</td><td style="text-align:right;">${r.total}</td></tr>`).join('')
                       : '<tr><td colspan="2" style="color:var(--text-secondary);">ยังไม่มีข้อมูลสั่งของในช่วงนี้</td></tr>'}
+        </tbody>
       </table>
     </div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;">
@@ -3391,7 +3394,7 @@ async function renderOrderPage(app){
     const head = document.createElement('div'); head.className = 'ord-card-head';
     head.innerHTML = `
       <i class="ti ti-chevron-down chev"></i>
-      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง">${isConfirmed?'✓':''}</button>
+      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง">${isConfirmed?'✓':''}</button>
       <span class="ord-card-name">${s.name}</span>
       <div class="ord-card-status">
         <div class="status-top-row">
@@ -3499,7 +3502,7 @@ async function renderOrderPage(app){
       row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
       row.innerHTML = `
         <div class="prow-top">
-          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}">
+          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}" aria-label="เลือกสั่ง ${p.name}">
           <div class="prow-name-wrap">
             <div class="prow-name">${p.name}</div>
             ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
@@ -3509,9 +3512,9 @@ async function renderOrderPage(app){
         <div class="prow-bottom">
           <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
           <div class="stepper">
-            <button type="button" data-step="-1">−</button>
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}">
-            <button type="button" data-step="1">+</button>
+            <button type="button" data-step="-1" aria-label="ลดจำนวน ${p.name}">−</button>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${p.name}">
+            <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${p.name}">+</button>
             <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
           </div>
         </div>
