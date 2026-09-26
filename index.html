@@ -15,7 +15,10 @@
     *{box-sizing:border-box;margin:0;padding:0}
     button,input,select,textarea{font-family:inherit}
     body{font-family:'Sarabun',sans-serif;background:#f5f3f0;color:#1a1a1a}
-    #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:0;background:#D64109}
+    /* [แก้ 26 ก.ย. 69 — AUD-03] สีแบรนด์หลัก #CB3E09 (เดิม #D64109) — ปรับเข้มขึ้นเล็กน้อยเพราะตัวขาวบน
+       #D64109 คอนทราสต์ ~4.55:1 ผ่านเกณฑ์ AA (≥4.5) แบบเฉียดมาก #CB3E09 ได้ ~4.96:1 มี margin ให้มากขึ้น
+       ถ้าจะเปลี่ยนสีแบรนด์นี้อีกในอนาคต ต้องคำนวณ contrast ใหม่ทุกครั้ง (ตัวขาวบนพื้นสีนี้ต้อง ≥4.5:1) */
+    #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:0;background:#CB3E09}
     .loading-logo{width:230px;max-width:65vw;height:auto;margin-bottom:28px}
     .loading-bar-track{width:140px;height:4px;background:rgba(255,255,255,0.25);border-radius:4px;overflow:hidden;margin-bottom:14px}
     .loading-bar-fill{width:0%;height:100%;background:#fff;border-radius:4px;animation:loadbar 1.4s ease-in-out infinite}
@@ -24,30 +27,32 @@
     #errorScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:2rem;text-align:center}
     #errorScreen h2{font-size:22.5px;color:#993c1d}
     #app,#adminApp{display:none;max-width:600px;margin:0 auto;padding-bottom:100px}
-    .header{background:#D64109;color:#fff;padding:1.25rem 1rem}
+    .header{background:#CB3E09;color:#fff;padding:1.25rem 1rem}
     .header-name{font-size:25px;font-weight:600}
     .header-sub{font-size:14.5px;opacity:0.8;margin-top:4px}
     .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
     .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
     .tab{flex:1;padding:10px 4px;text-align:center;font-size:13px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap}
-    .tab.active{color:#D64109;border-bottom-color:#D64109;font-weight:500}
+    .tab.active{color:#CB3E09;border-bottom-color:#CB3E09;font-weight:500}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
     .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
-    .product-card.selected{border-color:#D64109}
+    .product-card.selected{border-color:#CB3E09}
     .product-img{width:100%;aspect-ratio:1;object-fit:cover;background:#f0f0f0;display:block}
     .product-img-placeholder{width:100%;aspect-ratio:1;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:45px}
     .product-body{padding:10px}
     .product-name{font-size:16px;font-weight:500;margin-bottom:3px}
-    .product-price{font-size:14.5px;color:#D64109;margin-bottom:8px}
+    .product-price{font-size:14.5px;color:#CB3E09;margin-bottom:8px}
     .qty-row{display:flex;align-items:center;gap:8px}
-    .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+    /* [แก้ 26 ก.ย. 69 — AUD-07] เดิม 28x28 ผ่านเกณฑ์ขั้นต่ำ 2.5.8 (24x24) แต่เล็กกว่ามาตรฐาน UX มือถือทั่วไปมาก
+       สำหรับปุ่มที่ต้องกดซ้ำๆ (ปรับจำนวนสินค้า) ขยับเป็น 34x34 ให้กดสะดวกขึ้นโดยไม่รบกวน layout การ์ดสินค้า */
+    .qty-btn{width:34px;height:34px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:19px;display:flex;align-items:center;justify-content:center}
     .qty-num{font-size:16px;font-weight:500;width:48px;text-align:center;border:1px solid #ddd;border-radius:6px;padding:4px 4px;background:#fff}
     .cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;padding:12px 16px;display:none;z-index:100}
     .cart-bar.show{display:block}
     .cart-inner{max-width:600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
     .cart-info{font-size:13.5px;color:#666}
     .cart-total{font-size:20px;font-weight:600}
-    .btn-order{padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer}
+    .btn-order{padding:10px 24px;background:#CB3E09;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer}
     .history-list,.admin-list{padding:12px;display:flex;flex-direction:column;gap:10px}
     .order-card{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;overflow:hidden}
     .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
@@ -78,20 +83,20 @@
     .order-items-list{margin-bottom:8px}
     .item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14.5px}
     .item-row:last-child{border:none}
-    .item-qty{color:#D64109;font-weight:500}
+    .item-qty{color:#CB3E09;font-weight:500}
     .order-note{font-size:13.5px;color:#666;background:#f8f8f8;border-radius:8px;padding:6px 8px;margin-bottom:8px}
     .order-footer{display:flex;justify-content:flex-end;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
-    .order-total{font-size:16px;font-weight:600;color:#D64109}
-    .btn-edit{font-size:13.5px;padding:6px 14px;background:none;border:1px solid #D64109;color:#D64109;border-radius:8px;cursor:pointer}
+    .order-total{font-size:16px;font-weight:600;color:#CB3E09}
+    .btn-edit{font-size:13.5px;padding:6px 14px;background:none;border:1px solid #CB3E09;color:#CB3E09;border-radius:8px;cursor:pointer}
     .btn-edit.disabled{border-color:#ddd;color:#bbb;cursor:not-allowed}
     .empty-state{text-align:center;padding:3rem 1rem;color:#666;font-size:16px}
     /* ===== จุดกระโดดสามจุด ใช้แทน "กำลังโหลด..." เดิมทุกจุด (เพิ่ม 15 ก.ย. 69) ===== */
     .loading-dots{display:flex;gap:8px;justify-content:center;align-items:center;padding:6px 0}
-    .loading-dots span{width:10px;height:10px;border-radius:50%;background:#D64109;animation:loadingDotBounce 1s ease-in-out infinite}
+    .loading-dots span{width:10px;height:10px;border-radius:50%;background:#CB3E09;animation:loadingDotBounce 1s ease-in-out infinite}
     .loading-dots span:nth-child(2){animation-delay:0.15s}
     .loading-dots span:nth-child(3){animation-delay:0.3s}
     @keyframes loadingDotBounce{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-10px);opacity:1}}
-    .home-top{background:#D64109;padding:1.8rem 1.5rem 1rem;text-align:center;color:#fff}
+    .home-top{background:#CB3E09;padding:1.8rem 1.5rem 1rem;text-align:center;color:#fff}
     .home-logo{margin-bottom:6px}
     .home-logo img{width:180px;max-width:70vw;height:auto;display:block;margin:0 auto}
     .home-name{font-size:29px;font-weight:700;letter-spacing:-0.5px}
@@ -99,7 +104,7 @@
     .home-body{padding:20px 16px 32px;display:flex;flex-direction:column;gap:14px}
     .big-btn{width:100%;padding:22px 20px;border:none;border-radius:16px;cursor:pointer;display:flex;align-items:center;gap:16px;text-align:left;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
     .big-btn:active{transform:scale(0.98)}
-    .big-btn-red{background:#D64109;color:#fff}
+    .big-btn-red{background:#CB3E09;color:#fff}
     .big-btn-white{background:#fff;color:#1a1a1a;border:2px solid #e8e2dc}
     .bb-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0}
     .bb-icon-1{background:rgba(255,255,255,0.2)}
@@ -107,7 +112,7 @@
     .bb-icon-3{background:#E6F1FB}
     .bb-title{font-size:20px;font-weight:700;margin-bottom:4px}
     .bb-sub{font-size:13.5px;opacity:0.75;line-height:1.4}
-    .bb-badge{display:inline-block;font-size:11px;background:#D64109;color:#fff;padding:2px 8px;border-radius:20px;margin-top:6px;font-weight:500}
+    .bb-badge{display:inline-block;font-size:11px;background:#CB3E09;color:#fff;padding:2px 8px;border-radius:20px;margin-top:6px;font-weight:500}
     .bb-badge-dark{background:#1a0a06}
     .bb-arrow{font-size:25px;opacity:0.35;flex-shrink:0;margin-left:auto}
     .badge-verified{background:#EAF3DE;color:#3B6D11}
@@ -117,9 +122,9 @@
     .tl{display:flex;flex-direction:column;gap:0;margin:8px 0}
     .tr{display:flex;align-items:flex-start;gap:8px;padding:4px 0}
     .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
-    .d-on{background:#D64109}.d-off{background:#e0d8d4}.d-pay{background:#e65100}.d-blue{background:#185FA5}
+    .d-on{background:#CB3E09}.d-off{background:#e0d8d4}.d-pay{background:#e65100}.d-blue{background:#185FA5}
     .tlabel{font-size:13.5px;color:#333;flex:1}.tlabel.muted{color:#666}
-    .ttime{font-size:11px;color:#D64109;font-weight:500;white-space:nowrap}
+    .ttime{font-size:11px;color:#CB3E09;font-weight:500;white-space:nowrap}
     .info-box{background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;color:#185FA5}
     .warn-box-h{background:#FCEAEA;border:1px solid #F09595;border-radius:8px;padding:8px 10px;margin:6px 0}
     .ok-box-h{background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;color:#3B6D11}
@@ -136,7 +141,7 @@
     .slip-upload-inline{margin-top:8px;display:none}
     .upload-box{border:2px dashed #f5c4b3;border-radius:10px;padding:1rem;text-align:center;background:#fdf5f2;cursor:pointer;margin:6px 0}
     .slip-img-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin:4px 0}
-    .btn-slip-send{width:100%;padding:10px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:4px}
+    .btn-slip-send{width:100%;padding:10px;background:#CB3E09;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:4px}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:200}
     .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow-y:auto}
     .modal-header{padding:16px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1}
@@ -150,19 +155,19 @@
     .edit-name{font-size:17px;font-weight:500;margin-bottom:3px}
     .edit-price{font-size:14.5px;color:#666}
     .edit-qty-row{display:flex;align-items:center;gap:8px;flex-shrink:0}
-    .edit-qty-btn{width:30px;height:30px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
+    .edit-qty-btn{width:34px;height:34px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
     .edit-qty-num{font-size:17px;font-weight:500;min-width:22px;text-align:center}
     .note-section{background:#f8f8f8;border-radius:12px;padding:12px}
     .note-label{font-size:13.5px;color:#666;margin-bottom:6px}
     textarea{width:100%;min-height:72px;padding:10px;border:1px solid #e0e0e0;border-radius:10px;font-size:14.5px;font-family:inherit;resize:none}
-    textarea:focus{outline:none;border-color:#D64109}
-    .edit-total{font-size:17px;font-weight:600;color:#D64109;text-align:right;padding:4px 0}
+    textarea:focus{outline:none;border-color:#CB3E09}
+    .edit-total{font-size:17px;font-weight:600;color:#CB3E09;text-align:right;padding:4px 0}
     .modal-footer{padding:12px 16px;border-top:1px solid #f0f0f0;display:flex;gap:8px;position:sticky;bottom:0;background:#fff}
     .btn-cancel{flex:1;padding:12px;background:#f5f3f0;border:none;border-radius:10px;font-size:16px;cursor:pointer}
-    .btn-save{flex:2;padding:12px;background:#D64109;border:none;border-radius:10px;font-size:16px;font-weight:500;color:#fff;cursor:pointer}
+    .btn-save{flex:2;padding:12px;background:#CB3E09;border:none;border-radius:10px;font-size:16px;font-weight:500;color:#fff;cursor:pointer}
     .btn-save:disabled{background:#aaa;cursor:not-allowed}
     #confirmScreen{display:none;min-height:100vh;background:#f5f3f0}
-    .confirm-header{background:#D64109;color:#fff;padding:1.25rem 1rem;display:flex;align-items:center;gap:12px}
+    .confirm-header{background:#CB3E09;color:#fff;padding:1.25rem 1rem;display:flex;align-items:center;gap:12px}
     .confirm-header h2{font-size:20px;font-weight:500}
     .back-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:16px;opacity:0.85}
     .confirm-body{max-width:600px;margin:0 auto;padding:16px}
@@ -171,10 +176,10 @@
     .confirm-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:14.5px}
     .confirm-row.total{border:none;font-weight:600;font-size:16px;padding-top:10px}
     .confirm-oid{font-size:12.5px;color:#666;font-family:monospace;margin-bottom:12px}
-    .btn-confirm{width:100%;padding:14px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer}
+    .btn-confirm{width:100%;padding:14px;background:#CB3E09;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer}
     .btn-confirm:disabled{background:#aaa;cursor:not-allowed}
     #successScreen{display:none;min-height:100vh;background:#f5f3f0;flex-direction:column}
-    .success-top{text-align:center;padding:1.5rem 1.5rem 0;background:#D64109;color:#fff}
+    .success-top{text-align:center;padding:1.5rem 1.5rem 0;background:#CB3E09;color:#fff}
     .success-icon{font-size:54px;margin-bottom:8px}
     .success-oid{font-size:12.5px;font-family:monospace;opacity:0.85;margin-top:4px}
     .success-title{font-size:25px;font-weight:700;margin-bottom:4px}
@@ -183,27 +188,27 @@
     .s-card-title{font-size:13.5px;color:#666;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:6px}
     .s-item-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5ede8;font-size:14.5px;color:#333}
     .s-item-row:last-child{border:none}
-    .s-total-row{display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:700;color:#D64109;border-top:2px solid #f5ede8;margin-top:4px}
-    .pay-card{background:#fff;border-radius:14px;border:2px solid #D64109;padding:1rem}
+    .s-total-row{display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:700;color:#CB3E09;border-top:2px solid #f5ede8;margin-top:4px}
+    .pay-card{background:#fff;border-radius:14px;border:2px solid #CB3E09;padding:1rem}
     .pay-title{font-size:13.5px;color:#712B13;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
     .bank-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
     .bank-logo{width:36px;height:36px;border-radius:8px;background:#4e2e8a;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12.5px;font-weight:700;flex-shrink:0}
     .bank-name{font-size:14.5px;font-weight:500;color:#333}
     .bank-type{font-size:12.5px;color:#666;margin-top:1px}
     .acc-box{background:#fdf5f2;border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-    .acc-num{font-size:20px;font-weight:700;color:#D64109;letter-spacing:1px;font-family:monospace}
+    .acc-num{font-size:20px;font-weight:700;color:#CB3E09;letter-spacing:1px;font-family:monospace}
     .acc-name{font-size:12.5px;color:#666;margin-top:3px}
-    .btn-copy{font-size:12.5px;padding:6px 12px;background:#D64109;color:#fff;border:none;border-radius:6px;cursor:pointer}
-    .amount-box{background:#D64109;border-radius:10px;padding:12px;text-align:center}
+    .btn-copy{font-size:12.5px;padding:6px 12px;background:#CB3E09;color:#fff;border:none;border-radius:6px;cursor:pointer}
+    .amount-box{background:#CB3E09;border-radius:10px;padding:12px;text-align:center}
     .amount-label{font-size:12.5px;color:rgba(255,255,255,0.8);margin-bottom:4px}
     .amount-num{font-size:31.5px;font-weight:700;color:#fff}
     .status-row-s{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5ede8}
     .status-row-s:last-child{border:none}
     .sdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#e0d8d4}
-    .sdot-on{background:#D64109}
+    .sdot-on{background:#CB3E09}
     .s-label{font-size:14.5px;color:#1a1a1a}
     .s-sub{font-size:12.5px;color:#666;margin-top:1px}
-    .s-time{font-size:12.5px;color:#D64109;margin-left:auto;font-weight:500}
+    .s-time{font-size:12.5px;color:#CB3E09;margin-left:auto;font-weight:500}
     .copy-toast{background:#1a0a06;color:#fff;padding:7px 14px;border-radius:8px;font-size:13.5px;text-align:center;display:none;margin-top:8px}
     .warn-box{background:#FCEAEA;border:1px solid #F09595;border-radius:10px;padding:10px 12px;margin:8px 0}
     .warn-box-title{font-size:14.5px;font-weight:600;color:#A32D2D;margin-bottom:4px}
@@ -215,19 +220,19 @@
     .history-tl{margin:8px 0}
     .tl-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0}
     .tl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px}
-    .tl-on{background:#D64109}
+    .tl-on{background:#CB3E09}
     .tl-off{background:#e0d8d4}
     .tl-warn{background:#A32D2D}
     .tl-label{font-size:13.5px;color:#1a1a1a;flex:1}
     .tl-label.muted{color:#666}
-    .tl-time{font-size:11px;color:#D64109;font-weight:500;white-space:nowrap}
+    .tl-time{font-size:11px;color:#CB3E09;font-weight:500;white-space:nowrap}
     .slip-upload-inline{margin-top:8px;display:none}
-    .btn-slip{width:100%;padding:10px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:6px}
+    .btn-slip{width:100%;padding:10px;background:#CB3E09;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;margin-top:6px}
     .badge-verified{background:#EAF3DE;color:#3B6D11}
     .badge-rejected{background:#FCEAEA;color:#A32D2D}
     .badge-slip{background:#E6F1FB;color:#185FA5}
     .btn-ghost{padding:10px 20px;background:#fff;border:1px solid #ddd;border-radius:10px;font-size:14.5px;cursor:pointer}
-    .btn-green{padding:10px 20px;background:#D64109;border:none;border-radius:10px;font-size:14.5px;font-weight:500;cursor:pointer;color:#fff}
+    .btn-green{padding:10px 20px;background:#CB3E09;border:none;border-radius:10px;font-size:14.5px;font-weight:500;cursor:pointer;color:#fff}
     .btn-row{display:flex;gap:8px;justify-content:center}
     .admin-header{background:#1a0a06;color:#fff;padding:1.25rem 1rem}
     .admin-header h1{font-size:22.5px;font-weight:500}
@@ -237,7 +242,7 @@
     .admin-customer{font-size:17px;font-weight:500}
     .admin-order-id{font-size:12.5px;color:#666;font-family:monospace;margin-top:2px}
     .admin-order-time{font-size:12.5px;color:#666;margin-top:2px}
-    .btn-done{padding:8px 16px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:500;cursor:pointer}
+    .btn-done{padding:8px 16px;background:#CB3E09;color:#fff;border:none;border-radius:8px;font-size:14.5px;font-weight:500;cursor:pointer}
     .btn-done:hover{background:#A03015}
     .admin-items-list{padding:8px 12px}
     .admin-item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px;transition:background 0.15s;margin:0 -4px;padding-left:4px;padding-right:4px}
@@ -252,10 +257,10 @@
     .admin-item-reason{font-size:11.5px;color:#666;margin-top:2px;font-style:italic}
     .admin-item-reason b{font-weight:600;font-style:normal}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
-    .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
-    .admin-qty-num{font-size:16px;font-weight:600;width:42px;text-align:center;color:#D64109;border:1px solid #ddd;border-radius:6px;padding:3px 2px;background:#fff}
+    .admin-qty-btn{width:34px;height:34px;border-radius:8px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:19px;display:flex;align-items:center;justify-content:center}
+    .admin-qty-num{font-size:16px;font-weight:600;width:42px;text-align:center;color:#CB3E09;border:1px solid #ddd;border-radius:6px;padding:3px 2px;background:#fff}
     .admin-order-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #f0f0f0;background:#fafafa}
-    .admin-total{font-size:16px;font-weight:600;color:#D64109}
+    .admin-total{font-size:16px;font-weight:600;color:#CB3E09}
     .admin-note{padding:8px 12px;font-size:13.5px;color:#666;background:#fdf5f2;border-top:1px solid #f0e68c}
     .btn-save-admin{font-size:13.5px;padding:6px 12px;background:#1a0a06;color:#fff;border:none;border-radius:8px;cursor:pointer}
     .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:14.5px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap}
@@ -264,12 +269,12 @@
     .toast.show{opacity:1}
     .slip-section{margin-top:10px}
     .upload-box{border:2px dashed #f5c4b3;border-radius:12px;padding:1.25rem;text-align:center;cursor:pointer;background:#fdf5f2}
-    .upload-box:hover{border-color:#D64109;background:#fbeee9}
-    .upload-icon{font-size:31.5px;color:#D64109;margin-bottom:6px}
+    .upload-box:hover{border-color:#CB3E09;background:#fbeee9}
+    .upload-icon{font-size:31.5px;color:#CB3E09;margin-bottom:6px}
     .upload-text{font-size:14.5px;color:#666}
     .upload-sub{font-size:12.5px;color:#666;margin-top:2px}
     .slip-img{width:100%;max-height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px}
-    .btn-verify-slip{width:100%;padding:11px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+    .btn-verify-slip{width:100%;padding:11px;background:#CB3E09;color:#fff;border:none;border-radius:10px;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
     .verify-box{border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14.5px}
     .verify-ok{background:#eaf3de;color:#3b6d11}
     .verify-fail{background:#fceaea;color:#a32d2d}
@@ -279,7 +284,7 @@
 <body>
 
 <div id="loading"><img class="loading-logo" src="/logo-color.png" alt="ซามูไรไส้กรอก"><div class="loading-bar-track"><div class="loading-bar-fill"></div></div><p class="loading-text">กำลังเตรียมเมนูให้คุณ...</p></div>
-<div id="errorScreen"><h2 id="errorTitle">ไม่พบข้อมูล</h2><p id="errorMsg">ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ</p><button id="errorRetryBtn" onclick="location.reload()" style="display:none;margin-top:8px;padding:10px 24px;background:#D64109;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer">ลองใหม่อีกครั้ง</button></div>
+<div id="errorScreen"><h2 id="errorTitle">ไม่พบข้อมูล</h2><p id="errorMsg">ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ</p><button id="errorRetryBtn" onclick="location.reload()" style="display:none;margin-top:8px;padding:10px 24px;background:#CB3E09;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer">ลองใหม่อีกครั้ง</button></div>
 
 <div id="app">
   <!-- Homepage -->
@@ -290,13 +295,13 @@
       <h1 class="home-customer" id="customerName">สวัสดีครับ</h1>
     </div>
     <div class="home-body">
-      <button class="big-btn" style="background:#fff;border:2.5px solid #D64109;color:#1a1a1a" onclick="startNewOrder()">
+      <button class="big-btn" style="background:#fff;border:2.5px solid #CB3E09;color:#1a1a1a" onclick="startNewOrder()">
         <div class="bb-icon" style="background:#fdf5f2;width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:34px;flex-shrink:0">🛒</div>
         <div style="flex:1">
-          <div class="bb-title" style="color:#D64109">สั่งสินค้า</div>
+          <div class="bb-title" style="color:#CB3E09">สั่งสินค้า</div>
           <div class="bb-sub">เลือกสินค้าและสั่งซื้อได้เลยครับ</div>
         </div>
-        <div class="bb-arrow" style="color:#D64109;opacity:0.7">›</div>
+        <div class="bb-arrow" style="color:#CB3E09;opacity:0.7">›</div>
       </button>
       <button class="big-btn big-btn-white" onclick="goSection('track')">
         <div class="bb-icon bb-icon-3">📦</div>
@@ -978,7 +983,7 @@ function buildHistoryCard(o){
     ?`<button style="${btnStyle};background:#1a0a06;border:none;color:#fff" onclick="showCustomerBill('${o.order_id}')">🧾 ใบวางบิล</button>`
     :'';
   let reorderBtn=isDoneDelivery
-    ?`<button style="${btnStyle};background:#D64109;border:none;color:#fff;font-weight:500" onclick="openReorderFromHistory('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${o.timestamp}')">↻ สั่งซ้ำ</button>`
+    ?`<button style="${btnStyle};background:#CB3E09;border:none;color:#fff;font-weight:500" onclick="openReorderFromHistory('${o.order_id}','${encodeURIComponent(o.items)}',${o.total},'${o.timestamp}')">↻ สั่งซ้ำ</button>`
     :'';
   return`<div class="order-card" id="hcard${o.order_id}">
     <div class="hcard-summary" role="button" tabindex="0" aria-expanded="false" aria-controls="detail${o.order_id}" onclick="toggleHistoryCard('${o.order_id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHistoryCard('${o.order_id}')}">
@@ -1478,7 +1483,7 @@ function buildAdminItemsHtml(o,canAdjustQty){
     const lineTotal=unitPrice*item.qty;
     const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
     const reasonHtml=buildItemEditNoteHtml(o,item.name);
-    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#CB3E09;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
   }).join('');
 }
 
@@ -1532,7 +1537,7 @@ function buildPendingAdminCard(o){
         <div class="admin-items-list" style="padding:0 0 8px">${itemsHtml}</div>
         ${note?`<div class="order-note">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
-          <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
+          <div style="font-size:16px;font-weight:600;color:#CB3E09">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#534AB7;font-size:13.5px" onclick="event.stopPropagation();markPacking('${o.order_id}')">เริ่มจัดสินค้า</button>
         </div>
       </div>
@@ -1616,7 +1621,7 @@ function renderAdminOrders(){
       const lineTotal=unitPrice*item.qty;
       const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
       const reasonHtml=buildItemEditNoteHtml(o,item.name);
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#CB3E09;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
@@ -1663,7 +1668,7 @@ function buildDoneAdminCard(o){
       <span style="flex:1.8">${item.name}</span>
       <span style="flex:0.5;text-align:center;color:#666">x${item.qty}</span>
       <span style="flex:0.85;text-align:right;color:#666">${fmtMoney(unitPrice)}</span>
-      <span style="flex:0.85;text-align:right;font-weight:600;color:#D64109">${fmtMoney(lineTotal)}</span>
+      <span style="flex:0.85;text-align:right;font-weight:600;color:#CB3E09">${fmtMoney(lineTotal)}</span>
     </div>`;
   }).join('');
   const tStamp=o.done_at||o.timestamp;
@@ -1693,7 +1698,7 @@ function buildDoneAdminCard(o){
         ${itemsHtml}
         ${note?`<div class="order-note" style="margin-top:8px">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
-          <div style="font-size:16px;font-weight:600;color:#D64109">รวม ฿${fmtMoney(o.total)}</div>
+          <div style="font-size:16px;font-weight:600;color:#CB3E09">รวม ฿${fmtMoney(o.total)}</div>
           <button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="event.stopPropagation();showOrderSummary('${o.order_id}')">🧾 ใบวางบิล</button>
         </div>
       </div>
@@ -1845,7 +1850,7 @@ function renderOverviewMonthChart(rangeOrders,monthKey){
     const isWeekend=dow===0||dow===6;
     const holidayName=holidays[dateKey];
     if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
-    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#CB3E09';
     bars+=`<div onclick="showOverviewChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
       <div id="ovBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
       <div style="font-size:9px;color:#666;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
@@ -1853,7 +1858,7 @@ function renderOverviewMonthChart(rangeOrders,monthKey){
   }
 
   const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#666;padding-top:10px;border-top:1px solid #f2ede8">
-    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#CB3E09"></div>วันทำการปกติ</div>
     <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
     <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
   </div>`;
@@ -1912,7 +1917,7 @@ function showOverviewChartTooltip(day,dow,val,isWeekend,holidayName){
   if(!box)return;
   box.style.display='block';
   const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
-  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#CB3E09;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
 }
 
 let overviewHolidayListOpen=false;
@@ -1949,7 +1954,7 @@ function renderOverviewNoteIconButton(monthKey){
   const count=notesInMonth(monthKey).length;
   return`<div onclick="toggleOverviewNotePanel()" title="บันทึกเหตุการณ์เดือนนี้" style="position:relative;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#faf8f5;border:1px solid #efe9e3;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer">
     📝
-    ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#D64109;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
+    ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#CB3E09;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
   </div>`;
 }
 async function addOverviewNote(monthKey){
@@ -1999,12 +2004,12 @@ function formatNoteDateTh(iso){
 function renderOverviewNotePanel(monthKey){
   const notes=notesInMonth(monthKey);
   const[y,m]=monthKey.split('-').map(Number);
-  const formHtml=`<button id="overviewNoteAddBtn" onclick="toggleOverviewNoteForm(true)" style="background:#fdf1ea;color:#D64109;width:100%;padding:8px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;margin-bottom:10px;${overviewNoteFormOpen?'display:none':''}">+ เพิ่มโน้ตสำหรับเดือนนี้</button>
+  const formHtml=`<button id="overviewNoteAddBtn" onclick="toggleOverviewNoteForm(true)" style="background:#fdf1ea;color:#CB3E09;width:100%;padding:8px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;margin-bottom:10px;${overviewNoteFormOpen?'display:none':''}">+ เพิ่มโน้ตสำหรับเดือนนี้</button>
   <div style="${overviewNoteFormOpen?'':'display:none'}">
     <textarea id="overviewNoteInput" aria-label="โน้ตเหตุการณ์ประจำเดือน" placeholder="เช่น เดือนนี้โรงเรียนปิดเทอม, ช่วงนี้มีเทศกาล, ปิดร้าน 3 วัน..." style="width:100%;border:1px solid #e8e2dc;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;resize:none;height:56px;background:#fff;margin-bottom:8px;box-sizing:border-box"></textarea>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button onclick="toggleOverviewNoteForm(false)" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#eee;color:#666">ยกเลิก</button>
-      <button id="overviewNoteSaveBtn" onclick="addOverviewNote('${monthKey}')" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#D64109;color:#fff">บันทึก</button>
+      <button id="overviewNoteSaveBtn" onclick="addOverviewNote('${monthKey}')" style="flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:500;border:none;cursor:pointer;background:#CB3E09;color:#fff">บันทึก</button>
     </div>
   </div>`;
   const listHtml=notes.length
@@ -2068,9 +2073,9 @@ function renderOverviewMonthlyTrend(monthKey){
     }
     bars+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative">
       ${badgeHtml}
-      <div style="font-size:${mo.current?'11.5px':'10.5px'};color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-bottom:4px;white-space:nowrap">${Math.round(mo.total/1000)}k</div>
-      <div style="width:100%;max-width:34px;height:${pctHeight}%;border-radius:5px 5px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
-      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};font-weight:${mo.current?600:400};margin-top:7px">${THAI_MONTH_ABBR[mo.m]}</div>
+      <div style="font-size:${mo.current?'11.5px':'10.5px'};color:${mo.current?'#CB3E09':'#999'};font-weight:${mo.current?600:400};margin-bottom:4px;white-space:nowrap">${Math.round(mo.total/1000)}k</div>
+      <div style="width:100%;max-width:34px;height:${pctHeight}%;border-radius:5px 5px 0 0;background:${mo.current?'#CB3E09':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#CB3E09':'#999'};font-weight:${mo.current?600:400};margin-top:7px">${THAI_MONTH_ABBR[mo.m]}</div>
     </div>`;
   });
 
@@ -2087,7 +2092,7 @@ function renderOverviewMonthlyTrend(monthKey){
     <div style="font-size:11.5px;color:#999;margin-bottom:16px">ยอดขายรวม 6 เดือนล่าสุด</div>
     <div role="img" aria-label="กราฟยอดขายรวมรายเดือน 6 เดือนล่าสุด: ${escapeHtml(monthsSummary)}" style="position:relative;height:150px;display:flex;align-items:flex-end;gap:10px;padding-top:24px">${bars}</div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f2ede8;font-size:12.5px;color:#555;line-height:1.6">
-      เดือนนี้<b style="color:#D64109">${momPct>=0?'เพิ่มขึ้น':'ลดลง'} ${Math.abs(momPct).toFixed(0)}%</b> จากเดือนก่อน และเมื่อเทียบกับ 6 เดือนที่แล้ว ยอดขายโดยรวม<b style="color:#D64109">${trendPct>=0?'เติบโต':'ลดลง'} ${Math.abs(trendPct).toFixed(0)}%</b>
+      เดือนนี้<b style="color:#CB3E09">${momPct>=0?'เพิ่มขึ้น':'ลดลง'} ${Math.abs(momPct).toFixed(0)}%</b> จากเดือนก่อน และเมื่อเทียบกับ 6 เดือนที่แล้ว ยอดขายโดยรวม<b style="color:#CB3E09">${trendPct>=0?'เติบโต':'ลดลง'} ${Math.abs(trendPct).toFixed(0)}%</b>
     </div>
   `;
 }
@@ -2141,12 +2146,12 @@ function renderAdminOverview(){
 
   const chip=(mode,label)=>{
     const active=overviewDateMode===mode;
-    return`<button onclick="setOverviewDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#D64109':'#ddd'};background:${active?'#D64109':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
+    return`<button onclick="setOverviewDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#CB3E09':'#ddd'};background:${active?'#CB3E09':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
   };
   const availableMonths=getAvailableOverviewMonths();
   // dropdown เลือกเดือน: label คงที่ "เลือกเดือน" เสมอ ไม่โชว์ชื่อเดือนที่เลือกอยู่บนตัวปุ่ม
   const monthSelect=`<div style="position:relative;flex-shrink:0">
-    <select onchange="onOverviewMonthChange(this.value)" aria-label="เลือกเดือน" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#D64109':'#fff'};border:1px solid ${overviewDateMode==='month'?'#D64109':'#ddd'};cursor:pointer;font-family:inherit">
+    <select onchange="onOverviewMonthChange(this.value)" aria-label="เลือกเดือน" style="appearance:none;-webkit-appearance:none;padding:7px 26px 7px 12px;border-radius:999px;font-size:13.5px;font-weight:500;color:${overviewDateMode==='month'?'#fff':'#555'};background:${overviewDateMode==='month'?'#CB3E09':'#fff'};border:1px solid ${overviewDateMode==='month'?'#CB3E09':'#ddd'};cursor:pointer;font-family:inherit">
       <option value="" disabled selected hidden>เลือกเดือน</option>
       ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}">${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
     </select>
@@ -2161,11 +2166,11 @@ function renderAdminOverview(){
 
   const statCards=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
     <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
-      <div style="font-size:19px;font-weight:600;color:#D64109">${customerCount}</div>
+      <div style="font-size:19px;font-weight:600;color:#CB3E09">${customerCount}</div>
       <div style="font-size:11px;color:#666;margin-top:2px">ลูกค้าที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
     <div style="background:#fff;border-radius:10px;padding:8px 6px;text-align:center;border:0.5px solid #e8e2dc">
-      <div style="font-size:19px;font-weight:600;color:#D64109">฿${fmtMoney(totalToday)}</div>
+      <div style="font-size:19px;font-weight:600;color:#CB3E09">฿${fmtMoney(totalToday)}</div>
       <div style="font-size:11px;color:#666;margin-top:2px">ยอดที่จัดเสร็จ (${overviewDateLabel()})</div>
     </div>
   </div>`;
@@ -2186,7 +2191,7 @@ function renderAdminOverview(){
   const customerRows=topCustomers.map((name,idx)=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;${idx<topCustomers.length-1?'border-bottom:0.5px solid #f0f0f0':''}">
       <span style="font-size:13.5px;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${idx+1}. ${name}</span>
-      <span style="font-size:13.5px;font-weight:600;color:#D64109;flex-shrink:0">฿${fmtMoney(byCustomer[name].total)}</span>
+      <span style="font-size:13.5px;font-weight:600;color:#CB3E09;flex-shrink:0">฿${fmtMoney(byCustomer[name].total)}</span>
     </div>`).join('');
 
   const productRows=topProducts.map((name,idx)=>`
@@ -2195,7 +2200,7 @@ function renderAdminOverview(){
       <span style="font-size:13.5px;color:#666;flex-shrink:0">${byProduct[name]} ชิ้น</span>
     </div>`).join('');
 
-  const dashboardBtn=`<button onclick="openOwnerDashboard()" style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #D64109;background:#fff;color:#D64109;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด</button>`;
+  const dashboardBtn=`<button onclick="openOwnerDashboard()" style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #CB3E09;background:#fff;color:#CB3E09;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด</button>`;
 
   wrap.innerHTML=statCards
     + rankingSection('ลูกค้าอันดับต้น',customerRows)
@@ -2310,7 +2315,7 @@ function db_decomposeSalesChange(currOrders,prevOrders){
 function renderOwnerDashboard(){
   const wrap=document.getElementById('ownerDashboard');
   const availableMonths=getAvailableOverviewMonths();
-  const tabBtn=(tab,label)=>`<button onclick="dbSwitchTab('${tab}')" style="padding:10px 18px;font-size:13.5px;font-weight:500;border:none;background:none;cursor:pointer;color:${dbCurrentTab===tab?'#1a1a1a':'#999'};border-bottom:2px solid ${dbCurrentTab===tab?'#D64109':'transparent'}">${label}</button>`;
+  const tabBtn=(tab,label)=>`<button onclick="dbSwitchTab('${tab}')" style="padding:10px 18px;font-size:13.5px;font-weight:500;border:none;background:none;cursor:pointer;color:${dbCurrentTab===tab?'#1a1a1a':'#999'};border-bottom:2px solid ${dbCurrentTab===tab?'#CB3E09':'transparent'}">${label}</button>`;
   const monthSelect=`<select onchange="dbOnMonthChange(this.value)" aria-label="เลือกเดือน" style="padding:6px 10px;border-radius:8px;font-size:12.5px;border:1px solid #ddd;font-family:inherit">
     ${availableMonths.length?availableMonths.map(mo=>`<option value="${mo.key}" ${mo.key===dbSalesMonth?'selected':''}>${monthLabelTh(mo.y,mo.m)}</option>`).join(''):`<option value="${currentMonthKey()}">${monthLabelTh(new Date().getFullYear(),new Date().getMonth())}</option>`}
   </select>`;
@@ -2379,8 +2384,8 @@ function renderDashboardSales(){
   const compareLabel=dbCompareMode==='yoy'?'ปีก่อนช่วงเดียวกัน':'เดือนก่อน';
 
   const compareToggle=`<div style="display:flex;gap:4px;margin-bottom:8px">
-    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#D64109':'#ddd'};background:${dbCompareMode==='mom'?'#D64109':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
-    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#D64109':'#ddd'};background:${dbCompareMode==='yoy'?'#D64109':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
+    <button onclick="dbSetCompareMode('mom')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='mom'?'#CB3E09':'#ddd'};background:${dbCompareMode==='mom'?'#CB3E09':'#fff'};color:${dbCompareMode==='mom'?'#fff':'#888'}">เทียบเดือนก่อน</button>
+    <button onclick="dbSetCompareMode('yoy')" style="padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid ${dbCompareMode==='yoy'?'#CB3E09':'#ddd'};background:${dbCompareMode==='yoy'?'#CB3E09':'#fff'};color:${dbCompareMode==='yoy'?'#fff':'#888'}">เทียบปีก่อน</button>
   </div>`;
 
   const nameChips=(list,color)=>list.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
@@ -2396,10 +2401,10 @@ function renderDashboardSales(){
   </div>`;
 
   const statCards=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(currTotal)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ยอดขายรวม</div></div>
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(avgPerDay)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">เฉลี่ย/วันขาย</div></div>
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${sellingDays}</div><div style="font-size:10.5px;color:#999;margin-top:2px">วันขายจริง</div></div>
-    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">฿${fmtMoney(aov)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">AOV</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#CB3E09">฿${fmtMoney(currTotal)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ยอดขายรวม</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#CB3E09">฿${fmtMoney(avgPerDay)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">เฉลี่ย/วันขาย</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#CB3E09">${sellingDays}</div><div style="font-size:10.5px;color:#999;margin-top:2px">วันขายจริง</div></div>
+    <div style="background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#CB3E09">฿${fmtMoney(aov)}</div><div style="font-size:10.5px;color:#999;margin-top:2px">AOV</div></div>
   </div>`;
 
   const chartCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
@@ -2453,7 +2458,7 @@ function renderDashboardMonthChart(rangeOrders,monthKey){
     const isWeekend=dow===0||dow===6;
     const holidayName=holidays[dateKey];
     if(holidayName) monthHolidayEntries.push({day,dow,name:holidayName});
-    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#D64109';
+    const barColor=holidayName?'#7c8fd6':isWeekend?'#e8a37a':'#CB3E09';
     bars+=`<div onclick="showDashboardChartTooltip(${day},${dow},${val},${isWeekend},${holidayName?`'${holidayName.replace(/'/g,"\\'")}'`:'null'})" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;cursor:pointer">
       <div id="dbBar-${day}" style="width:100%;max-width:11px;height:${hPct}%;background:${barColor};border-radius:2px 2px 0 0"></div>
       <div style="font-size:9px;color:#666;margin-top:4px;white-space:nowrap">${showLabel?day:''}</div>
@@ -2461,7 +2466,7 @@ function renderDashboardMonthChart(rangeOrders,monthKey){
   }
 
   const legend=`<div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:#666;padding-top:10px;border-top:1px solid #f2ede8">
-    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#D64109"></div>วันทำการปกติ</div>
+    <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#CB3E09"></div>วันทำการปกติ</div>
     <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#e8a37a"></div>เสาร์-อาทิตย์</div>
     <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:#7c8fd6"></div>วันหยุดนักขัตฤกษ์</div>
   </div>`;
@@ -2502,7 +2507,7 @@ function showDashboardChartTooltip(day,dow,val,isWeekend,holidayName){
   if(!box)return;
   box.style.display='block';
   const holidayHtml=holidayName?`<div style="color:#5a67c9;font-size:11.5px;margin-top:2px">🎌 ${holidayName}</div>`:(isWeekend?`<div style="color:#c17a3f;font-size:11.5px;margin-top:2px">วันหยุดสุดสัปดาห์</div>`:'');
-  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#D64109;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
+  box.innerHTML=`<div style="font-weight:600;color:#333;margin-bottom:2px">วันที่ ${day} (${dayNamesTh[dow]})</div><div style="color:#CB3E09;font-weight:600">฿${fmtMoney(val)}</div>${holidayHtml}`;
 }
 
 function renderDashboardAOVTrend(monthKey){
@@ -2522,9 +2527,9 @@ function renderDashboardAOVTrend(monthKey){
   const bars=months.map(mo=>{
     const pct=Math.max((mo.aov/maxVal)*100,mo.aov>0?2:0);
     return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
-      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">฿${Math.round(mo.aov)}</div>
-      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
-      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+      <div style="font-size:10px;color:${mo.current?'#CB3E09':'#999'};margin-bottom:4px">฿${Math.round(mo.aov)}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#CB3E09':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#CB3E09':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
     </div>`;
   }).join('');
   const aovSummary=`กราฟ AOV (ยอดเฉลี่ยต่อออเดอร์) 6 เดือนล่าสุด: `+months.map(mo=>`${THAI_MONTH_ABBR[mo.m]} ฿${Math.round(mo.aov)}`).join(', ');
@@ -2574,7 +2579,7 @@ function renderDashboardProduct(){
     if(!rows.length) return `<div style="background:#faf8f5;border-radius:10px;padding:12px"><div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:6px">${title}</div><div style="font-size:12px;color:#666">ยังไม่มีข้อมูลในเดือนนี้</div></div>`;
     return `<div style="background:#faf8f5;border-radius:10px;padding:12px">
       <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">${title}</div>
-      ${rows.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<rows.length-1?'border-bottom:0.5px solid #eee':''}"><span>${n}</span><span style="font-weight:500;color:#D64109">${rightFn(n)}</span></div>`).join('')}
+      ${rows.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<rows.length-1?'border-bottom:0.5px solid #eee':''}"><span>${n}</span><span style="font-weight:500;color:#CB3E09">${rightFn(n)}</span></div>`).join('')}
     </div>`;
   };
 
@@ -2623,9 +2628,9 @@ function renderDashboardProductTrend(productName,monthKey){
   const bars=months.map(mo=>{
     const pct=Math.max((mo.qty/maxVal)*100,mo.qty>0?2:0);
     return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
-      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.qty}</div>
-      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
-      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+      <div style="font-size:10px;color:${mo.current?'#CB3E09':'#999'};margin-bottom:4px">${mo.qty}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#CB3E09':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#CB3E09':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
     </div>`;
   }).join('');
   const productTrendSummary=`กราฟยอดขาย ${productName} 6 เดือนล่าสุด: `+months.map(mo=>`${THAI_MONTH_ABBR[mo.m]} ${mo.qty} ชิ้น`).join(', ');
@@ -2715,9 +2720,9 @@ function renderDashboardCustomer(){
 
   const dbScrollBtn=id=>`onclick="(function(){var t=document.getElementById('${id}');var h=document.querySelector('.admin-sticky-wrap');var off=h?h.offsetHeight:0;window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-off-12,behavior:'smooth'});})()"`;
   const statCards=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-    <div ${dbScrollBtn('db-cust-all')} style="cursor:pointer;background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#D64109">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
+    <div ${dbScrollBtn('db-cust-all')} style="cursor:pointer;background:#faf8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#CB3E09">${names.length}</div><div style="font-size:10.5px;color:#999;margin-top:2px">ลูกค้าทั้งหมด</div></div>
     <div ${dbScrollBtn('db-cust-new')} style="cursor:pointer;background:#eaf3de;border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:#3B6D11">${trueNewNames.length}</div><div style="font-size:10.5px;color:#3B6D11;margin-top:2px">ใหม่เดือนนี้</div></div>
-    <div ${dbScrollBtn('db-cust-churn')} style="cursor:pointer;background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#D64109'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
+    <div ${dbScrollBtn('db-cust-churn')} style="cursor:pointer;background:${churnList.length?'#fceaea':'#faf8f5'};border-radius:8px;padding:10px;text-align:center"><div style="font-size:17px;font-weight:600;color:${churnList.length?'#A32D2D':'#CB3E09'}">${churnList.length}</div><div style="font-size:10.5px;color:${churnList.length?'#A32D2D':'#999'};margin-top:2px">เงียบผิดปกติ</div></div>
   </div>`;
 
   // รายชื่อใหม่/หายไปของเดือนที่เลือก
@@ -2739,7 +2744,7 @@ function renderDashboardCustomer(){
     ${churnList.map(c=>`<div style="font-size:12px;color:#333;padding:5px 0;border-bottom:0.5px solid #f3d9d9">
       ${c.name} — ${c.normalGap?`ปกติซื้อทุก ~${c.normalGap} วัน แต่`:'(ออเดอร์ยังน้อย ใช้เกณฑ์คงที่ 30 วัน)'}ห่างมาแล้ว ${c.daysSinceLast} วัน${c.ratio?` (${c.ratio.toFixed(1)} เท่าของปกติ)`:''}
     </div>`).join('')}
-  </div>`:`<div id="db-cust-churn" style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#D64109">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
+  </div>`:`<div id="db-cust-churn" style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12.5px;color:#CB3E09">✓ ไม่มีลูกค้าที่เงียบผิดปกติตอนนี้</div>`;
 
   const trendCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px;margin-bottom:12px">
     <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:2px">ลูกค้าใหม่ต่อเดือน (6 เดือนล่าสุด)</div>
@@ -2767,7 +2772,7 @@ function renderDashboardCustomer(){
     <div style="font-size:10.5px;color:#999;margin-bottom:8px">เรียงตามยอดสะสมทั้งหมดตั้งแต่เริ่มเป็นลูกค้าในแอป (มาก→น้อย)</div>
     ${topLTV.length?topLTV.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topLTV.length-1?'border-bottom:0.5px solid #eee':''}">
       <span>${idx+1}. ${n}${freqByName[n]?` <span style="color:#666">· ทุก ~${Math.round(freqByName[n])} วัน</span>`:''}</span>
-      <span style="font-weight:500;color:#D64109">฿${fmtMoney(byCust[n].total)}</span>
+      <span style="font-weight:500;color:#CB3E09">฿${fmtMoney(byCust[n].total)}</span>
     </div>`).join(''):'<div style="font-size:12px;color:#666">ยังไม่มีข้อมูล</div>'}
   </div>`;
 
@@ -2776,7 +2781,7 @@ function renderDashboardCustomer(){
     <div style="font-size:10.5px;color:#999;margin-bottom:8px">ยอดเฉลี่ยและจำนวนสินค้าเฉลี่ยต่อออเดอร์ของลูกค้าแต่ละเจ้า — ต่างจาก "อันดับยอดสะสม" เพราะบางเจ้าซื้อไม่บ่อยแต่ซื้อทีละเยอะ</div>
     ${topBasket.length?topBasket.map((n,idx)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;${idx<topBasket.length-1?'border-bottom:0.5px solid #eee':''}">
       <span>${idx+1}. ${n} <span style="color:#666">· ${byCust[n].orders.length} ออเดอร์ · เฉลี่ย ${avgItemsPerOrder[n].toFixed(1)} รายการ/ครั้ง</span></span>
-      <span style="font-weight:500;color:#D64109">฿${fmtMoney(avgBasket[n])}/ครั้ง</span>
+      <span style="font-weight:500;color:#CB3E09">฿${fmtMoney(avgBasket[n])}/ครั้ง</span>
     </div>`).join(''):'<div style="font-size:12px;color:#666">ยังไม่มีข้อมูล</div>'}
   </div>`;
 
@@ -2797,9 +2802,9 @@ function renderDashboardNewCustomerTrend(monthKey,firstOrderByCust){
   const bars=months.map(mo=>{
     const pct=Math.max((mo.count/maxVal)*100,mo.count>0?4:0);
     return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
-      <div style="font-size:10px;color:${mo.current?'#D64109':'#999'};margin-bottom:4px">${mo.count}</div>
-      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#D64109':'#e5ded5'}"></div>
-      <div style="font-size:11px;color:${mo.current?'#D64109':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
+      <div style="font-size:10px;color:${mo.current?'#CB3E09':'#999'};margin-bottom:4px">${mo.count}</div>
+      <div style="width:100%;max-width:34px;height:${pct}%;border-radius:4px 4px 0 0;background:${mo.current?'#CB3E09':'#e5ded5'}"></div>
+      <div style="font-size:11px;color:${mo.current?'#CB3E09':'#999'};margin-top:6px">${THAI_MONTH_ABBR[mo.m]}</div>
     </div>`;
   }).join('');
   const newCustSummary=`กราฟจำนวนลูกค้าใหม่ 6 เดือนล่าสุด: `+months.map(mo=>`${THAI_MONTH_ABBR[mo.m]} ${mo.count} คน`).join(', ');
@@ -3065,7 +3070,7 @@ function showOrderSummary(orderId){
         <button id="summaryCloseBtn" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;width:32px;height:32px;border-radius:50%;cursor:pointer">✕</button>
       </div>
       <div id="summaryCardCapture" style="background:#fff;border-radius:0 0 14px 14px;overflow:hidden;font-family:'Sarabun',sans-serif">
-        <div style="background:#D64109;padding:0.9rem 1.25rem 0.5rem;text-align:center;color:#fff">
+        <div style="background:#CB3E09;padding:0.9rem 1.25rem 0.5rem;text-align:center;color:#fff">
           <div style="font-size:18px;font-weight:700;letter-spacing:0.3px;margin-bottom:10px">สรุปคำสั่งซื้อ</div>
           <img src="/logo-color.png" style="width:160px;margin:0 auto 6px;display:block">
           <div style="font-size:14.5px;font-weight:500;opacity:0.95;margin-top:14px">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div>
@@ -3089,13 +3094,13 @@ function showOrderSummary(orderId){
         <div style="border-top:1px dashed #ccc;margin:0 1.25rem"></div>
         <div style="padding:12px 1.25rem;display:flex;justify-content:space-between;align-items:baseline">
           <span style="font-size:14.5px;color:#555">ยอดรวม <span style="font-size:12.5px;color:#666">(${items.length} รายการ)</span></span>
-          <span style="font-size:25px;font-weight:600;color:#D64109;font-family:\'Consolas\',\'Courier New\',monospace">฿${fmt(Number(order.total))}</span>
+          <span style="font-size:25px;font-weight:600;color:#CB3E09;font-family:\'Consolas\',\'Courier New\',monospace">฿${fmt(Number(order.total))}</span>
         </div>
         <div style="background:#faf8f6;padding:10px 1.25rem;text-align:center;font-size:11px;color:#666;border-top:0.5px solid #eee">
           ขอบคุณที่ใช้บริการครับ
         </div>
       </div>
-      <button id="summarySaveBtn" style="width:100%;background:#D64109;color:#fff;border:none;border-radius:10px;padding:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">
+      <button id="summarySaveBtn" style="width:100%;background:#CB3E09;color:#fff;border:none;border-radius:10px;padding:12px;font-size:16px;font-weight:600;cursor:pointer;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">
         <span style="font-size:18px">⬇</span> บันทึกรูปภาพ
       </button>
     </div>`;
@@ -3238,7 +3243,7 @@ function renderReorderList(){
         <div style="font-size:11px;color:#3B6D11;margin-top:4px">เสร็จสมบูรณ์ ✓</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:19px;font-weight:600;color:#D64109">฿${fmtMoney(o.total)}</div>
+        <div style="font-size:19px;font-weight:600;color:#CB3E09">฿${fmtMoney(o.total)}</div>
         <div style="font-size:12.5px;color:#666;margin-top:6px">สั่งซ้ำ ›</div>
       </div>
     </div>`;
@@ -3282,13 +3287,13 @@ function renderReorderPicker(){
     const selected=reorderSelectedIdx.has(idx);
     // [เพิ่ม 26 ก.ย. 69 — AUD-06] ขยายจาก 22x22 เป็น 24x24 ให้ผ่านเกณฑ์ขนาดพื้นที่กดขั้นต่ำ (2.5.8)
     const checkboxHtml=selected
-      ?`<div style="width:24px;height:24px;border-radius:6px;background:#D64109;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
+      ?`<div style="width:24px;height:24px;border-radius:6px;background:#CB3E09;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
       :`<div style="width:24px;height:24px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0"></div>`;
     // [เพิ่ม 27 ก.ย. 69] เดิมทั้งแถวเป็น div onclick เฉยๆ ไม่มี role/state ให้ AT อ่านเลย — เพิ่ม
     // role="checkbox"/aria-checked/tabindex จริง ผูกชื่อสินค้าผ่าน aria-labelledby (ไม่พิมพ์ซ้ำ)
     return`<div id="reorderRow${idx}" role="checkbox" tabindex="0" aria-checked="${selected?'true':'false'}" aria-labelledby="reorderRowLabel${idx}" onclick="toggleReorderItem(${idx})" onkeydown="if(event.key===' '){event.preventDefault();toggleReorderItem(${idx})}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 8px;border-bottom:1px solid #f5f5f5;border-radius:8px;cursor:pointer">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">${checkboxHtml}<span id="reorderRowLabel${idx}" style="font-size:15.5px;color:#1a1a1a">${item.name}</span></div>
-      <span style="font-size:14.5px;color:#D64109;font-weight:500;flex-shrink:0;margin-left:8px">x${item.qty}</span>
+      <span style="font-size:14.5px;color:#CB3E09;font-weight:500;flex-shrink:0;margin-left:8px">x${item.qty}</span>
     </div>`;
   }).join('');
   const selectedCount=reorderSelectedIdx.size;
@@ -3305,7 +3310,7 @@ function renderReorderPicker(){
     <div style="font-size:12.5px;color:#666;margin:8px 0 4px;display:flex;justify-content:space-between;align-items:center">
       <span>แตะรายการที่ไม่ต้องการเพื่อตัดออก</span>
       <span style="flex-shrink:0;margin-left:8px">
-        <button id="reorderSelectAllBtn" onclick="reorderSelectAll()" style="background:none;border:none;color:#D64109;font-size:12.5px;cursor:pointer;padding:6px;font-weight:500">เลือกทั้งหมด</button>
+        <button id="reorderSelectAllBtn" onclick="reorderSelectAll()" style="background:none;border:none;color:#CB3E09;font-size:12.5px;cursor:pointer;padding:6px;font-weight:500">เลือกทั้งหมด</button>
         <span style="color:#ddd">|</span>
         <button id="reorderDeselectAllBtn" onclick="reorderDeselectAll()" style="background:none;border:none;color:#666;font-size:12.5px;cursor:pointer;padding:6px">ไม่เลือกทั้งหมด</button>
       </span>
@@ -3314,9 +3319,9 @@ function renderReorderPicker(){
     <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:8px;border-top:1px solid #f0f0f0">
       <div>
         <div style="font-size:12.5px;color:#666">${selectedCount} รายการที่เลือก</div>
-        <div style="font-size:18px;font-weight:600;color:#D64109">฿${fmtMoney(selectedTotal)}</div>
+        <div style="font-size:18px;font-weight:600;color:#CB3E09">฿${fmtMoney(selectedTotal)}</div>
       </div>
-      <button onclick="applyReorderSelected()" ${disabled?'disabled':''} style="padding:11px 22px;background:#D64109;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer;${disabled?'opacity:0.5;cursor:not-allowed':''}">เพิ่มลงตะกร้า</button>
+      <button onclick="applyReorderSelected()" ${disabled?'disabled':''} style="padding:11px 22px;background:#CB3E09;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:500;cursor:pointer;${disabled?'opacity:0.5;cursor:not-allowed':''}">เพิ่มลงตะกร้า</button>
     </div>`;
 }
 
@@ -3409,7 +3414,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
   let startY=null,pulling=false,refreshing=false;
   const indicator=document.createElement('div');
   indicator.id='pullRefreshIndicator';
-  indicator.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#D64109;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);z-index:9999;transition:height .12s ease-out';
+  indicator.style.cssText='position:fixed;top:0;left:0;right:0;height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#CB3E09;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.08);z-index:9999;transition:height .12s ease-out';
   indicator.textContent='↓ ดึงลงเพื่อรีเฟรช';
   document.body.appendChild(indicator);
 
@@ -3506,7 +3511,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     </div>
     <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:14.5px;font-weight:600;color:#D64109">✅ ทางร้านได้รับคำสั่งซื้อแล้วครับ</span>
+        <span style="font-size:14.5px;font-weight:600;color:#CB3E09">✅ ทางร้านได้รับคำสั่งซื้อแล้วครับ</span>
       </div>
       <div id="successMsg" style="font-size:13.5px;color:#993C1D;line-height:1.7"></div>
     </div>
@@ -3517,7 +3522,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#666">กำลังจัดสินค้า</div></div></div>
       <div class="status-row-s"><div class="sdot"></div><div><div class="s-label" style="color:#666">จัดเสร็จแล้ว</div></div></div>
     </div>
-    <button onclick="show('app');goHome()" style="width:100%;padding:14px;background:#D64109;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px">
+    <button onclick="show('app');goHome()" style="width:100%;padding:14px;background:#CB3E09;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px">
       🏠 กลับหน้าหลัก
     </button>
     <button onclick="show('app');goSection('track')" style="width:100%;padding:9px;background:none;border:none;font-size:13.5px;color:#666;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
