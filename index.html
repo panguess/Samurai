@@ -253,7 +253,7 @@
     .admin-item-reason b{font-weight:600;font-style:normal}
     .admin-item-qty-row{display:flex;align-items:center;gap:6px}
     .admin-qty-btn{width:28px;height:28px;border-radius:7px;border:1px solid #ddd;background:#f5f3f0;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
-    .admin-qty-num{font-size:16px;font-weight:600;min-width:20px;text-align:center;color:#D64109}
+    .admin-qty-num{font-size:16px;font-weight:600;width:42px;text-align:center;color:#D64109;border:1px solid #ddd;border-radius:6px;padding:3px 2px;background:#fff}
     .admin-order-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #f0f0f0;background:#fafafa}
     .admin-total{font-size:16px;font-weight:600;color:#D64109}
     .admin-note{padding:8px 12px;font-size:13.5px;color:#888;background:#fdf5f2;border-top:1px solid #f0e68c}
@@ -1378,7 +1378,8 @@ async function switchAdminTab(tab){
 function buildAdminItemsHtml(o,canAdjustQty){
   const items=parseItems(o.items);
   const prodMap=getOrderProdFullMap(o);
-  if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
+  // เก็บ adminQtys อิงชื่อสินค้า ไม่ใช่ index ตำแหน่ง — กันเลขเพี้ยนข้ามสินค้าตอนมีรายการถูกกรองออก (ดู markDone)
+  if(!adminQtys[o.order_id])adminQtys[o.order_id]=Object.fromEntries(items.map(i=>[i.name,i.qty]));
   return items.map((item,idx)=>{
     const prod=prodMap[item.name]||{};
     const rowKey=o.order_id+'_'+idx;
@@ -1391,7 +1392,7 @@ function buildAdminItemsHtml(o,canAdjustQty){
     const lineTotal=unitPrice*item.qty;
     const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
     const reasonHtml=buildItemEditNoteHtml(o,item.name);
-    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+    return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
   }).join('');
 }
 
@@ -1504,7 +1505,8 @@ function renderAdminOrders(){
   list.innerHTML=filtered.map(o=>{
     const items=parseItems(o.items);
     const prodMap=getOrderProdFullMap(o);
-    if(!adminQtys[o.order_id])adminQtys[o.order_id]=items.map(i=>i.qty);
+    // เก็บ adminQtys อิงชื่อสินค้า ไม่ใช่ index ตำแหน่ง — กันเลขเพี้ยนข้ามสินค้าตอนมีรายการถูกกรองออก (ดู markDone)
+    if(!adminQtys[o.order_id])adminQtys[o.order_id]=Object.fromEntries(items.map(i=>[i.name,i.qty]));
     const isPending=ds_pending(o);
     const isPacking=ds_packing(o);
     const isDone=ds_done(o);
@@ -1521,7 +1523,7 @@ function renderAdminOrders(){
       const lineTotal=unitPrice*item.qty;
       const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
       const reasonHtml=buildItemEditNoteHtml(o,item.name);
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><span class="admin-qty-num" id="aq${o.order_id}_${idx}">${item.qty}</span><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#D64109;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
@@ -2717,19 +2719,36 @@ function openImageLightbox(url){
 }
 
 function adminChg(orderId,idx,delta){
-  if(!adminQtys[orderId])return;
-  adminQtys[orderId][idx]=Math.max(0,adminQtys[orderId][idx]+delta);
-  const newQty=adminQtys[orderId][idx];
-  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.textContent=newQty;
   const order=allAdminOrders.find(o=>o.order_id===orderId);
-  if(order){
-    const items=parseItems(order.items);
-    const item=items[idx];
-    const prodMap=getOrderProdMap(order);
-    const unitPrice=prodMap[item.name]||0;
-    const priceEl=document.getElementById(`ap${orderId}_${idx}`);
-    if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
-  }
+  if(!order||!adminQtys[orderId])return;
+  const items=parseItems(order.items);
+  const item=items[idx];
+  if(!item)return;
+  const cur=adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty;
+  const newQty=Math.max(0,cur+delta);
+  adminQtys[orderId][item.name]=newQty;
+  const el=document.getElementById(`aq${orderId}_${idx}`);if(el)el.value=newQty;
+  const prodMap=getOrderProdMap(order);
+  const unitPrice=prodMap[item.name]||0;
+  const priceEl=document.getElementById(`ap${orderId}_${idx}`);
+  if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
+  recalcAdminTotal(orderId);
+}
+
+// [เพิ่ม 27 ก.ย. 69] เดิมช่องจำนวนฝั่งแอดมินเป็น <span> กดได้แค่ปุ่ม +/- พิมพ์เลขเองไม่ได้เลย — ตอนนี้เป็น
+// input พิมพ์ได้แล้ว ฟังก์ชันนี้รับค่าที่พิมพ์มาตรงๆ (เหมือน pattern setQty/editSet เดิมของฝั่งลูกค้า)
+function adminSetQty(orderId,idx,val){
+  const order=allAdminOrders.find(o=>o.order_id===orderId);
+  if(!order||!adminQtys[orderId])return;
+  const items=parseItems(order.items);
+  const item=items[idx];
+  if(!item)return;
+  const newQty=Math.max(0,Math.min(999,parseInt(val)||0));
+  adminQtys[orderId][item.name]=newQty;
+  const prodMap=getOrderProdMap(order);
+  const unitPrice=prodMap[item.name]||0;
+  const priceEl=document.getElementById(`ap${orderId}_${idx}`);
+  if(priceEl)priceEl.textContent=`฿${fmtMoney(unitPrice)} x ${newQty} = ฿${fmtMoney(unitPrice*newQty)}`;
   recalcAdminTotal(orderId);
 }
 
@@ -2757,7 +2776,7 @@ function recalcAdminTotal(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
   const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
-  const total=items.reduce((s,item,idx)=>s+(adminQtys[orderId][idx]||0)*(prodMap[item.name]||0),0);
+  const total=items.reduce((s,item)=>s+(adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty)*(prodMap[item.name]||0),0);
   const el=document.getElementById('atotal'+orderId);if(el)el.textContent='฿'+fmtMoney(total);
 }
 
@@ -2765,7 +2784,7 @@ async function saveAdminEdit(orderId){
   const order=allAdminOrders.find(o=>o.order_id===orderId);if(!order)return;
   const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
-  const newItems=items.map((item,idx)=>({...item,qty:adminQtys[orderId][idx]||0})).filter(i=>i.qty>0);
+  const newItems=items.map(item=>({...item,qty:adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty})).filter(i=>i.qty>0);
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
@@ -2809,7 +2828,11 @@ async function markDone(orderId,btnEl){
   try{
     if(order&&adminQtys[orderId]){
       const items=parseItems(order.items);
-      const qtyChanged=items.some((item,i)=>adminQtys[orderId][i]!==item.qty);
+      // [แก้ 27 ก.ย. 69] เดิมเทียบด้วย index ตำแหน่ง (adminQtys[orderId][i]) — ถ้ามีสินค้าตัวไหนถูกลดเหลือ 0
+      // ระหว่างแพ็ค (เช่นของหมด) รอบ save ถัดไปจะ .filter(qty>0) ตัดตัวนั้นออก ทำให้ตำแหน่งของสินค้าที่เหลือ
+      // เลื่อนหมด แต่ adminQtys เดิมยังอิง index เก่า เลยจับคู่เลขผิดสินค้า/เพี้ยนถาวร (บั๊กจริงที่เจอ 26 ก.ย. 69
+      // — แหนมเปิป 150 ไปโผล่ที่แหนมแท่งนิตยาแทน) เปลี่ยนมาเทียบด้วยชื่อสินค้าแทน ไม่ขึ้นกับตำแหน่งในลิสต์เลย
+      const qtyChanged=items.some(item=>(adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty)!==item.qty);
       if(qtyChanged){
         const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
         products=freshProducts;
@@ -2819,7 +2842,7 @@ async function markDone(orderId,btnEl){
         }
         const prodMap=getOrderProdMap(order);
 
-        const newItems=items.map((item,i)=>({...item,qty:adminQtys[orderId][i]})).filter(i=>i.qty>0);
+        const newItems=items.map(item=>({...item,qty:adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty})).filter(i=>i.qty>0);
         const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
         const newTimestamp=new Date().toISOString();
