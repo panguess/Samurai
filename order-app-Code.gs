@@ -74,9 +74,31 @@ function getAllOrderSheets() {
  * ก่อนรอบถัดไปมาถึงเสมอ แทบไม่เคยได้ใช้ประโยชน์เลย (ยืนยันจาก Executions log: แทบทุก doGet ใช้เวลา
  * 1.5-6 วิเต็มๆ เท่ากับอ่านชีตสดทุกครั้ง) ขยายเป็น 35 วิ (นานกว่ารอบ auto-refresh ของแอดมินเล็กน้อย
  * ครอบคลุมรอบของลูกค้าหน้าติดตามสถานะ 10 วิไปด้วยในตัว) ให้ส่วนใหญ่ของคำขอตอบจาก cache แทน
+ *
+ * [แก้ 27 ก.ย. 69 — พบจาก performance audit จริงกับ production] ยืนยันด้วยข้อมูลจริงของร้าน (456 ออเดอร์ในหน้าต่าง
+ * 60 วัน = 534KB) ว่า cache.put() ด้านล่าง**พังเงียบๆ ทุกครั้งมาตลอด** เพราะเกินเพดาน 100KB ต่อ key ของ CacheService
+ * (534KB ไม่ใช่ 534 bytes) — try/catch ที่มีอยู่แล้วจับ exception ไว้เงียบๆ ไม่มีใครสังเกตเห็นว่า TTL 35 วิ ที่เพิ่งขยาย
+ * ไปเมื่อ 15 ก.ย. 69 ไม่เคยมีผลจริงเลยสำหรับร้านขนาดนี้ (ยืนยันจากการยิง request จริง 2 ครั้งติดกันแล้ววัดเวลา:
+ * ครั้งแรก 9.6-37.5 วิ ครั้งสองก็ยังช้าใกล้เคียงเดิม ไม่ใช่ 2-3 วิแบบที่ cache ควรทำให้เป็น) แก้โดยบีบอัดด้วย
+ * gzip+base64 ก่อนเก็บเสมอ (ทดสอบจริงกับข้อมูลชุดนี้: 534KB -> 49KB เหลือพื้นที่เผื่อโตได้อีกเกือบ 2 เท่าก่อนจะชน
+ * เพดานอีกครั้ง) — ไม่กระทบความหมาย/ความสดของข้อมูลเลย แค่เปลี่ยนรูปแบบที่เก็บใน cache เท่านั้น
  */
 const ORDER_CACHE_KEY = 'all_order_rows_v1';
 const ORDER_CACHE_TTL_SEC = 35;
+
+/**
+ * บีบอัดสตริงด้วย gzip แล้วแปลงเป็น base64 (CacheService เก็บได้แค่ string) — ใช้คู่กับ ungzipFromCache()
+ * เสมอ ห้ามใช้แยกกัน (เก็บแบบบีบอัดแต่ไปอ่านแบบไม่คลาย หรือกลับกัน จะ parse/decode พังทันที)
+ */
+function gzipForCache(str) {
+  const blob = Utilities.newBlob(str, 'text/plain');
+  return Utilities.base64Encode(Utilities.gzip(blob).getBytes());
+}
+function gunzipFromCache(b64) {
+  const bytes = Utilities.base64Decode(b64);
+  const blob = Utilities.newBlob(bytes, 'application/x-gzip');
+  return Utilities.ungzip(blob).getDataAsString();
+}
 
 /**
  * อ่านข้อมูลออเดอร์ทั้งหมดจากทุก sheet order แล้ว merge เป็น array เดียว
@@ -87,9 +109,9 @@ function getAllOrderRows() {
   const cached = cache.get(ORDER_CACHE_KEY);
   if (cached) {
     try {
-      return JSON.parse(cached);
+      return JSON.parse(gunzipFromCache(cached));
     } catch (e) {
-      // cache เสีย/parse ไม่ได้ -> ข้ามไปอ่านสดด้านล่างตามปกติ ไม่ throw
+      // cache เสีย/บีบอัดคลายไม่ได้/parse ไม่ได้ -> ข้ามไปอ่านสดด้านล่างตามปกติ ไม่ throw
     }
   }
 
@@ -105,11 +127,13 @@ function getAllOrderRows() {
   });
 
   try {
-    cache.put(ORDER_CACHE_KEY, JSON.stringify(merged), ORDER_CACHE_TTL_SEC);
+    const compressed = gzipForCache(JSON.stringify(merged));
+    // ยังเช็คขนาดหลังบีบอัดไว้ก่อน put เสมอ (แพทเทิร์นเดียวกับ getAdminOrdersFull ด้านล่าง) กันร้านที่ข้อมูลใหญ่
+    // มากๆ ในอนาคตจนบีบอัดแล้วยังเกิน 100KB อยู่ดี -> ข้ามการ cache รอบนั้นไปเงียบๆ แทนที่จะให้ cache.put() throw
+    if (compressed.length < 100000) cache.put(ORDER_CACHE_KEY, compressed, ORDER_CACHE_TTL_SEC);
   } catch (e) {
-    // ข้อมูลใหญ่เกิน 100KB ต่อ key (ข้อจำกัดของ CacheService) หรือปัญหาอื่นของ cache
-    // -> ไม่ throw ต่อ เพราะ merged ที่อ่านสดมาแล้วยังใช้งานได้ปกติ แค่ไม่ได้ cache รอบนี้
-    console.error('getAllOrderRows: cache.put ล้มเหลว (ข้อมูลอาจใหญ่เกิน 100KB): ' + e);
+    // ปัญหาอื่นของ cache/gzip เอง -> ไม่ throw ต่อ เพราะ merged ที่อ่านสดมาแล้วยังใช้งานได้ปกติ แค่ไม่ได้ cache รอบนี้
+    console.error('getAllOrderRows: cache.put ล้มเหลว: ' + e);
   }
 
   return merged;
@@ -452,6 +476,12 @@ function getCustomer(id) {
  * และตอนแอดมินเปิดหน้าแอดมิน) ซึ่งเป็นอีกจุดที่ทำให้เกิด timeout ได้
  * สินค้าเปลี่ยนไม่บ่อยเท่าออเดอร์ (แก้เองในชีตเป็นครั้งคราว) จึงตั้ง TTL ยาวกว่า
  * ไม่ต้องมี invalidate เพราะไม่มี action ไหนในแอปที่แก้สินค้าโดยตรง (แก้ในชีตเองเท่านั้น)
+ *
+ * [แก้ 27 ก.ย. 69 — ป้องกันไว้ล่วงหน้า จากการตรวจสอบครั้งเดียวกับที่พบว่า getAllOrderRows()/
+ * getAdminOrdersFull() พังเงียบๆ เพราะเกิน 100KB] วัดจริงแล้วตอนนี้ขนาด ~102,324 ไบต์ — อยู่เกือบพอดีกับ
+ * เพดาน 100KB (102,400 ไบต์) ของ CacheService ต่อ 1 key ถ้าเพิ่มสินค้าอีกไม่กี่รายการจะเริ่มพังแบบเดียวกัน
+ * เงียบๆ โดยไม่มีใครสังเกต แก้ไว้ล่วงหน้าด้วย gzipForCache/gunzipFromCache ตัวเดียวกับอีก 2 จุดด้านบน
+ * (ทดสอบบีบอัดจริงแล้วเหลือไม่ถึง 10KB ให้พื้นที่เผื่อโตได้อีกมาก)
  */
 const PRODUCT_CACHE_KEY = 'all_products_v1';
 const PRODUCT_CACHE_TTL_SEC = 60;
@@ -461,9 +491,9 @@ function getAllProductRows() {
   const cached = cache.get(PRODUCT_CACHE_KEY);
   if (cached) {
     try {
-      return JSON.parse(cached);
+      return JSON.parse(gunzipFromCache(cached));
     } catch (e) {
-      // cache เสีย/parse ไม่ได้ -> อ่านสดด้านล่างตามปกติ
+      // cache เสีย/บีบอัดคลายไม่ได้/parse ไม่ได้ -> อ่านสดด้านล่างตามปกติ ไม่ throw
     }
   }
 
@@ -476,9 +506,10 @@ function getAllProductRows() {
   }
 
   try {
-    cache.put(PRODUCT_CACHE_KEY, JSON.stringify(all), PRODUCT_CACHE_TTL_SEC);
+    const compressed = gzipForCache(JSON.stringify(all));
+    if (compressed.length < 100000) cache.put(PRODUCT_CACHE_KEY, compressed, PRODUCT_CACHE_TTL_SEC);
   } catch (e) {
-    console.error('getAllProductRows: cache.put ล้มเหลว (ข้อมูลอาจใหญ่เกิน 100KB): ' + e);
+    console.error('getAllProductRows: cache.put ล้มเหลว: ' + e);
   }
 
   return all;
@@ -626,17 +657,34 @@ function getAdminOrders(key) {
 // ข้อมูลเต็มทุกปี ไม่กรองช่วงวันที่ -> ใช้เฉพาะตอนแอดมินเปิดแท็บ "ภาพรวม" เท่านั้น ไม่ใช่ทุก auto-refresh
 // Cache ผลลัพธ์ไว้ 120 วิ (CacheService) กัน cold-start ของ Apps Script บวกกับ query ทั้งชีตทุกครั้งที่เปิดแท็บ
 // ทำให้ client (timeout 35 วิ) หลุด timeout บ่อย -- ข้อมูลอาจ delay ได้สูงสุด 2 นาทีเป็นการแลกเปลี่ยน
+//
+// [แก้ 27 ก.ย. 69 — พบพร้อมกับ getAllOrderRows() ด้านบนตอน performance audit] เดิมเช็คขนาดจาก JSON ดิบก่อน put
+// (ถูกแล้วในหลักการ) แต่ไม่เคยบีบอัดเลย ข้อมูลเต็มทุกปีของร้านนี้ใหญ่กว่า 100KB แน่นอน (ยืนยันแล้วว่าแค่หน้าต่าง
+// 60 วันของ getAdminOrders ก็ 534KB) เลยข้าม cache ไปทุกครั้งจริงๆ (ไม่ใช่ error แต่ก็ไม่เคยได้ประโยชน์อะไรจาก TTL
+// 120 วิเลย) — ใช้ gzipForCache/gunzipFromCache ตัวเดียวกับ getAllOrderRows() บีบอัดก่อนเช็คขนาด/put เสมอ
 const ADMIN_ORDERS_FULL_CACHE_KEY = 'adminOrdersFull_v1';
 const ADMIN_ORDERS_FULL_CACHE_TTL_SEC = 120;
 function getAdminOrdersFull(key) {
   if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
   const cache = CacheService.getScriptCache();
   const cached = cache.get(ADMIN_ORDERS_FULL_CACHE_KEY);
-  if (cached) return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
+  if (cached) {
+    try {
+      return ContentService.createTextOutput(gunzipFromCache(cached)).setMimeType(ContentService.MimeType.JSON);
+    } catch (e) {
+      // cache เสีย/บีบอัดคลายไม่ได้ -> อ่านสดต่อด้านล่างตามปกติ ไม่ throw
+    }
+  }
   const rows = getAllOrderRows().reverse();
   const json = JSON.stringify(rows);
-  // CacheService จำกัดค่าละ 100KB -- ถ้าข้อมูลโตเกินนี้ (ร้านสะสมออเดอร์เยอะมาก) จะ cache ไม่ได้ ข้ามไปเงียบๆ ไม่ error
-  if (json.length < 100000) cache.put(ADMIN_ORDERS_FULL_CACHE_KEY, json, ADMIN_ORDERS_FULL_CACHE_TTL_SEC);
+  try {
+    const compressed = gzipForCache(json);
+    // CacheService จำกัดค่าละ 100KB -- ถ้าบีบอัดแล้วยังโตเกินนี้ (ร้านสะสมออเดอร์เยอะมากในอนาคต) จะ cache ไม่ได้
+    // ข้ามไปเงียบๆ ไม่ error (rows ที่อ่านสดมาแล้วยังส่งกลับได้ปกติ แค่ไม่ได้ cache รอบนี้)
+    if (compressed.length < 100000) cache.put(ADMIN_ORDERS_FULL_CACHE_KEY, compressed, ADMIN_ORDERS_FULL_CACHE_TTL_SEC);
+  } catch (e) {
+    console.error('getAdminOrdersFull: cache.put ล้มเหลว: ' + e);
+  }
   return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
 
