@@ -42,8 +42,13 @@
     --brand:#1A1A1A; --brand-bg:#ECECEA;
     --cream:#FCF9F2;
     --bg:#F1EFE8;
-    --text:#2C2C2A; --text-secondary:#5F5E5A; --text-tertiary:#888780;
-    --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.22);
+    /* WCAG AA fix (27 ก.ย. 69 — audit หมวด A): --text-tertiary เดิม #888780 contrast ~3.4:1 บนพื้น --cream/--bg
+       (ต่ำกว่าเกณฑ์ข้อความ 4.5:1) เข้มขึ้นเป็น #67665E ให้ผ่าน ≥4.5:1 ทุกพื้นหลังที่ใช้จริง (cream/bg/#fff) —
+       --border-strong เดิม alpha 0.22 contrast ~1.5:1 (ต่ำกว่าเกณฑ์ UI component boundary 3:1 มาก) เพิ่ม alpha
+       เป็น 0.6 ให้ผ่าน ≥3.6:1 ทุกพื้นหลัง — ทั้งคู่เป็น token ที่ใช้ร่วมกันหลายสิบจุดในไฟล์ แก้ตรงนี้จุดเดียวกระทบ
+       ภาพรวมทุกหน้าจอที่ใช้ตัวแปรนี้ (ตั้งใจ ไม่ใช่บั๊ก) */
+    --text:#2C2C2A; --text-secondary:#5F5E5A; --text-tertiary:#67665E;
+    --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.6);
     --radius-md:8px; --radius-lg:12px;
     --green:#085041; --green-bg:#E1F5EE;
     /* สเกลความเสี่ยงของการจับคู่รายการบิล (รับของ-ถ่ายบิล): เขียว(ตรงเป๊ะ) < เหลือง(คล้าย ต้องยืนยัน) <
@@ -120,6 +125,12 @@
   /* photo match screen */
   .match-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:80; display:flex; align-items:flex-end; justify-content:center;}
   .match-sheet{background:var(--cream); width:100%; max-width:600px; max-height:88vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; overflow:hidden;}
+  /* โฟกัสตัวกล่อง dialog เองตอนเปิด (setupDialogFocus) — ไม่ต้องมีกรอบ outline ล้อมทั้งแผ่น เพราะแผ่นทั้งอัน
+     ก็คือ dialog ที่มองเห็นชัดเจนอยู่แล้ว ปุ่ม/ช่องกรอกข้างในยังมี focus ring ของตัวเองตามปกติไม่กระทบ */
+  .match-sheet:focus{outline:none;}
+  /* กันกรอบ outline เต็มจอตอน setupDialogFocus โฟกัสตัว lightbox เอง — ปุ่ม/รูปข้างในยังมี focus ring
+     ของตัวเองตามปกติไม่กระทบ (เหมือน .match-sheet:focus ด้านบน) */
+  .bill-photo-lightbox:focus, .avatar-lightbox:focus{outline:none;}
   .match-sheet-header{padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0;}
   .match-sheet-header h2{margin:0 0 2px; font-size:15px; font-weight:600;}
   .match-sheet-header p{margin:0; font-size:12px; color:var(--text-tertiary);}
@@ -141,6 +152,7 @@
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px;}
+  .unit-tag-editable:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .unit-tag-editable i{font-size:10px; vertical-align:-1px; margin-left:1px;}
   .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
   /* สินค้าที่เจ้าของตั้งงดสั่ง/งดเช็คไว้เฉพาะวันนี้ (setProductSkipDate) — การ์ดยังโชว์อยู่เหมือนเดิม
@@ -371,7 +383,10 @@
   .review-footer .rf-total{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;}
   .rf-left{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .jump-btn{display:inline-flex; align-items:center; gap:5px; background:var(--amber-bg); color:var(--amber); border:none; border-radius:999px; padding:5px 11px 5px 9px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit;}
-  .jump-btn:hover{background:var(--amber-mid); color:#fff;}
+  /* WCAG AA fix (27 ก.ย. 69): เดิม hover ใช้ --amber-mid (สีอ่อน) เป็นพื้นหลังกับตัวอักษรขาว contrast ~2.2:1
+     (ต่ำกว่าเกณฑ์ 4.5:1 มาก) เปลี่ยนเป็น --amber (สีเข้ม) แทน ยังให้ความรู้สึก "เข้มขึ้นตอน hover" เหมือนเดิม
+     แต่ contrast ขึ้นเป็น ~6.7:1 */
+  .jump-btn:hover{background:var(--amber); color:#fff;}
   @keyframes jumpPulse{
     0%{ box-shadow:0 0 0 0 rgba(239,159,39,0.55); border-color:var(--amber-mid); }
     70%{ box-shadow:0 0 0 9px rgba(239,159,39,0); border-color:var(--amber-mid); }
@@ -433,6 +448,12 @@
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block; transition:transform .15s ease; transform-origin:center top;}
   .bill-photo-lightbox .lb-close{position:absolute; top:20px; right:18px; color:#fff; font-size:26px; background:none; border:none; cursor:pointer; padding:6px;}
+  /* WCAG AA fix (27 ก.ย. 69, C-4): ซูมรูปบิลเดิมทำได้แค่ดับเบิลคลิก/เมาส์สกอลล์ กดคีย์บอร์ดไม่ได้ — เพิ่มคำแนะนำ
+     ให้เห็นว่ากด +/− ซูมได้ (ดู openBillPhotoLightbox) ใช้สีขาวคู่กับพื้นหลังดำเข้มเดิมของ lightbox (contrast สูงอยู่แล้ว) */
+  .bill-photo-lightbox .lb-zoom-hint{position:absolute; top:20px; left:18px; color:#fff; font-size:11px; margin:0; opacity:0.85; max-width:58vw; line-height:1.4;}
+  .bill-photo-lightbox .lb-zoom-hint kbd{border:1px solid rgba(255,255,255,0.5); border-radius:4px; padding:0 4px; font-size:10px;}
+  /* utility: ซ่อนจากตาแต่ยังอ่านได้ด้วย screen reader — ใช้กับ live region ของ attachLoadingTimer (D-8) */
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
 
   /* ============ โหมดใหม่ 7 ก.ย. 69: แยกหลายบิลอัตโนมัติ ============ */
   .batch-toggle{border:1.5px solid var(--purple); background:var(--purple-bg); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:10px; align-items:flex-start; cursor:pointer;}
@@ -461,6 +482,7 @@
 
   .regroup-grid{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px;}
   .regroup-chip{position:relative; cursor:pointer;}
+  .regroup-chip:focus-visible{outline:2px solid var(--purple); outline-offset:2px;}
   .regroup-chip .bill-photo-chip{transition:box-shadow 0.15s;}
   .regroup-chip.is-picked .bill-photo-chip{box-shadow:0 0 0 3px var(--purple);}
   .regroup-chip .rg-badge{position:absolute; bottom:3px; left:3px; background:rgba(28,26,20,0.72); color:#fff; font-size:9px; font-weight:700; padding:1px 5px; border-radius:5px;}
@@ -517,6 +539,27 @@ function bindActivatable(el, handler){
     if(e.key==='Enter' || e.key===' '){ e.preventDefault(); handler(e); }
   };
 }
+
+// จัดการโฟกัสให้ overlay dialog ทั้ง 3 จุด (จับคู่รูปกับสินค้า/เพิ่มสินค้าใหม่/งดสั่งชั่วคราว ใช้ role="dialog"
+// เหมือนกันหมด) — เดิมเปิดแล้วโฟกัสไม่ขยับเข้าไปเลย (screen reader ไม่รู้ตัวด้วยซ้ำว่ามีหน้าต่างเปิดขึ้นมา)
+// กด Esc ปิดไม่ได้ และปิดแล้วโฟกัสหายไปที่ <body> ไม่กลับไปจุดเดิม — เรียกทันทีหลัง appendChild(overlay)
+// sheetEl ต้องเป็น element ที่มี role="dialog" (จะถูกใส่ tabindex="-1" ให้ที่นี่ ไม่ต้องประกาศเองใน HTML)
+// คืนฟังก์ชัน restoreFocus ให้ close() ของแต่ละจุดเรียกเองหลัง overlay.remove() เสมอ
+// จงใจไม่ทำ full focus-trap (บังคับวน Tab ในกรอบ dialog เท่านั้น) หรือ inert พื้นหลัง — ประเมินแล้วว่า
+// ส่วนนี้ (ย้ายโฟกัสเข้า+Esc ปิด+คืนโฟกัส) ได้ประโยชน์ส่วนใหญ่แล้วโดยความเสี่ยงต่ำกว่ามาก
+function setupDialogFocus(overlay, sheetEl, closeFn){
+  const triggerEl = document.activeElement;
+  sheetEl.tabIndex = -1;
+  sheetEl.focus();
+  overlay.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape'){ e.preventDefault(); closeFn(); }
+  });
+  return function restoreFocus(){
+    if(triggerEl && document.body.contains(triggerEl) && typeof triggerEl.focus === 'function'){
+      triggerEl.focus();
+    }
+  };
+}
 async function apiGet(action, params, timeoutMs, baseUrl){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
@@ -569,10 +612,16 @@ async function apiPost(action, payload, retryOnTimeout, timeoutMs, baseUrl){
 // หลายบิล กันโค้ดซ้ำ 2 จุด
 function openBillPhotoLightbox(urls){
   const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
+  lb.setAttribute('role','dialog');
+  lb.setAttribute('aria-label', urls.length>1 ? `รูปบิลขยายเต็มจอ (${urls.length} รูป)` : 'รูปบิลขยายเต็มจอ');
   lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
-    <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}">`).join('')}</div>`;
-  lb.onclick = (e)=>{ if(e.target===lb) lb.remove(); };
-  lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+    <p class="lb-zoom-hint">แตะรูปแล้วกด <kbd>+</kbd>/<kbd>−</kbd> เพื่อซูม, <kbd>Enter</kbd> เพื่อซูมสลับ</p>
+    <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}" tabindex="0">`).join('')}</div>`;
+  document.body.appendChild(lb);
+  const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+  function close(){ lb.remove(); restoreFocus(); }
+  lb.onclick = (e)=>{ if(e.target===lb) close(); };
+  lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   lb.querySelectorAll('img').forEach(img=>{
     let scale = 1;
     const applyScale = ()=>{ img.style.transform = `scale(${scale})`; img.style.cursor = scale>1 ? 'zoom-out' : 'zoom-in'; };
@@ -582,9 +631,16 @@ function openBillPhotoLightbox(urls){
       scale = Math.min(4, Math.max(1, scale + (e.deltaY<0 ? 0.25 : -0.25)));
       applyScale();
     }, {passive:false});
+    // WCAG AA fix (27 ก.ย. 69, C-4): เดิมซูมได้แค่ดับเบิลคลิก/เมาส์สกอลล์ (ใช้เมาส์เท่านั้น) เพิ่มคีย์บอร์ด
+    // ให้ทำแบบเดียวกันได้ — +/− ขยับทีละ 0.25 เหมือน wheel, Enter/Space สลับ 1x/2.2x เหมือน dblclick ทุก
+    // ประการ ไม่แก้ behavior เดิมของ dblclick/wheel เลยแม้แต่บรรทัดเดียว แค่เพิ่มทางเข้าใหม่คู่กัน
+    img.onkeydown = (e)=>{
+      if(e.key==='+' || e.key==='='){ e.preventDefault(); e.stopPropagation(); scale = Math.min(4, scale+0.25); applyScale(); }
+      else if(e.key==='-' || e.key==='_'){ e.preventDefault(); e.stopPropagation(); scale = Math.max(1, scale-0.25); applyScale(); }
+      else if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); scale = scale>1 ? 1 : 2.2; applyScale(); }
+    };
     applyScale();
   });
-  document.body.appendChild(lb);
 }
 async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt, baseUrl){
   let lastErr;
@@ -636,6 +692,7 @@ function openPhotoMatchScreen(files, products, onDone){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
   const matches = files.map(()=>null); // index -> productId | null
   const list = overlay.querySelector('#matchList');
@@ -674,7 +731,7 @@ function openPhotoMatchScreen(files, products, onDone){
     list.appendChild(row);
   });
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#matchCancel').onclick = close;
 
   saveBtn.onclick = async ()=>{
@@ -714,11 +771,11 @@ function openAddProductScreen(sup, onAdded){
         <p>ซัพพลายเออร์: ${sup.name}</p>
       </div>
       <div class="addprod-body">
-        <label>ชื่อสินค้า</label>
+        <label for="apName">ชื่อสินค้า</label>
         <input type="text" id="apName" placeholder="เช่น ไส้กรอกไก่จัมโบ้">
-        <label>หน่วยสั่งของ</label>
+        <label for="apUnit">หน่วยสั่งของ</label>
         <input type="text" id="apUnit" value="โล">
-        <label>ราคาทุน ต่อหน่วย (บาท)</label>
+        <label for="apPrice">ราคาทุน ต่อหน่วย (บาท)</label>
         <input type="number" id="apPrice" placeholder="0" min="0">
         <p class="addprod-error" id="apError"></p>
       </div>
@@ -728,8 +785,9 @@ function openAddProductScreen(sup, onAdded){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#apCancel').onclick = close;
 
   const errEl = overlay.querySelector('#apError');
@@ -781,7 +839,7 @@ function openSkipDatePicker(p, onPicked){
         <label class="date-opt-row" data-opt="${todayISO}"><input type="radio" name="skipdateopt" checked> วันนี้ (${formatShortThaiDate(todayISO)})</label>
         <label class="date-opt-row" data-opt="${tomorrowISO}"><input type="radio" name="skipdateopt"> พรุ่งนี้ (${formatShortThaiDate(tomorrowISO)})</label>
         <label class="date-opt-row" data-opt="custom"><input type="radio" name="skipdateopt"> เลือกวันที่เอง</label>
-        <input type="date" id="skipCustomDate" style="margin-top:8px; display:none;" min="${todayISO}">
+        <input type="date" id="skipCustomDate" style="margin-top:8px; display:none;" min="${todayISO}" aria-label="เลือกวันที่ที่จะงดสั่ง">
       </div>
       <div class="match-sheet-footer">
         <button class="btn btn-primary btn-block" id="skipSave">บันทึก</button>
@@ -789,8 +847,9 @@ function openSkipDatePicker(p, onPicked){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#skipCancel').onclick = close;
 
   const customInput = overlay.querySelector('#skipCustomDate');
@@ -1066,17 +1125,36 @@ window.addEventListener('beforeunload', (e)=>{
 // attachLoadingTimer(el): เริ่มนับเวลาบน element ที่ให้มา ไม่โชว์อะไรถ้ายังไม่ถึง 5 วิ (กันกระพริบตอนโหลดเร็ว
 // ปกติ) เช็ค el.isConnected ทุก tick กันกรณีจอเปลี่ยนไปแล้วแต่ retry loop เดิมยังวนอยู่เบื้องหลัง (ไม่เขียนทับ
 // จอใหม่ผิดๆ) — คืน stop() ให้เรียกทันทีที่โหลดสำเร็จ/เลิกใช้เพื่อเคลียร์ interval ทิ้ง
+// WCAG AA fix (27 ก.ย. 69, D-8): เดิมตัวจับเวลาไม่มี aria-live เลย screen reader ไม่รู้ตัวว่ากำลังนับเวลาอยู่ —
+// ตั้งใจไม่ใส่ aria-live ตรงบน el ตัวที่มองเห็น (จะ noisy มาก เพราะอัปเดตทุก 1 วิ — ประกาศ "รอมาแล้ว 6 วิ", "7 วิ"...
+// ทุกวินาทีน่ารำคาญเกินไป) แทนที่ด้วยสร้าง live region ที่ซ่อนด้วยตา (.sr-only) แปะไว้ข้างๆ el เอง แล้วอัปเดตแค่
+// ตอนขึ้นครั้งแรก (5 วิ) กับซ้ำทุก 30 วิหลังจากนั้น ให้ข้อมูลพอเพียงไม่ถี่จนน่ารำคาญ — ทำเป็น self-contained ในฟังก์ชัน
+// นี้ทั้งหมด ไม่ต้องแก้ loadingTimerHtml()/เทมเพลตทั้ง 7 จุดที่เรียกใช้เลยแม้แต่จุดเดียว (ลดความเสี่ยงพลาดจุด)
 function attachLoadingTimer(el){
   const startTs = Date.now();
+  let liveEl = null;
+  if(el && el.parentNode){
+    liveEl = document.createElement('span');
+    liveEl.className = 'sr-only';
+    liveEl.setAttribute('role','status');
+    liveEl.setAttribute('aria-live','polite');
+    el.parentNode.insertBefore(liveEl, el.nextSibling);
+  }
+  let lastAnnouncedSecs = -1;
   const tick = ()=>{
     if(!el || !el.isConnected) return;
     const secs = Math.floor((Date.now()-startTs)/1000);
     if(secs < 5){ el.textContent=''; return; }
     const m = Math.floor(secs/60), s = secs%60;
-    el.textContent = 'รอมาแล้ว ' + (m>0 ? (m+' นาที '+s+' วิ') : (s+' วิ'));
+    const text = 'รอมาแล้ว ' + (m>0 ? (m+' นาที '+s+' วิ') : (s+' วิ'));
+    el.textContent = text;
+    if(liveEl && (lastAnnouncedSecs===-1 || secs - lastAnnouncedSecs >= 30)){
+      liveEl.textContent = text;
+      lastAnnouncedSecs = secs;
+    }
   };
   const timer = setInterval(tick, 1000);
-  return ()=> clearInterval(timer);
+  return ()=>{ clearInterval(timer); if(liveEl && liveEl.parentNode) liveEl.remove(); };
 }
 // สร้าง <p id="..."> ใหม่ให้แปะต่อท้าย innerHTML ของหน้าโหลดแต่ละจุด (id ไม่ซ้ำกันเสมอ กันชนกันเวลามีหลาย
 // หน้าโหลดซ้อนกันในเบื้องหลัง) คืน {id, html} — เอา id ไปหา element จริงด้วย document.getElementById(id) แล้ว
@@ -1288,10 +1366,14 @@ function renderStaffName(app){
   // ส่วนป้ายกล้องเล็กๆ มุมขวาล่างแยกไว้เป็นปุ่ม "เปลี่ยนรูป" โดยเฉพาะ ไม่ปนกับการซูมอีกต่อไป
   function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
+    lb.setAttribute('role','dialog');
+    lb.setAttribute('aria-label', 'รูปโปรไฟล์ของ ' + name);
     lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
+    const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+    function close(){ lb.remove(); restoreFocus(); }
+    lb.onclick = close;
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
     bindActivatable(avatar, (e)=>{
@@ -1335,7 +1417,7 @@ function renderBillStaff(app){
 
   c.innerHTML = `
     ${staffDraft ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-history icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">มีบิลที่ยังไม่ได้ส่งค้างอยู่</p>
@@ -1406,10 +1488,14 @@ function renderBillStaff(app){
   };
   function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
+    lb.setAttribute('role','dialog');
+    lb.setAttribute('aria-label', 'รูปโปรไฟล์ของ ' + name);
     lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
+    const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+    function close(){ lb.remove(); restoreFocus(); }
+    lb.onclick = close;
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
     bindActivatable(avatar, (e)=>{
@@ -1738,7 +1824,7 @@ function renderBillReview(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     ${state.billSupplierMismatchWarning ? `
-    <div class="supplier-mismatch-warning">
+    <div class="supplier-mismatch-warning" role="status" aria-live="polite">
       <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
@@ -1747,7 +1833,7 @@ function renderBillReview(app){
       </div>
     </div>` : ''}
     ${state.billDuplicateWarning ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-copy icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
@@ -2157,7 +2243,7 @@ function renderBillBatchItemReview(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     ${g.supplierMismatchWarning ? `
-    <div class="supplier-mismatch-warning">
+    <div class="supplier-mismatch-warning" role="status" aria-live="polite">
       <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
@@ -2165,7 +2251,7 @@ function renderBillBatchItemReview(app){
       </div>
     </div>` : ''}
     ${g.duplicateBillWarning ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-copy icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
@@ -2421,17 +2507,21 @@ function renderBillBatchRegroup(app){
       const isPicked = picked.has(i);
       const ownerGroup = state.billBatchGroups.find(gr=>gr.photoIndices.includes(i));
       const gi = state.billBatchGroups.indexOf(ownerGroup);
-      return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}">
+      return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}" role="button" tabindex="0" aria-pressed="${isPicked}" aria-label="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} (ตอนนี้อยู่ในกลุ่มบิลที่ ${gi+1})">
         <div class="bill-photo-chip"><img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} (ตอนนี้อยู่ในกลุ่มบิลที่ ${gi+1})"></div>
         <span class="rg-badge">บิลที่ ${gi+1}</span>
         <span class="rg-check"><i class="ti ti-check" aria-hidden="true"></i></span>
       </div>`;
     }).join('');
-    grid.querySelectorAll('[data-i]').forEach(el=> el.onclick = ()=>{
+    grid.querySelectorAll('[data-i]').forEach(el=> bindActivatable(el, ()=>{
       const i = +el.dataset.i;
       if(picked.has(i)) picked.delete(i); else picked.add(i);
       draw();
-    });
+      // draw() รื้อ innerHTML ทั้งกริดใหม่ทุกครั้งที่เลือก/ยกเลิก — คืนโฟกัสกลับไปที่รูปเดิมที่เพิ่งกด
+      // กันโฟกัสหลุดไปที่ <body> เงียบๆ เหมือนบั๊กเดิมที่เคยเจอกับ .ord-card-head/accordion มาก่อน
+      const newEl = grid.querySelector(`[data-i="${i}"]`);
+      if(newEl) newEl.focus();
+    }));
     c.querySelector('#regroupBtn').disabled = picked.size===0;
   }
   draw();
@@ -2877,7 +2967,7 @@ async function renderSupplierCheck(app){
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
-            ? `<img src="${photoSrc}" alt="" loading="lazy">`
+            ? `<img src="${photoSrc}" alt="รูปสินค้า ${p.name}" loading="lazy">`
             : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
@@ -2892,7 +2982,7 @@ async function renderSupplierCheck(app){
               <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
               <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
-              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
+              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${u.label}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
             </div>
           `).join('')}
         </div>
@@ -2961,7 +3051,7 @@ async function renderSupplierCheck(app){
     }
     if(canEditUnitLabel()){
       grid.querySelectorAll('.unit-tag-editable').forEach(tag=>{
-        tag.onclick = async (e)=>{
+        bindActivatable(tag, async (e)=>{
           e.stopPropagation();
           const uid = tag.dataset.unitEdit;
           const p = products.find(x=>x.units.some(u=>u.id===uid));
@@ -2981,7 +3071,7 @@ async function renderSupplierCheck(app){
             renderGrid();
             alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
           }
-        };
+        });
       });
     }
     if(CAMERA_PER_PRODUCT_ENABLED){
@@ -3399,7 +3489,7 @@ async function renderOrderPage(app){
     const head = document.createElement('div'); head.className = 'ord-card-head';
     head.innerHTML = `
       <i class="ti ti-chevron-down chev"></i>
-      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง">${isConfirmed?'✓':''}</button>
+      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง" aria-pressed="${isConfirmed}">${isConfirmed?'✓':''}</button>
       <span class="ord-card-name">${s.name}</span>
       <div class="ord-card-status">
         <div class="status-top-row">
@@ -3451,6 +3541,7 @@ async function renderOrderPage(app){
         // สถานะเดิมพร้อมแจ้งเตือนถ้าบันทึกไม่สำเร็จ
         confirmedNow = checked;
         confirmBtn.classList.toggle('confirmed', checked);
+        confirmBtn.setAttribute('aria-pressed', String(checked));
         confirmBtn.textContent = checked ? '✓' : '';
         if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
         renderStats();
@@ -3459,6 +3550,7 @@ async function renderOrderPage(app){
         }catch(err){
           confirmedNow = !checked;
           confirmBtn.classList.toggle('confirmed', !checked);
+          confirmBtn.setAttribute('aria-pressed', String(!checked));
           confirmBtn.textContent = !checked ? '✓' : '';
           if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
           renderStats();
@@ -3520,13 +3612,13 @@ async function renderOrderPage(app){
             <button type="button" data-step="-1" aria-label="ลดจำนวน ${p.name}">−</button>
             <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${p.name}">
             <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${p.name}">+</button>
-            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
+            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${p.name}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
           </div>
         </div>
       `;
       groupBox.appendChild(row);
 
-      row.querySelector('[data-unit-edit]').onclick = async (e)=>{
+      bindActivatable(row.querySelector('[data-unit-edit]'), async (e)=>{
         e.stopPropagation();
         const unit = p.units[p.units.length-1];
         const current = unit.orderLabel || unit.label;
@@ -3538,14 +3630,19 @@ async function renderOrderPage(app){
         const oldOrderLabel = unit.orderLabel;
         unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
         rebuildCard(s);
+        // rebuildCard() รื้อ DOM การ์ดทั้งใบทิ้ง (ดูคอมเมนต์บนตัวฟังก์ชัน) — เปิดจากคีย์บอร์ดแล้วโฟกัสจะหลุด
+        // ไปที่ <body> เงียบๆ เหมือนบั๊กเดิมที่เคยเจอกับ .ord-card-head มาก่อน คืนโฟกัสกลับไปที่ป้ายหน่วยตัวใหม่เอง
+        const restoreTagFocus = ()=>{ const t = groups.querySelector(`[data-unit-edit="${unit.id}"]`); if(t) t.focus(); };
+        restoreTagFocus();
         try{
           await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed }, true);
         }catch(err){
           unit.orderLabel = oldOrderLabel;
           rebuildCard(s);
+          restoreTagFocus();
           alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
         }
-      };
+      });
 
       row.querySelector('[data-skiptoggle]').onclick = (e)=>{
         e.stopPropagation();
