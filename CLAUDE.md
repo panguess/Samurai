@@ -754,6 +754,58 @@ idempotency key) พร้อมใช้งานจริงแล้ว ไ�
 
 ⚠️ **ข้อควรระวังสำคัญเรื่องเครื่องมือ — ค้นพบใหม่ใน session นี้**: `mcp__Google_Drive__read_file_content` ที่ใช้อ่าน Google Sheet ของแอปนี้ (Spreadsheet ID `1649bCLwyWnfJyjmIQn54738Wv0vyDh3ITF-K4Xs0Zlc`) **คืนผลลัพธ์เหมือนกันทุกตัวอักษร (byte-identical) ทั้งที่เรียก 2 ครั้งห่างกันหลายชั่วโมงและมีการเปลี่ยนแปลงข้อมูลจริงในชีตระหว่างนั้น** (พิสูจน์ด้วย `diff` ตรงๆ) — แปลว่าเครื่องมือนี้**อาจเสิร์ฟข้อมูลจากแคช/ดัชนีของ Drive ที่ไม่ live** ไม่ใช่การอ่านเซลล์สดจริงเสมอไป **ห้ามเชื่อว่าข้อมูลจากเครื่องมือนี้เป็นข้อมูลปัจจุบัน ณ ตอนนั้นโดยอัตโนมัติอีกต่อไป** — ถ้าต้องเช็คสถานะสดจริง (โดยเฉพาะเรื่องบิลซ้ำ/ยอดเงิน) ให้ขอให้ผู้ใช้เปิดแอปจริงเช็ค/สกรีนช็อตมาแทน หรือถ้าจำเป็นต้องใช้เครื่องมือนี้ ให้เตือนผู้ใช้ไว้ก่อนว่าอาจไม่ใช่ข้อมูลล่าสุด
 
+### สถานะล่าสุด (อัปเดต 27 ก.ย. 69) — WCAG 2.1/2.2 accessibility audit เต็มไฟล์ + แก้ครบ 7 รอบ + post-fix verification 2 รอบ → ปิดเคสสมบูรณ์
+
+**บริบท**: ผู้ใช้ขอ WCAG 2.1 Level A/AA accessibility audit เต็มรูปแบบของ `stock-check.html` ทุกหน้าจอ (ฝั่งพนักงาน+เจ้าของ) — ทำตามลำดับที่ผู้ใช้ย้ำตลอดทั้ง session: **เขียนรายงานก่อนไม่แก้ทันที → ทำ Artifact demo ก่อน-หลังของจุด Critical ให้ดู → คุยความเสี่ยงของการแก้ → ค่อย implement ทีละกลุ่มตาม severity พร้อมทดสอบ Playwright จริงทุกรอบก่อนถาม "push เลยไหม"** (ไม่เคย push เองแม้ stop hook จะเตือน)
+
+**1. Audit ต้นฉบับ — พบ 27 ข้อ แบ่ง 6 หมวด** (ทำเป็น Artifact "Stock-Check Accessibility Audit" ให้ดูก่อนตามคำขอ "ต้องเห็นภาพ"):
+- A·Contrast (9 ข้อ) — ตัวแปรสี `--text-tertiary`/`--border-strong` และสีบนพื้นเข้มหลายจุดต่ำกว่าเกณฑ์ 4.5:1/3:1
+- B·Touch Target (4 ข้อ) — ปุ่ม `.order-done-check`/`.bill-photo-chip .rm`/prow checkbox เล็กกว่า 24×24px
+- C·Focus & Keyboard (4 ข้อ) — **ทั้งไฟล์ไม่มี keyboard handler เลยสักจุด** นำทางหลักเกือบทั้งหมดเป็น `<div onclick>` ธรรมดา
+- D·Semantic (8 ข้อ) — label ไม่ผูกกับ input ในฟอร์มรีวิวบิล, ไม่มี list/landmark semantics, ตารางไม่มี header, alt="" บนรูปที่เป็นแก่นของงาน, ไม่มี aria-live เลยสักจุด
+- E·Hierarchy (2 ข้อ) — ใช้แค่ h1 ต่อหน้า ไม่มี h2 แม้โครงสร้างที่เห็นด้วยตามีหลายระดับ
+- F·Reliance on Color — ตรวจแล้วไม่พบข้อละเมิด (0 findings)
+
+**2. Implement 7 รอบ ตามที่ผู้ใช้สั่งทีละกลุ่ม (เรียงตาม severity)** — ทุกรอบทดสอบ Playwright E2E จริง (mock `page.route()`) ก่อนถาม push เสมอ, รันซ้ำเทสเดิมทุกไฟล์ทุกรอบเพื่อยืนยันไม่มี regression:
+1. หน้าแรก + เมนูเจ้าของ — เพิ่ม `bindActivatable()` (helper ใหม่: click+Enter/Space handler)
+2. `.sup-row`/`.sup-card` (เลือกซัพพลายเออร์/ร้าน)
+3. `.pick-row`/`.ord-card-head` (เลือกชื่อพนักงาน/accordion หน้าสั่งของ) — เจอ+แก้ regression จริงระหว่างทาง: `rebuildCard()` รื้อ DOM การ์ดทิ้งทำให้โฟกัสหายหลังกด Enter ครั้งที่ 2
+4. ขนาดปุ่มแตะ — ขยายทั้ง 4 จุดเป็น 24×24px
+5. Semantic D-1,2,5,6,7 — ผูก label/id ฟอร์มรีวิวบิลครบ 8 ฟิลด์×2 โหมด, aria-label checkbox/stepper, thead/th ตาราง, aria-label ปุ่มไอคอนสม่ำเสมอ, alt text รูปบิล/อวตาร/match-thumb
+6. Semantic D-3,4,8 — role="list"/"listitem" (เฉพาะจุดที่การ์ดไม่ใช่ปุ่มเอง — ข้อจำกัด ARIA element เดียวมี 2 role ไม่ได้), role="main"/"banner", aria-live ให้ 4 จุด (mismatch slot, drift slot, copy-toast, autosave-toast) — ระหว่างนี้เจอ+แก้ 2 จุด "straggler" นอกสโคปเดิมด้วย (`.pending-row`, `.add-prod-card`)
+7. Hierarchy E-1,2 — แปลง `.role-label`/`.section-label`/`.bhc-label`/`.sup-header` เป็น `<h2>` จริง, เพิ่ม `role="dialog"`+`aria-labelledby` ให้ 3 match-sheet dialog (จับคู่รูป/เพิ่มสินค้าใหม่/งดสั่งชั่วคราว)
+
+หลังจบ 7 รอบ ผู้ใช้ถามเพิ่มเรื่อง full `inert` background-hiding กับ `<ul>/<li>` restructuring — **ประเมินแล้วไม่คุ้มความเสี่ยง ผู้ใช้ไม่ได้ขอให้ทำต่อ** แต่อนุมัติแยกให้แก้ **dialog focus-trap-lite** (focus-in + Esc ปิด + คืนโฟกัส ผ่าน helper ใหม่ `setupDialogFocus()`) ให้ 3 match-sheet dialog เดิม — ทดสอบผ่าน 8 เคส
+
+**Push ครั้งแรกสำเร็จ** (commit `dbb3abde0144a0f93d3877c84bab92de2d897956` — merge สะอาดกับ session คู่ขนานที่แก้ Order Web App พร้อมกัน คนละไฟล์ไม่ชนกัน)
+
+**3. Post-fix verification audit รอบ 1 — ตรวจซ้ำ 27 ข้อ + หา bug ใหม่**: อ่าน diff จริงเทียบทีละข้อ + เขียน Playwright ใหม่ 19 เคสยืนยัน state จริงในเบราว์เซอร์ (ไม่ใช่แค่เช็ค attribute) ผลลัพธ์: **12 PASS, 5 PARTIAL, 10 FAIL** (10 FAIL = หมวด A ทั้งหมด + C-4 ที่ไม่เคยอยู่ในสโคป ไม่ใช่แก้พลาด) — **พบ 5 ข้อใหม่ที่ไม่เคยอยู่ใน 27 ข้อเดิม** (จุดพี่น้องของสิ่งที่เพิ่งแก้ที่หลุดสโคป):
+- ACC-001 (High) — `.regroup-chip` (หน้าแก้กลุ่มรูปบิลผิด) กดคีย์บอร์ดไม่ได้ ไม่มีทางอื่นทำแทน
+- ACC-002 (Medium) — `.unit-tag-editable` (หน้าเช็คสต๊อกของ Mile + หน้าสั่งของฝั่งเจ้าของ 2 จุด) กดคีย์บอร์ดไม่ได้
+- ACC-003 (Medium) — dialog "เพิ่มสินค้าใหม่" label ไม่ผูกกับ input (จุดเดียวกับ D-1 แต่คนละหน้าจอที่ audit เดิมไม่ได้ระบุ)
+- ACC-004 (Medium) — `.order-done-check` ไม่มี `aria-pressed` บอกสถานะ toggle
+- ACC-005 (Low) — `#skipCustomDate` ไม่มี accessible name
+
+ทำเป็น Artifact "Post-Fix Verification Audit" (URL แยกจาก audit ต้นฉบับ)
+
+**4. แก้ 5 ข้อค้าง + ปิด gap C-3/D-1/E-2 ที่เหลือ** (ผู้ใช้สั่ง "แก้ทั้งหมด แต่ต้องไม่กระทบ function อื่นใด"): เพิ่ม `role="dialog"`+`setupDialogFocus` ให้ `openBillPhotoLightbox`/`openAvatarLightbox` (ปิด C-3/E-2 เต็ม), `role="button" tabindex="0"`+`bindActivatable` ให้ `.regroup-chip`/`.unit-tag-editable` (2 จุด, เพิ่มคืนโฟกัสหลัง `draw()`/`rebuildCard()` รื้อ DOM กันบั๊กแบบเดียวกับข้อ 3 ด้านบน), `for`/`id` ให้ label ฟอร์มเพิ่มสินค้าใหม่, `aria-pressed` ให้ `.order-done-check` (ครอบทั้ง path สำเร็จ+error-rollback), `aria-label` ให้ `#skipCustomDate`
+
+ทดสอบ 33 เคสใหม่ + 6 เคสเสริม (tab-order ไม่มี keyboard trap, reflow 320px, ไม่มี dialog ซ้อนกัน 2 ชั้น) รวมกับรันซ้ำ 144 เคสเดิม = **183 เคส ผ่านหมด 0 regression** — ระหว่างเขียนเทสเจอบั๊ก 2 จุดในตัวเทสเอง ไม่ใช่บั๊กแอป (ตั้ง `billBatchRegroupFrom:0` โดยไม่ตั้งใจไปกระตุ้น seed-behavior ที่มีอยู่แล้ว, คาดผิดว่าปุ่ม disabled ควรอยู่ใน tab order) — ไล่จนพิสูจน์ชัดก่อนสรุปผลทุกครั้ง
+
+**5. Post-fix verification รอบ 2 — ยืนยันครบ 32 ข้อ (27 เดิม + 5 ACC)**: **20 PASS, 2 PARTIAL (D-7, D-8 — ไม่ถูกแตะรอบนี้ ยังคง alt="" กับไม่มี aria-live บางจุดเหมือนเดิม), 10 FAIL (หมวด A + C-4 นอกสโคปเหมือนเดิม), 0 REGRESSION, 0 ข้อค้นพบใหม่** — อัปเดต Artifact เดิม (republish URL เดียวกัน เป็น version 2)
+
+**Push ครั้งที่สองสำเร็จ** (commit `bb4516a` — origin/main ไม่ขยับระหว่างนี้ ไม่ต้อง merge)
+
+⚠️ **สิ่งที่ยังคงเปิดอยู่โดยตั้งใจ (ไม่เคยอยู่ในสโคปที่อนุมัติตลอดทั้งงานนี้ — อย่าหยิบขึ้นมาแก้เองโดยไม่ถูกขอ)**:
+- **หมวด A ทั้งหมด (9 ข้อ)** — contrast สีจาง (`--text-tertiary`, `--border-strong`, สีบนพื้นเข้มหลายจุด, ปุ่ม `.jump-btn:hover`)
+- **C-4** — ซูมรูปบิลด้วยคีย์บอร์ดไม่ได้ (ดับเบิลคลิก/wheel เท่านั้น)
+- **D-7 (PARTIAL)** — รูปสินค้าใน `.prod-photo-area` (หน้าเช็คสต๊อกของพนักงาน) ยังเป็น `alt=""`
+- **D-8 (PARTIAL)** — แบนเนอร์เตือนซัพพลายเออร์ผิด/บิลซ้ำ + ตัวจับเวลาโหลด (`attachLoadingTimer`) ยังไม่มี `role="status"`/`aria-live`
+
+ถ้าผู้ใช้อยากคุยเรื่อง accessibility ต่อในอนาคต ให้เริ่มจาก 4 จุดนี้ก่อน (มีหลักฐาน/ตำแหน่งชัดเจนแล้วจากการ audit 2 รอบ ไม่ต้องเริ่ม audit ใหม่ทั้งไฟล์) — **ไม่ต้อง deploy `Code.gs`/`BillCapture-Code.gs` เลยตลอดงานนี้** (แก้ฝั่ง client ล้วนๆ ใน `stock-check.html` ทุกจุด)
+
+**Artifact ที่เกี่ยวข้อง**: "Stock-Check Accessibility Audit" (รายงานต้นฉบับ 27 ข้อ) และ "Post-Fix Verification Audit" (อัปเดตแล้ว 2 รอบ อยู่ URL เดียวกัน)
+
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
