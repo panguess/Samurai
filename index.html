@@ -263,7 +263,13 @@
     .admin-total{font-size:16px;font-weight:600;color:#CB3E09}
     .admin-note{padding:8px 12px;font-size:13.5px;color:#666;background:#fdf5f2;border-top:1px solid #f0e68c}
     .btn-save-admin{font-size:13.5px;padding:6px 12px;background:#1a0a06;color:#fff;border:none;border-radius:8px;cursor:pointer}
-    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:14.5px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap}
+    /* [แก้ 27 ก.ย. 69 — จาก performance audit] เดิมไม่มี pointer-events:none — ตัว toast เป็น div ข้อความ
+       สถานะล้วนๆ ไม่มีปุ่ม/ลิงก์ข้างในเลย แต่ opacity:0 ไม่ได้ทำให้ธาตุหยุดรับ click จริง — พิสูจน์แล้วว่าคลิกที่
+       ตำแหน่งกึ่งกลางล่างจอ (ตรงกับตำแหน่งของ toast เป๊ะ) จะถูก toast ที่จางหายไปแล้วดักจับไปเงียบๆ (ไม่มี error
+       ให้เห็น ปุ่มข้างใต้แค่ไม่ตอบสนอง) แม้จะผ่านไปหลายวินาทีหลัง fade out แล้วก็ตาม เกิดได้ทุกครั้งหลังมีการเรียก
+       showToast() สักครั้งในหน้านั้น (markDone/markPacking/saveEdit/cancelOrder ฯลฯ เรียกแทบทุก action ที่สำเร็จ)
+       เพิ่ม pointer-events:none ให้ตลอดเวลา (toast ไม่เคยต้องรับ click อยู่แล้วไม่ว่าจะโชว์อยู่หรือไม่ก็ตาม) */
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:10px;font-size:14.5px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap;pointer-events:none}
     /* [เพิ่ม 27 ก.ย. 69] ซ่อนจากตาเปล่าแต่ screen reader ยังอ่านได้ — ใช้เป็น text alternative ของกราฟ (AUD-18) */
     .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     .toast.show{opacity:1}
@@ -3119,15 +3125,46 @@ function showOrderSummary(orderId){
   trapModalFocus(overlay,closeSummary);
 }
 
+// [แก้ 27 ก.ย. 69 — PERF-001/PERF-002 จาก performance audit] เดิม script.onload ไม่มี script.onerror คู่กัน
+// และไม่มี timeout เลย — ถ้าโหลด html2canvas จาก cdnjs ไม่สำเร็จ (เน็ตมีปัญหา/CDN ล่ม) หรือโหลดได้แต่เนื้อหา
+// เสียหาย (เจอจริงตอน audit: script โหลดจบแต่ตัวแปร html2canvas ไม่ถูกประกาศ) ปุ่มจะค้างที่ "กำลังบันทึก..."
+// (disabled) ตลอดไปไม่มีทางกู้คืนได้เองเลย ต้องรีเฟรชทั้งหน้า — เกิดขึ้นได้ทุกครั้งที่กด "จัดเสร็จแล้ว" เพราะ
+// หน้าสรุปใบเสร็จเด้งขึ้นอัตโนมัติทุกออเดอร์ แก้โดยเพิ่ม timeout (15 วิ ตามมาตรฐานเดียวกับคำขอ network อื่นใน
+// ไฟล์นี้) + onerror + เช็คซ้ำว่า html2canvas ถูกประกาศจริงหลัง onload ก่อนเรียกใช้ ครอบคลุมทั้ง 3 เคสที่พัง:
+// โหลดไม่สำเร็จเลย, โหลดสำเร็จแต่เนื้อหาเสีย, และค้างเงียบไม่มี event ใดๆ เกิดขึ้นเลย — ทุกเคสคืนปุ่มกลับมากดใหม่ได้
+// พร้อมข้อความแจ้งเตือน (ใช้ showToast ตามแพทเทิร์นเดิมของไฟล์ ไม่ใช่ alert() เพราะไม่ใช่ error ที่บล็อกงานอื่นทั้งหมด)
 function saveSummaryAsImage(orderId){
   const btn=document.getElementById('summarySaveBtn');
   const card=document.getElementById('summaryCardCapture');
   if(!card)return;
   btn.textContent='กำลังบันทึก...';btn.disabled=true;
   if(typeof html2canvas==='undefined'){
+    let settled=false;
+    const resetBtn=(msg)=>{
+      if(settled)return;
+      settled=true;
+      btn.innerHTML='<span style="font-size:18px">⬇</span> บันทึกรูปภาพ';
+      btn.disabled=false;
+      if(msg)showToast(msg);
+    };
+    const timeoutId=setTimeout(()=>resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ (หมดเวลา) กรุณาลองใหม่'),15000);
     const script=document.createElement('script');
     script.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    script.onload=()=>doCaptureSummary(card,orderId,btn);
+    script.onload=()=>{
+      if(settled)return; // timeout ทำงานไปก่อนแล้ว
+      clearTimeout(timeoutId);
+      if(typeof html2canvas==='undefined'){
+        resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ (ไฟล์เสียหาย) กรุณาลองใหม่');
+        return;
+      }
+      settled=true;
+      try{ doCaptureSummary(card,orderId,btn); }
+      catch(e){ resetBtn('บันทึกไม่สำเร็จ กรุณาลองใหม่'); }
+    };
+    script.onerror=()=>{
+      clearTimeout(timeoutId);
+      resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ กรุณาลองใหม่');
+    };
     document.head.appendChild(script);
   }else{
     doCaptureSummary(card,orderId,btn);
