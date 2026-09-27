@@ -120,6 +120,9 @@
   /* photo match screen */
   .match-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:80; display:flex; align-items:flex-end; justify-content:center;}
   .match-sheet{background:var(--cream); width:100%; max-width:600px; max-height:88vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; overflow:hidden;}
+  /* โฟกัสตัวกล่อง dialog เองตอนเปิด (setupDialogFocus) — ไม่ต้องมีกรอบ outline ล้อมทั้งแผ่น เพราะแผ่นทั้งอัน
+     ก็คือ dialog ที่มองเห็นชัดเจนอยู่แล้ว ปุ่ม/ช่องกรอกข้างในยังมี focus ring ของตัวเองตามปกติไม่กระทบ */
+  .match-sheet:focus{outline:none;}
   .match-sheet-header{padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0;}
   .match-sheet-header h2{margin:0 0 2px; font-size:15px; font-weight:600;}
   .match-sheet-header p{margin:0; font-size:12px; color:var(--text-tertiary);}
@@ -517,6 +520,27 @@ function bindActivatable(el, handler){
     if(e.key==='Enter' || e.key===' '){ e.preventDefault(); handler(e); }
   };
 }
+
+// จัดการโฟกัสให้ overlay dialog ทั้ง 3 จุด (จับคู่รูปกับสินค้า/เพิ่มสินค้าใหม่/งดสั่งชั่วคราว ใช้ role="dialog"
+// เหมือนกันหมด) — เดิมเปิดแล้วโฟกัสไม่ขยับเข้าไปเลย (screen reader ไม่รู้ตัวด้วยซ้ำว่ามีหน้าต่างเปิดขึ้นมา)
+// กด Esc ปิดไม่ได้ และปิดแล้วโฟกัสหายไปที่ <body> ไม่กลับไปจุดเดิม — เรียกทันทีหลัง appendChild(overlay)
+// sheetEl ต้องเป็น element ที่มี role="dialog" (จะถูกใส่ tabindex="-1" ให้ที่นี่ ไม่ต้องประกาศเองใน HTML)
+// คืนฟังก์ชัน restoreFocus ให้ close() ของแต่ละจุดเรียกเองหลัง overlay.remove() เสมอ
+// จงใจไม่ทำ full focus-trap (บังคับวน Tab ในกรอบ dialog เท่านั้น) หรือ inert พื้นหลัง — ประเมินแล้วว่า
+// ส่วนนี้ (ย้ายโฟกัสเข้า+Esc ปิด+คืนโฟกัส) ได้ประโยชน์ส่วนใหญ่แล้วโดยความเสี่ยงต่ำกว่ามาก
+function setupDialogFocus(overlay, sheetEl, closeFn){
+  const triggerEl = document.activeElement;
+  sheetEl.tabIndex = -1;
+  sheetEl.focus();
+  overlay.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape'){ e.preventDefault(); closeFn(); }
+  });
+  return function restoreFocus(){
+    if(triggerEl && document.body.contains(triggerEl) && typeof triggerEl.focus === 'function'){
+      triggerEl.focus();
+    }
+  };
+}
 async function apiGet(action, params, timeoutMs, baseUrl){
   const qs = new URLSearchParams({action, ...(params||{})}).toString();
   const controller = new AbortController();
@@ -636,6 +660,7 @@ function openPhotoMatchScreen(files, products, onDone){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
   const matches = files.map(()=>null); // index -> productId | null
   const list = overlay.querySelector('#matchList');
@@ -674,7 +699,7 @@ function openPhotoMatchScreen(files, products, onDone){
     list.appendChild(row);
   });
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#matchCancel').onclick = close;
 
   saveBtn.onclick = async ()=>{
@@ -728,8 +753,9 @@ function openAddProductScreen(sup, onAdded){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#apCancel').onclick = close;
 
   const errEl = overlay.querySelector('#apError');
@@ -789,8 +815,9 @@ function openSkipDatePicker(p, onPicked){
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  const restoreFocus = setupDialogFocus(overlay, overlay.querySelector('.match-sheet'), ()=>close());
 
-  function close(){ overlay.remove(); }
+  function close(){ overlay.remove(); restoreFocus(); }
   overlay.querySelector('#skipCancel').onclick = close;
 
   const customInput = overlay.querySelector('#skipCustomDate');
