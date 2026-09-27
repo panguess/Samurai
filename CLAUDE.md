@@ -646,6 +646,11 @@ idempotency key) พร้อมใช้งานจริงแล้ว ไ�
 - ยิง request ตรงๆ ไปที่ Vercel ผ่าน MCP tool (`mcp__Vercel__web_fetch_vercel_url`) เทียบทั้งสอง URL — **เนื้อหาไฟล์
   เหมือนกันทุกตัวอักษร** ยืนยันว่าไม่มีโค้ด/เวอร์ชันต่างกันจริง
 - **สรุป**: `?v=2` ไม่มีความหมายอะไรกับแอปนี้เลย เป็นไปได้มากที่สุดว่าเป็นแค่ cache-busting query string เฉยๆ
+- ✅ **ยืนยันที่มาแล้ว (27 ก.ย. 69)**: เจอตอนไล่รายการ session เพื่อ archive — session **"Stock check 15092026"**
+  (`session_01BucdryYYo18r5DUawZC7Li`, archive แล้ว เปิดอ่านย้อนหลังได้) เป็นคนส่งลิงก์นี้ให้จริง สรุปท้าย session นั้นว่า
+  "cache issue confirmed; bare link serves stale version — Use ?v=2 suffix or hard-refresh to bypass browser/CDN
+  cache; bookmark the ?v=2 URL for daily use" — ตรงกับข้อสันนิษฐานด้านบนเป๊ะ (cache-busting ล้วนๆ โค้ดไม่ได้อ่านค่านี้)
+  **เป็นความผิดพลาดของ session นั้นที่ไม่บันทึกไว้ในไฟล์นี้** ถ้าแนะนำ workaround ให้ผู้ใช้บุ๊กมาร์ก/ใช้ประจำ ต้องบันทึกไว้เสมอ
 
 **ผู้ใช้รายงานว่า URL เปล่า (ไม่มี `?v=2`) ช้ากว่าตอนเปิดครั้งถัดมา (หน้าแรกก็ช้าแล้ว ไม่ใช่แค่ตอนโหลดข้อมูล) ส่วน
 `?v=2` ยังเร็วเหมือนเดิม** — ไล่เช็คด้วย MCP tool เทียบ header ของทั้งสอง URL พบว่า **URL เปล่ากลับโดน
