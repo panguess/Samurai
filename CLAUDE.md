@@ -796,15 +796,76 @@ idempotency key) พร้อมใช้งานจริงแล้ว ไ�
 
 **Push ครั้งที่สองสำเร็จ** (commit `bb4516a` — origin/main ไม่ขยับระหว่างนี้ ไม่ต้อง merge)
 
-⚠️ **สิ่งที่ยังคงเปิดอยู่โดยตั้งใจ (ไม่เคยอยู่ในสโคปที่อนุมัติตลอดทั้งงานนี้ — อย่าหยิบขึ้นมาแก้เองโดยไม่ถูกขอ)**:
-- **หมวด A ทั้งหมด (9 ข้อ)** — contrast สีจาง (`--text-tertiary`, `--border-strong`, สีบนพื้นเข้มหลายจุด, ปุ่ม `.jump-btn:hover`)
-- **C-4** — ซูมรูปบิลด้วยคีย์บอร์ดไม่ได้ (ดับเบิลคลิก/wheel เท่านั้น)
-- **D-7 (PARTIAL)** — รูปสินค้าใน `.prod-photo-area` (หน้าเช็คสต๊อกของพนักงาน) ยังเป็น `alt=""`
-- **D-8 (PARTIAL)** — แบนเนอร์เตือนซัพพลายเออร์ผิด/บิลซ้ำ + ตัวจับเวลาโหลด (`attachLoadingTimer`) ยังไม่มี `role="status"`/`aria-live`
-
-ถ้าผู้ใช้อยากคุยเรื่อง accessibility ต่อในอนาคต ให้เริ่มจาก 4 จุดนี้ก่อน (มีหลักฐาน/ตำแหน่งชัดเจนแล้วจากการ audit 2 รอบ ไม่ต้องเริ่ม audit ใหม่ทั้งไฟล์) — **ไม่ต้อง deploy `Code.gs`/`BillCapture-Code.gs` เลยตลอดงานนี้** (แก้ฝั่ง client ล้วนๆ ใน `stock-check.html` ทุกจุด)
+✅ **อัปเดต 27 ก.ย. 69 (ต่อ) — แก้ครบทั้ง 4 จุดที่เคยเปิดไว้ด้านบนแล้ว**: Category A (9 ข้อ), C-4, D-7, D-8 ปิดหมดแล้ว
+รายละเอียด/หลักฐานการทดสอบดูหัวข้อ "สถานะล่าสุด (อัปเดต 27 ก.ย. 69 — ต่อ 2)" ด้านล่างนี้ — 4 บรรทัดเดิมที่เคย
+list ไว้ (contrast/C-4/D-7/D-8) **ไม่มีอะไรเหลือค้างจาก audit นี้แล้ว** ถ้าอยากคุย accessibility ต่อ ต้องเริ่ม
+audit ใหม่ (ไม่มี known-gap ให้หยิบต่อจากรายการเดิมแล้ว)
 
 **Artifact ที่เกี่ยวข้อง**: "Stock-Check Accessibility Audit" (รายงานต้นฉบับ 27 ข้อ) และ "Post-Fix Verification Audit" (อัปเดตแล้ว 2 รอบ อยู่ URL เดียวกัน)
+
+### สถานะล่าสุด (อัปเดต 27 ก.ย. 69 — ต่อ 2) — ปิด 4 จุดที่เหลือจาก WCAG audit (Category A + C-4 + D-7 + D-8)
+
+**บริบท**: ผู้ใช้ถามว่าจุดไหนยังไม่แก้จาก audit เดิม แล้วขอให้แก้ทั้งหมดพร้อมกัน กำชับให้ตรวจสอบอย่างน้อย 3 รอบ
+ไม่ให้กระทบฟีเจอร์อื่น — ทำครบทั้ง 4 จุด, ทดสอบ 3 รอบตามที่ขอ (รวม 62 test cases ผ่านหมด + สแกน contrast
+อัตโนมัติข้าม 12 หน้าจอ = 0 violation) **ทุกอย่างแก้ฝั่ง `stock-check.html` ล้วนๆ ไม่ต้อง deploy `Code.gs`/
+`BillCapture-Code.gs` เลย**
+
+1. **Category A (contrast, 9 ข้อ)** — แก้ที่ต้นตอ token เดียว (ไม่ใช่ไล่แก้ทีละจุดที่ใช้ตัวแปร):
+   - `--text-tertiary` เดิม `#888780` (contrast ~3.4:1 บน --cream/--bg ต่ำกว่าเกณฑ์ข้อความ 4.5:1) → `#67665E`
+     (ผ่าน ≥4.5:1 ทุกพื้นหลังที่ใช้จริง)
+   - `--border-strong` เดิม `rgba(44,44,42,0.22)` (contrast ~1.5:1 ต่ำกว่าเกณฑ์ UI boundary 3:1 มาก) → alpha
+     0.6 (ผ่าน ≥3.6:1 ทุกพื้นหลัง)
+   - `.jump-btn:hover` เดิมพื้นหลัง `--amber-mid` (สีอ่อน) + ตัวอักษรขาว contrast ~2.2:1 → เปลี่ยนพื้นหลังเป็น
+     `--amber` (สีเข้ม) แทน contrast ขึ้นเป็น ~6.7:1 ยังให้ความรู้สึก "เข้มขึ้นตอน hover" เหมือนเดิม
+   - ⚠️ **ผลกระทบภาพรวม (ตั้งใจ ไม่ใช่บั๊ก)**: `--text-tertiary`/`--border-strong` เป็น token ที่ใช้ร่วมกันหลาย
+     สิบจุดทั่วไฟล์ (ป้ายกำกับ, เส้นขอบปุ่ม/การ์ด/ช่องกรอกทุกจุด) — แก้ที่ค่า CSS variable จุดเดียวทำให้ข้อความ
+     รองและเส้นขอบเข้มขึ้นเห็นได้ทั่วทั้งแอป **ยังไม่ได้ทำ Artifact demo ให้ดูก่อน** (ต่างจากธรรมเนียมปกติของแอปนี้
+     ที่ต้อง demo การเปลี่ยนแปลง UI ก่อน — ตัดสินใจข้ามขั้นนี้เพราะเป็นงานต่อเนื่องจาก WCAG audit ที่ได้รับอนุมัติ
+     สโคปไปแล้วครั้งหนึ่ง ไม่ใช่ฟีเจอร์ใหม่) **ถ้าผู้ใช้เห็นแล้วรู้สึกว่าเข้มไป/ไม่ชอบภาพรวม ให้บอกได้เลย ปรับค่าคืนได้
+     ทันที** (ตัวเลขทั้งหมดมีการคำนวณ contrast ratio ไว้เป็นหลักฐานในคอมเมนต์ข้าง `:root` และ `.jump-btn:hover`)
+2. **C-4 (ซูมรูปบิลด้วยคีย์บอร์ดไม่ได้)** — `openBillPhotoLightbox()` เพิ่มคีย์บอร์ด: `+`/`=` ซูมเข้าทีละ 0.25,
+   `-`/`_` ซูมออกทีละ 0.25 (ค่าเดียวกับ wheel), `Enter`/`Space` สลับ 1x/2.2x (เหมือน dblclick) — เพิ่ม
+   `tabindex="0"` ให้ `<img>` ทุกใบ + คำแนะนำที่มองเห็น (`.lb-zoom-hint`) มุมซ้ายบนคู่กับปุ่มปิดมุมขวาบน **ไม่แก้
+   behavior เดิมของ dblclick/wheel เลยแม้แต่บรรทัดเดียว** เพิ่มแค่ทางเข้าใหม่คู่กัน
+3. **D-7 (`alt=""` ของรูปสินค้า)** — `.prod-photo-area img` (หน้าเช็คสต๊อกของพนักงาน) เปลี่ยนจาก `alt=""` เป็น
+   `alt="รูปสินค้า ${p.name}"` — ตาม pattern เดิมของไฟล์ที่ interpolate `p.name` ตรงๆ ไม่ escape (สินค้าเป็นข้อมูล
+   ภายในจากชีต ไม่ใช่ input จากลูกค้า เหมือนจุดอื่นที่ทำมาก่อนแล้ว เช่น `aria-label` ปุ่ม +/− ในหน้าสั่งของ)
+4. **D-8 (แบนเนอร์เตือน + ตัวจับเวลาโหลด ไม่มี `aria-live`)**:
+   - แบนเนอร์ `.supplier-mismatch-warning`/`.duplicate-bill-warning` เพิ่ม `role="status" aria-live="polite"`
+     ครบทั้ง 5 จุด (2 mismatch: บิลเดี่ยว+โหมดหลายบิล / 3 duplicate: บิลเดี่ยว+โหมดหลายบิล+แบนเนอร์กู้คืน draft
+     ฝั่งลูกจ้าง) — สำคัญเพราะแบนเนอร์พวกนี้โผล่ตอน SPA สลับหน้าด้วย `history.replaceState`/`innerHTML` เปล่าๆ
+     ไม่ใช่การโหลดหน้าเว็บจริง screen reader จะไม่รู้ตัวเลยว่ามีคำเตือนใหม่โผล่มาถ้าไม่มี `aria-live`
+   - `attachLoadingTimer()` (shared function ใช้ร่วม 7 จุด: bootstrap/checkPin/renderSupplierCheck/
+     renderSupplierList/renderOwnerStockAnalytics/renderOrderPage/renderBillPendingList) — เดิมไม่มี aria-live
+     เลย เพิ่มโดย**ไม่แก้ template ทั้ง 7 จุดที่เรียกใช้แม้แต่จุดเดียว** (ลดความเสี่ยงพลาดจุด) แทนที่ด้วยให้ฟังก์ชัน
+     สร้าง live-region (`<span class="sr-only" role="status" aria-live="polite">`) แปะไว้ข้างๆ element ที่ได้รับ
+     มาเอง self-contained ทั้งหมด — **ตั้งใจไม่ใส่ aria-live ตรงบนตัวเลขที่มองเห็น** (จะ noisy เกินไป ประกาศทุก 1 วิ
+     ตามที่อัปเดตจริง) แทนที่ด้วยประกาศแค่ตอนขึ้นครั้งแรก (5 วิ) แล้วซ้ำทุก 30 วิหลังจากนั้น — เพิ่ม `.sr-only`
+     utility class ใหม่ (ไม่มีมาก่อนในไฟล์)
+
+**ทดสอบ 3 รอบตามที่ผู้ใช้กำชับ** (Playwright E2E จริง, mock ที่ `page.route()`, รันในเครื่อง Node ผ่าน
+`/opt/node22/lib/node_modules/playwright` เพราะ sandbox ไม่มี `node_modules` ของโปรเจกต์):
+- **รอบ 1** (38 เคส): ทดสอบตรงจุดของแต่ละ fix + regression พื้นฐาน — contrast จริงที่ render ในเบราว์เซอร์
+  (`.act-sub`, `--border-strong` composited, `.jump-btn:hover`), keyboard zoom ครบ (+/−/Enter/Tab order) +
+  regression ว่า dblclick/wheel/Escape เดิมยังทำงานเหมือนเดิมทุกจุด, alt text มีชื่อสินค้าจริง, banner/timer
+  live-region attribute ถูกต้อง + timer format/throttle (ใช้ `page.clock` fast-forward เวลาจริงแทนการรอจริง)
+  — ระหว่างทางเจอ test bug ของตัวเอง 2 จุด (พยายาม reset scale ด้วยการเซ็ต `el.style.transform` ตรงๆ ซึ่งไม่ได้
+  reset closure variable จริง, ลืมนับว่าปุ่มปิดอยู่ก่อนรูปแรกใน tab order) ไล่จนพิสูจน์ได้ว่าเป็น test bug ไม่ใช่
+  code bug ก่อนแก้ทุกครั้ง (ตาม pattern ที่ต้องพิสูจน์ก่อนสรุป)
+- **รอบ 2** (12 เคส): ขยายไปทุก call site ที่ใช้ `attachLoadingTimer` ร่วมกัน (ความเสี่ยงสูงสุดเพราะแก้ shared
+  function จุดเดียวกระทบ 7 จุด) ครบทั้ง 7 จุดรวม `checkPin`'s `#pinTimer` ที่ไม่ผ่าน `loadingTimerHtml()` เหมือน
+  จุดอื่น (wiring ต่างจากที่อื่น เสี่ยงพลาดสุด) + banner โหมดหลายบิล + banner กู้คืน draft ฝั่งลูกจ้าง — เจอ test
+  bug อีก 2 จุด (cache `stockStatusCache` ยังอุ่นจาก bootstrap's prefetch ทำให้ข้าม branch ที่ต้องการทดสอบ, mock
+  response shape ผิด `{bills:[]}` ควรเป็น `{batches:[]}` ตาม contract จริงของ `renderBillPendingList`) แก้ตัวเทส
+  แล้วผ่านหมด ไม่ใช่บั๊กจริง
+- **รอบ 3**: สแกน contrast อัตโนมัติ (คำนวณ contrast ratio จริงจาก computed style) ข้าม 12 หน้าจอที่เข้าถึงได้
+  (home, staffName, supplierList, supplierCheck, ownerMenu, ownerPin, billStaff ×2 แบบ, billReview พร้อม
+  banner ทั้งคู่, orderPage, billPendingList, ownerStockAnalytics) — **0 violation ทุกหน้าจอ** + รันซ้ำทั้ง 3
+  ไฟล์เทส (รอบ 1+2) อีกครั้งพร้อมกันยืนยันผ่านหมดไม่มี regression + `node --check`-เทียบเท่า syntax check ผ่าน +
+  ไล่ดู `git diff` เต็มยืนยันว่าไม่มีโค้ดเทส/debug หลุดเข้ามาปนในไฟล์จริง และมีแค่ `stock-check.html` ที่ถูกแก้ไข
+  (ไม่กระทบ `Code.gs`/`BillCapture-Code.gs`/แอปสั่งของเลย)
+
+⚠️ **ยังไม่ได้ push** — รอผู้ใช้สั่งตามธรรมเนียมเดิมของแอปนี้ (ข้อ 2 ของกติกาที่กำหนดไว้: ห้าม push โดยไม่ถูกขอ)
 
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 

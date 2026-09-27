@@ -42,8 +42,13 @@
     --brand:#1A1A1A; --brand-bg:#ECECEA;
     --cream:#FCF9F2;
     --bg:#F1EFE8;
-    --text:#2C2C2A; --text-secondary:#5F5E5A; --text-tertiary:#888780;
-    --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.22);
+    /* WCAG AA fix (27 ก.ย. 69 — audit หมวด A): --text-tertiary เดิม #888780 contrast ~3.4:1 บนพื้น --cream/--bg
+       (ต่ำกว่าเกณฑ์ข้อความ 4.5:1) เข้มขึ้นเป็น #67665E ให้ผ่าน ≥4.5:1 ทุกพื้นหลังที่ใช้จริง (cream/bg/#fff) —
+       --border-strong เดิม alpha 0.22 contrast ~1.5:1 (ต่ำกว่าเกณฑ์ UI component boundary 3:1 มาก) เพิ่ม alpha
+       เป็น 0.6 ให้ผ่าน ≥3.6:1 ทุกพื้นหลัง — ทั้งคู่เป็น token ที่ใช้ร่วมกันหลายสิบจุดในไฟล์ แก้ตรงนี้จุดเดียวกระทบ
+       ภาพรวมทุกหน้าจอที่ใช้ตัวแปรนี้ (ตั้งใจ ไม่ใช่บั๊ก) */
+    --text:#2C2C2A; --text-secondary:#5F5E5A; --text-tertiary:#67665E;
+    --border:rgba(44,44,42,0.12); --border-strong:rgba(44,44,42,0.6);
     --radius-md:8px; --radius-lg:12px;
     --green:#085041; --green-bg:#E1F5EE;
     /* สเกลความเสี่ยงของการจับคู่รายการบิล (รับของ-ถ่ายบิล): เขียว(ตรงเป๊ะ) < เหลือง(คล้าย ต้องยืนยัน) <
@@ -378,7 +383,10 @@
   .review-footer .rf-total{font-size:19px; font-weight:700; font-variant-numeric:tabular-nums;}
   .rf-left{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .jump-btn{display:inline-flex; align-items:center; gap:5px; background:var(--amber-bg); color:var(--amber); border:none; border-radius:999px; padding:5px 11px 5px 9px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap; font-family:inherit;}
-  .jump-btn:hover{background:var(--amber-mid); color:#fff;}
+  /* WCAG AA fix (27 ก.ย. 69): เดิม hover ใช้ --amber-mid (สีอ่อน) เป็นพื้นหลังกับตัวอักษรขาว contrast ~2.2:1
+     (ต่ำกว่าเกณฑ์ 4.5:1 มาก) เปลี่ยนเป็น --amber (สีเข้ม) แทน ยังให้ความรู้สึก "เข้มขึ้นตอน hover" เหมือนเดิม
+     แต่ contrast ขึ้นเป็น ~6.7:1 */
+  .jump-btn:hover{background:var(--amber); color:#fff;}
   @keyframes jumpPulse{
     0%{ box-shadow:0 0 0 0 rgba(239,159,39,0.55); border-color:var(--amber-mid); }
     70%{ box-shadow:0 0 0 9px rgba(239,159,39,0); border-color:var(--amber-mid); }
@@ -440,6 +448,12 @@
   .bill-photo-lightbox .lb-scroll{max-width:92vw; max-height:85vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
   .bill-photo-lightbox img{max-width:92vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:block; transition:transform .15s ease; transform-origin:center top;}
   .bill-photo-lightbox .lb-close{position:absolute; top:20px; right:18px; color:#fff; font-size:26px; background:none; border:none; cursor:pointer; padding:6px;}
+  /* WCAG AA fix (27 ก.ย. 69, C-4): ซูมรูปบิลเดิมทำได้แค่ดับเบิลคลิก/เมาส์สกอลล์ กดคีย์บอร์ดไม่ได้ — เพิ่มคำแนะนำ
+     ให้เห็นว่ากด +/− ซูมได้ (ดู openBillPhotoLightbox) ใช้สีขาวคู่กับพื้นหลังดำเข้มเดิมของ lightbox (contrast สูงอยู่แล้ว) */
+  .bill-photo-lightbox .lb-zoom-hint{position:absolute; top:20px; left:18px; color:#fff; font-size:11px; margin:0; opacity:0.85; max-width:58vw; line-height:1.4;}
+  .bill-photo-lightbox .lb-zoom-hint kbd{border:1px solid rgba(255,255,255,0.5); border-radius:4px; padding:0 4px; font-size:10px;}
+  /* utility: ซ่อนจากตาแต่ยังอ่านได้ด้วย screen reader — ใช้กับ live region ของ attachLoadingTimer (D-8) */
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
 
   /* ============ โหมดใหม่ 7 ก.ย. 69: แยกหลายบิลอัตโนมัติ ============ */
   .batch-toggle{border:1.5px solid var(--purple); background:var(--purple-bg); border-radius:var(--radius-lg); padding:11px 12px; margin-bottom:14px; display:flex; gap:10px; align-items:flex-start; cursor:pointer;}
@@ -601,7 +615,8 @@ function openBillPhotoLightbox(urls){
   lb.setAttribute('role','dialog');
   lb.setAttribute('aria-label', urls.length>1 ? `รูปบิลขยายเต็มจอ (${urls.length} รูป)` : 'รูปบิลขยายเต็มจอ');
   lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
-    <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}">`).join('')}</div>`;
+    <p class="lb-zoom-hint">แตะรูปแล้วกด <kbd>+</kbd>/<kbd>−</kbd> เพื่อซูม, <kbd>Enter</kbd> เพื่อซูมสลับ</p>
+    <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}" tabindex="0">`).join('')}</div>`;
   document.body.appendChild(lb);
   const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
   function close(){ lb.remove(); restoreFocus(); }
@@ -616,6 +631,14 @@ function openBillPhotoLightbox(urls){
       scale = Math.min(4, Math.max(1, scale + (e.deltaY<0 ? 0.25 : -0.25)));
       applyScale();
     }, {passive:false});
+    // WCAG AA fix (27 ก.ย. 69, C-4): เดิมซูมได้แค่ดับเบิลคลิก/เมาส์สกอลล์ (ใช้เมาส์เท่านั้น) เพิ่มคีย์บอร์ด
+    // ให้ทำแบบเดียวกันได้ — +/− ขยับทีละ 0.25 เหมือน wheel, Enter/Space สลับ 1x/2.2x เหมือน dblclick ทุก
+    // ประการ ไม่แก้ behavior เดิมของ dblclick/wheel เลยแม้แต่บรรทัดเดียว แค่เพิ่มทางเข้าใหม่คู่กัน
+    img.onkeydown = (e)=>{
+      if(e.key==='+' || e.key==='='){ e.preventDefault(); e.stopPropagation(); scale = Math.min(4, scale+0.25); applyScale(); }
+      else if(e.key==='-' || e.key==='_'){ e.preventDefault(); e.stopPropagation(); scale = Math.max(1, scale-0.25); applyScale(); }
+      else if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); scale = scale>1 ? 1 : 2.2; applyScale(); }
+    };
     applyScale();
   });
 }
@@ -1102,17 +1125,36 @@ window.addEventListener('beforeunload', (e)=>{
 // attachLoadingTimer(el): เริ่มนับเวลาบน element ที่ให้มา ไม่โชว์อะไรถ้ายังไม่ถึง 5 วิ (กันกระพริบตอนโหลดเร็ว
 // ปกติ) เช็ค el.isConnected ทุก tick กันกรณีจอเปลี่ยนไปแล้วแต่ retry loop เดิมยังวนอยู่เบื้องหลัง (ไม่เขียนทับ
 // จอใหม่ผิดๆ) — คืน stop() ให้เรียกทันทีที่โหลดสำเร็จ/เลิกใช้เพื่อเคลียร์ interval ทิ้ง
+// WCAG AA fix (27 ก.ย. 69, D-8): เดิมตัวจับเวลาไม่มี aria-live เลย screen reader ไม่รู้ตัวว่ากำลังนับเวลาอยู่ —
+// ตั้งใจไม่ใส่ aria-live ตรงบน el ตัวที่มองเห็น (จะ noisy มาก เพราะอัปเดตทุก 1 วิ — ประกาศ "รอมาแล้ว 6 วิ", "7 วิ"...
+// ทุกวินาทีน่ารำคาญเกินไป) แทนที่ด้วยสร้าง live region ที่ซ่อนด้วยตา (.sr-only) แปะไว้ข้างๆ el เอง แล้วอัปเดตแค่
+// ตอนขึ้นครั้งแรก (5 วิ) กับซ้ำทุก 30 วิหลังจากนั้น ให้ข้อมูลพอเพียงไม่ถี่จนน่ารำคาญ — ทำเป็น self-contained ในฟังก์ชัน
+// นี้ทั้งหมด ไม่ต้องแก้ loadingTimerHtml()/เทมเพลตทั้ง 7 จุดที่เรียกใช้เลยแม้แต่จุดเดียว (ลดความเสี่ยงพลาดจุด)
 function attachLoadingTimer(el){
   const startTs = Date.now();
+  let liveEl = null;
+  if(el && el.parentNode){
+    liveEl = document.createElement('span');
+    liveEl.className = 'sr-only';
+    liveEl.setAttribute('role','status');
+    liveEl.setAttribute('aria-live','polite');
+    el.parentNode.insertBefore(liveEl, el.nextSibling);
+  }
+  let lastAnnouncedSecs = -1;
   const tick = ()=>{
     if(!el || !el.isConnected) return;
     const secs = Math.floor((Date.now()-startTs)/1000);
     if(secs < 5){ el.textContent=''; return; }
     const m = Math.floor(secs/60), s = secs%60;
-    el.textContent = 'รอมาแล้ว ' + (m>0 ? (m+' นาที '+s+' วิ') : (s+' วิ'));
+    const text = 'รอมาแล้ว ' + (m>0 ? (m+' นาที '+s+' วิ') : (s+' วิ'));
+    el.textContent = text;
+    if(liveEl && (lastAnnouncedSecs===-1 || secs - lastAnnouncedSecs >= 30)){
+      liveEl.textContent = text;
+      lastAnnouncedSecs = secs;
+    }
   };
   const timer = setInterval(tick, 1000);
-  return ()=> clearInterval(timer);
+  return ()=>{ clearInterval(timer); if(liveEl && liveEl.parentNode) liveEl.remove(); };
 }
 // สร้าง <p id="..."> ใหม่ให้แปะต่อท้าย innerHTML ของหน้าโหลดแต่ละจุด (id ไม่ซ้ำกันเสมอ กันชนกันเวลามีหลาย
 // หน้าโหลดซ้อนกันในเบื้องหลัง) คืน {id, html} — เอา id ไปหา element จริงด้วย document.getElementById(id) แล้ว
@@ -1375,7 +1417,7 @@ function renderBillStaff(app){
 
   c.innerHTML = `
     ${staffDraft ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-history icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">มีบิลที่ยังไม่ได้ส่งค้างอยู่</p>
@@ -1782,7 +1824,7 @@ function renderBillReview(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     ${state.billSupplierMismatchWarning ? `
-    <div class="supplier-mismatch-warning">
+    <div class="supplier-mismatch-warning" role="status" aria-live="polite">
       <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
@@ -1791,7 +1833,7 @@ function renderBillReview(app){
       </div>
     </div>` : ''}
     ${state.billDuplicateWarning ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-copy icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
@@ -2201,7 +2243,7 @@ function renderBillBatchItemReview(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     ${g.supplierMismatchWarning ? `
-    <div class="supplier-mismatch-warning">
+    <div class="supplier-mismatch-warning" role="status" aria-live="polite">
       <i class="ti ti-alert-triangle icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="smw-title">บิลนี้อาจไม่ใช่ของ ${sup.name}</p>
@@ -2209,7 +2251,7 @@ function renderBillBatchItemReview(app){
       </div>
     </div>` : ''}
     ${g.duplicateBillWarning ? `
-    <div class="duplicate-bill-warning">
+    <div class="duplicate-bill-warning" role="status" aria-live="polite">
       <i class="ti ti-copy icon" aria-hidden="true"></i>
       <div style="flex:1; min-width:0;">
         <p class="dbw-title">บิลนี้อาจซ้ำกับที่บันทึกไปแล้ว</p>
@@ -2925,7 +2967,7 @@ async function renderSupplierCheck(app){
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
-            ? `<img src="${photoSrc}" alt="" loading="lazy">`
+            ? `<img src="${photoSrc}" alt="รูปสินค้า ${p.name}" loading="lazy">`
             : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
