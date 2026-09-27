@@ -401,7 +401,7 @@
   /* การ์ดหัวบิล (วันที่/เลขที่บิล/ยอดรวม/VAT) — ขึ้นเฉพาะบิลบริษัทจดทะเบียนที่ Gemini อ่านค่าพวกนี้ได้จริง
      (analyzeBillPhoto คืน billHeader:null สำหรับบิลเขียนมือ) ไม่ขึ้นการ์ดนี้เลยถ้าไม่มีข้อมูล ไม่ใช่บั๊ก */
   .bill-header-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:14px; background:#fff;}
-  .bhc-label{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--text-secondary); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.02em;}
+  .bhc-label{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--text-secondary); margin:0 0 10px; text-transform:uppercase; letter-spacing:0.02em;}
   .bhc-label .tag{background:var(--green-bg); color:var(--green); font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:999px; text-transform:none; letter-spacing:0;}
   .bhc-row{display:flex; gap:8px; margin-bottom:8px;}
   .bhc-field{flex:1; min-width:0;}
@@ -468,13 +468,14 @@
   .regroup-chip.is-picked .rg-check{display:flex;}
 
   .pending-row{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:9px; cursor:pointer;}
+  .pending-row:focus-visible, .add-prod-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .pending-row .pr-body{flex:1; min-width:0;}
   .pending-row .pr-title{font-size:14px; font-weight:600;}
   .pending-row .pr-sub{font-size:11.5px; color:var(--text-tertiary); margin-top:2px;}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app" role="main"></div>
 <script>
 /* ============ LIVE API CONFIG ============ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbytmWrmwrjZQjeUUW1o6CpHZmr5lFAxZJISyvqoyD5hM2TmIABUVfPuqnXseF4-nmw9/exec';
@@ -623,9 +624,9 @@ function openPhotoMatchScreen(files, products, onDone){
   const overlay = document.createElement('div');
   overlay.className = 'match-overlay';
   overlay.innerHTML = `
-    <div class="match-sheet">
+    <div class="match-sheet" role="dialog" aria-labelledby="matchSheetTitle">
       <div class="match-sheet-header">
-        <h2>จับคู่รูปกับสินค้า</h2>
+        <h2 id="matchSheetTitle">จับคู่รูปกับสินค้า</h2>
         <p id="matchProgress">เลือกไว้ ${files.length} รูป · จับคู่แล้ว 0 จาก ${files.length}</p>
       </div>
       <div class="match-list" id="matchList"></div>
@@ -707,9 +708,9 @@ function openAddProductScreen(sup, onAdded){
   const overlay = document.createElement('div');
   overlay.className = 'match-overlay';
   overlay.innerHTML = `
-    <div class="match-sheet">
+    <div class="match-sheet" role="dialog" aria-labelledby="addProdSheetTitle">
       <div class="match-sheet-header">
-        <h2>เพิ่มสินค้าใหม่</h2>
+        <h2 id="addProdSheetTitle">เพิ่มสินค้าใหม่</h2>
         <p>ซัพพลายเออร์: ${sup.name}</p>
       </div>
       <div class="addprod-body">
@@ -771,9 +772,9 @@ function openSkipDatePicker(p, onPicked){
   const overlay = document.createElement('div');
   overlay.className = 'match-overlay';
   overlay.innerHTML = `
-    <div class="match-sheet">
+    <div class="match-sheet" role="dialog" aria-labelledby="skipDateSheetTitle">
       <div class="match-sheet-header">
-        <h2>งดสั่งชั่วคราว</h2>
+        <h2 id="skipDateSheetTitle">งดสั่งชั่วคราว</h2>
         <p>${p.name} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
       </div>
       <div class="addprod-body">
@@ -1187,8 +1188,8 @@ function render(){
 }
 
 function topbar(title, opts={}){
-  const bar = document.createElement('div'); bar.className='topbar';
-  if(opts.back){ const b=document.createElement('button'); b.className='back'; b.innerHTML='←'; b.onclick=opts.back; bar.appendChild(b); }
+  const bar = document.createElement('div'); bar.className='topbar'; bar.setAttribute('role','banner');
+  if(opts.back){ const b=document.createElement('button'); b.className='back'; b.innerHTML='←'; b.setAttribute('aria-label','ย้อนกลับ'); b.onclick=opts.back; bar.appendChild(b); }
   const h = document.createElement('h1'); h.textContent = title; bar.appendChild(h);
   if(opts.meta){ const m=document.createElement('span'); m.className='meta'; m.textContent=opts.meta; bar.appendChild(m); }
   if(opts.numBadge){ const b=document.createElement('span'); b.className='topbar-num-badge'; b.textContent=opts.numBadge; bar.appendChild(b); }
@@ -1210,7 +1211,7 @@ function renderHome(app){
   const _months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
-    <div class="role-label">พนักงาน</div>
+    <h2 class="role-label">พนักงาน</h2>
     <div class="action-card primary" id="goStaff" role="button" tabindex="0">
       <div class="act-icon" style="background:rgba(255,255,255,0.12);"><i class="ti ti-clipboard-list" style="color:rgba(252,249,242,0.85);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">เช็คของวันนี้</div><div class="act-sub">นับสต๊อกและบันทึกของที่เหลือ</div></div>
@@ -1221,7 +1222,7 @@ const c = document.createElement('div'); c.className='content';
       <div class="act-body"><div class="act-title">รับของ — ถ่ายบิล</div><div class="act-sub">บันทึกต้นทุนของที่ซัพพลายเออร์ส่งมา</div></div>
       <i class="ti ti-chevron-right act-chev" aria-hidden="true"></i>
     </div>
-    <div class="role-label" style="margin-top:6px;">เจ้าของร้าน</div>
+    <h2 class="role-label" style="margin-top:6px;">เจ้าของร้าน</h2>
     <div class="action-card" id="goOwner" role="button" tabindex="0">
       <div class="act-icon" style="background:var(--bg);"><i class="ti ti-layout-dashboard" style="color:var(--text);" aria-hidden="true"></i></div>
       <div class="act-body"><div class="act-title">จัดการร้าน</div><div class="act-sub">สั่งของ · ดูสต๊อก · วิเคราะห์ยอด</div></div>
@@ -1835,7 +1836,7 @@ function renderBillReview(app){
     if(!h){ headerSlot.innerHTML = ''; return; }
     headerSlot.innerHTML = `
       <div class="bill-header-card">
-        <div class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></div>
+        <h2 class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></h2>
         <div class="bhc-row">
           <div class="bhc-field"><label for="bhDateInput">วันที่บิล</label><input type="text" id="bhDateInput" class="bhDate" value="${h.billDate||''}"></div>
           <div class="bhc-field"><label for="bhNumberInput">เลขที่บิล</label><input type="text" id="bhNumberInput" class="bhNumber" value="${h.billNumber||''}"></div>
@@ -1847,7 +1848,7 @@ function renderBillReview(app){
         <div class="bhc-row" style="margin-bottom:0;">
           <div class="bhc-field total"><label for="bhTotalInput">ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" id="bhTotalInput" class="bhTotal" value="${h.total||0}"></div>
         </div>
-        <div id="bhcMismatchSlot"></div>
+        <div id="bhcMismatchSlot" role="status" aria-live="polite"></div>
       </div>`;
     headerSlot.querySelector('.bhDate').oninput = (e)=>{ h.billDate = e.target.value; };
     headerSlot.querySelector('.bhNumber').oninput = (e)=>{ h.billNumber = e.target.value; };
@@ -1908,7 +1909,7 @@ function renderBillReview(app){
           <div class="item-field"><label for="qty-${it._id}">ตามบิล (${it.unit})</label><input type="number" id="qty-${it._id}" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
           <div class="item-field received"><label for="received-${it._id}">รับจริง (${it.unit})</label><input type="number" id="received-${it._id}" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
         </div>
-        <div id="driftSlot-${it._id}"></div>
+        <div id="driftSlot-${it._id}" role="status" aria-live="polite"></div>
         <div class="item-field-row">
           <div class="item-field"><label for="price-${it._id}">ราคา/หน่วย (฿)</label><input type="number" id="price-${it._id}" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
         </div>
@@ -2067,7 +2068,7 @@ function renderBillBatchReview(app){
   const c = document.createElement('div'); c.className='content';
   c.innerHTML = `
     <p class="batch-progress" id="batchProgress"></p>
-    <div id="batchCards"></div>
+    <div id="batchCards" role="list"></div>
     <button class="btn btn-primary btn-block" id="submitAllBtn">ส่งทั้งหมด</button>
   `;
   app.appendChild(c);
@@ -2089,7 +2090,7 @@ function drawBatchCards(c){
     const sub = h && h.billDate ? `${h.billDate} · ${g.photoIndices.length} รูป` : `${g.photoIndices.length} รูป · ไม่พบข้อมูลหัวบิล`;
     const total = g.items.filter(it=>!it.skip).reduce((s,it)=> s + (it.qty*it.unitPrice||0), 0);
     return `
-      <div class="batch-card">
+      <div class="batch-card" role="listitem">
         <div class="bc-head">
           <div class="bc-thumbs">${thumbs}</div>
           <div class="bc-info"><p class="bc-title">${title}</p><p class="bc-sub">${sub}</p></div>
@@ -2239,7 +2240,7 @@ function renderBillBatchItemReview(app){
     if(!h){ headerSlot.innerHTML = ''; return; }
     headerSlot.innerHTML = `
       <div class="bill-header-card">
-        <div class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></div>
+        <h2 class="bhc-label"><i class="ti ti-file-text" aria-hidden="true"></i> รายละเอียดบิล <span class="tag">อ่านจาก AI</span></h2>
         <div class="bhc-row">
           <div class="bhc-field"><label for="bhDateInput">วันที่บิล</label><input type="text" id="bhDateInput" class="bhDate" value="${h.billDate||''}"></div>
           <div class="bhc-field"><label for="bhNumberInput">เลขที่บิล</label><input type="text" id="bhNumberInput" class="bhNumber" value="${h.billNumber||''}"></div>
@@ -2251,7 +2252,7 @@ function renderBillBatchItemReview(app){
         <div class="bhc-row" style="margin-bottom:0;">
           <div class="bhc-field total"><label for="bhTotalInput">ยอดรวมสุทธิตามบิล (฿)</label><input type="number" step="0.01" id="bhTotalInput" class="bhTotal" value="${h.total||0}"></div>
         </div>
-        <div id="bhcMismatchSlot"></div>
+        <div id="bhcMismatchSlot" role="status" aria-live="polite"></div>
       </div>`;
     headerSlot.querySelector('.bhDate').oninput = (e)=>{ h.billDate = e.target.value; };
     headerSlot.querySelector('.bhNumber').oninput = (e)=>{ h.billNumber = e.target.value; };
@@ -2310,7 +2311,7 @@ function renderBillBatchItemReview(app){
           <div class="item-field"><label for="qty-${it._id}">ตามบิล (${it.unit})</label><input type="number" id="qty-${it._id}" class="qtyInput" value="${it.qty}" min="0" step="0.01"></div>
           <div class="item-field received"><label for="received-${it._id}">รับจริง (${it.unit})</label><input type="number" id="received-${it._id}" class="receivedInput" value="${it.receivedQty}" min="0" step="0.01"></div>
         </div>
-        <div id="driftSlot-${it._id}"></div>
+        <div id="driftSlot-${it._id}" role="status" aria-live="polite"></div>
         <div class="item-field-row">
           <div class="item-field"><label for="price-${it._id}">ราคา/หน่วย (฿)</label><input type="number" id="price-${it._id}" class="priceInput" value="${it.unitPrice}" min="0" step="0.01"></div>
         </div>
@@ -2575,7 +2576,7 @@ async function renderBillPendingList(app){
     c.innerHTML = batches.map(b=>{
       const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
       const done = b.items.filter(it=> it.skip || (it.productId && it.factor && it.confirmed)).length;
-      return `<div class="pending-row" data-id="${b.batchId}">
+      return `<div class="pending-row" data-id="${b.batchId}" role="button" tabindex="0">
         <div class="sup-thumb"><i class="ti ti-building-store" aria-hidden="true"></i></div>
         <div class="pr-body">
           <div class="pr-title">${sup ? sup.name : b.supplierId}</div>
@@ -2585,7 +2586,7 @@ async function renderBillPendingList(app){
         <span class="status-pill unmatched">${done}/${b.items.length} จับคู่แล้ว</span>
       </div>`;
     }).join('');
-    c.querySelectorAll('.pending-row').forEach(el=> el.onclick = ()=>{
+    c.querySelectorAll('.pending-row').forEach(el=> bindActivatable(el, ()=>{
       const b = batches.find(x=>x.batchId===el.dataset.id);
       go('billReview', {
         billMode:'owner-resume', billResumeBatchId:b.batchId, billSupplierId:b.supplierId,
@@ -2598,7 +2599,7 @@ async function renderBillPendingList(app){
         // ในคิว/ที่บันทึกจริงแล้ว) ส่งต่อเข้าไปให้หน้ารีวิวโชว์ได้เลย ไม่ต้อง null ทิ้ง
         billDuplicateWarning: b.duplicateBillWarning || null
       });
-    });
+    }));
   }
 
   // เจอจริง 7 ก.ย. 69: หน้านี้เคย apiGet('pendingBills') ครั้งเดียวจบ ไม่มี retry เลย (ต่างจาก
@@ -2699,7 +2700,7 @@ async function renderSupplierList(app){
     function addSection(labelText, labelClass, list, statusPill, dim){
       const filtered = sortWithin(list).filter(s=> s.name.includes(f));
       if(!filtered.length) return;
-      const label = document.createElement('p');
+      const label = document.createElement('h2');
       label.className = 'section-label' + (labelClass? ' '+labelClass : '');
       label.textContent = `${labelText} · ${filtered.length} เจ้า`;
       groupsEl.appendChild(label);
@@ -2807,7 +2808,7 @@ async function renderSupplierCheck(app){
   // (25 วิ) กว่าจะรู้ผล ถ้าไม่มีอะไรโชว์เลยจะดูเหมือนแอปค้าง
   async function autoSaveOnLeave(){
     if(!supplierCheckDirty) return true;
-    const toast = document.createElement('div'); toast.className='copy-toast'; toast.textContent='กำลังบันทึก...';
+    const toast = document.createElement('div'); toast.className='copy-toast'; toast.setAttribute('role','status'); toast.setAttribute('aria-live','polite'); toast.textContent='กำลังบันทึก...';
     document.body.appendChild(toast);
     try{ await saveCheckedItems(); return true; }
     catch(err){ return confirm('บันทึกอัตโนมัติไม่สำเร็จ (' + err.message + ')\nยืนยันออกจากหน้านี้โดยไม่บันทึกใช่ไหม?'); }
@@ -2830,7 +2831,7 @@ async function renderSupplierCheck(app){
     c.appendChild(pickBtn);
   }
 
-  const grid = document.createElement('div'); grid.className='prod-grid';
+  const grid = document.createElement('div'); grid.className='prod-grid'; grid.setAttribute('role','list');
   c.appendChild(grid);
 
   let photoTargetPid = null;
@@ -2872,6 +2873,7 @@ async function renderSupplierCheck(app){
       const isSkipped = isProductSkippedToday(p);
       const card = document.createElement('div');
       card.className = 'prod-card' + (isChecked?' checked':'') + (isCover?' is-cover':'') + (isSkipped?' skip-today':'');
+      card.setAttribute('role','listitem');
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
@@ -2902,12 +2904,14 @@ async function renderSupplierCheck(app){
     if(canAddProduct()){
       const addCard = document.createElement('div');
       addCard.className = 'add-prod-card';
+      addCard.setAttribute('role','button');
+      addCard.tabIndex = 0;
       addCard.innerHTML = '<i class="ti ti-plus" style="font-size:26px;" aria-hidden="true"></i><span>เพิ่มสินค้าใหม่</span>';
-      addCard.onclick = ()=> openAddProductScreen(sup, (newProduct)=>{
+      bindActivatable(addCard, ()=> openAddProductScreen(sup, (newProduct)=>{
         products.push(newProduct);
         PRODUCTS.push(newProduct);
         renderGrid(); updateBar();
-      });
+      }));
       grid.appendChild(addCard);
     }
 
@@ -3222,7 +3226,7 @@ function renderStockTab(body){
       const items = allProducts.filter(p=>p.supplierId===s.id && p.name.includes(filter||''));
       if(!items.length) return;
       const col = NEUTRAL_COL;
-      const head = document.createElement('div'); head.className='sup-header';
+      const head = document.createElement('h2'); head.className='sup-header';
       head.style.background = col.bg; head.style.color = col.text; head.style.borderColor = col.text;
       head.innerHTML = `<span>${s.name}</span>`;
       tableWrap.appendChild(head);
@@ -3244,7 +3248,7 @@ function renderAnalyticsTab(body, analytics){
   body.innerHTML = `
     <div class="tabs"><div class="tab active">7 วัน</div><div class="tab">30 วัน</div><div class="tab">กำหนดเอง</div></div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; margin-bottom:12px;">
-      <p style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (7 วันล่าสุด)</p>
+      <h2 style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (7 วันล่าสุด)</h2>
       <table style="width:100%; font-size:13px;">
         <thead><tr><th style="text-align:left; font-weight:600;">สินค้า</th><th style="text-align:right; font-weight:600;">จำนวนที่สั่ง</th></tr></thead>
         <tbody>
@@ -3254,7 +3258,7 @@ function renderAnalyticsTab(body, analytics){
       </table>
     </div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;">
-      <p style="font-weight:600; font-size:13px; margin:0 0 4px;">แนวโน้มรายสินค้า</p>
+      <h2 style="font-weight:600; font-size:13px; margin:0 0 4px;">แนวโน้มรายสินค้า</h2>
       <p style="font-size:11px; color:var(--text-tertiary); margin:0 0 8px;">* กราฟตัวอย่าง — ยังไม่เชื่อมข้อมูลรายวันจริง (Code.gs ยังไม่มี endpoint ส่งย้อนหลังรายวัน)</p>
       <svg viewBox="0 0 320 130" style="width:100%;">
         <line x1="28" y1="10" x2="28" y2="105" stroke="var(--border-strong)"/>
@@ -3387,6 +3391,7 @@ async function renderOrderPage(app){
     // data-supplier-card ใช้ให้ rebuildCard() หาการ์ดเดิมใน DOM มาแทนที่ด้วยตัวใหม่ตรงตำแหน่งเดิม
     const card = document.createElement('div'); card.className = 'ord-card state-' + stateClass + (open?' open':'');
     card.dataset.supplierCard = s.id;
+    card.setAttribute('role','listitem');
     const strip = document.createElement('div'); strip.className = 'ord-card-strip';
     card.appendChild(strip);
     const main = document.createElement('div'); main.className = 'ord-card-main';
@@ -3674,15 +3679,21 @@ async function renderOrderPage(app){
       if(!hasMatch) return;
       if(supplierDueToday(s)) dueCount++; else restCount++;
     });
+    // dueSection ห่อการ์ด "ต้องสั่งวันนี้" ไว้เป็นลิสต์ของตัวเอง (แยกจาก otherSection ที่มีอยู่แล้ว) เพื่อให้
+    // ใส่ role="list" ได้ถูกต้อง — เดิมการ์ดกลุ่มนี้แปะตรงเข้า groups ปนกับ dueLabel (แค่ข้อความหัวข้อ ไม่ใช่
+    // รายการข้อมูล) ทำให้ groups เองมี role="list" ไม่ได้เพราะลูกไม่ใช่ listitem ล้วน
+    const dueSection = document.createElement('div');
     if(dueCount){
-      const dueLabel = document.createElement('div'); dueLabel.className = 'section-label due';
+      const dueLabel = document.createElement('h2'); dueLabel.className = 'section-label due';
       dueLabel.textContent = `ต้องสั่งวันนี้ · ${dueCount} เจ้า`;
       groups.appendChild(dueLabel);
+      dueSection.setAttribute('role','list');
+      groups.appendChild(dueSection);
     }
-    const restLabel = document.createElement('div'); restLabel.className = 'section-label';
+    const restLabel = document.createElement('h2'); restLabel.className = 'section-label';
     restLabel.textContent = dueCount ? `เจ้าอื่นทั้งหมด · ${restCount} เจ้า` : 'เจ้าทั้งหมด';
     let restLabelInserted = false;
-    const otherSection = document.createElement('div'); otherSection.className = 'other-section';
+    const otherSection = document.createElement('div'); otherSection.className = 'other-section'; otherSection.setAttribute('role','list');
 
     sortedSuppliers.forEach(s=>{
       const allItems = productsOf(s.id);
@@ -3692,7 +3703,7 @@ async function renderOrderPage(app){
       const dueToday = supplierDueToday(s);
       // เจ้ากลุ่มแรกที่ไม่ถึงรอบวันนี้ (ตามลำดับที่ sort ไว้แล้ว) คือจุดเริ่มเซกชัน "เจ้าอื่นทั้งหมด"
       if(!dueToday && !restLabelInserted){ groups.appendChild(restLabel); groups.appendChild(otherSection); restLabelInserted = true; }
-      const renderTarget = dueToday ? groups : otherSection;
+      const renderTarget = dueToday ? dueSection : otherSection;
       const card = buildSupplierCard(s, filter);
       if(card) renderTarget.appendChild(card);
     });
@@ -3769,7 +3780,7 @@ function renderOrderMessage(app){
     `;
     card.querySelector('.copy-btn').onclick = ()=>{
       navigator.clipboard?.writeText(text).catch(()=>{});
-      const toast = document.createElement('div'); toast.className='copy-toast'; toast.textContent='คัดลอกแล้ว';
+      const toast = document.createElement('div'); toast.className='copy-toast'; toast.setAttribute('role','status'); toast.setAttribute('aria-live','polite'); toast.textContent='คัดลอกแล้ว';
       document.body.appendChild(toast); setTimeout(()=>toast.remove(), 1400);
     };
     c.appendChild(card);
