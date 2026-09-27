@@ -151,7 +151,12 @@
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-007): เดิมไม่มี padding เลย พื้นที่แตะจริงวัดได้แค่
+     14.6–20.7 × 15.0px (ต่ำกว่าเกณฑ์ 24×24px ของ WCAG 2.5.8) — จุดนี้ใช้ 2 ที่ในไฟล์ (หน้าเช็คสต๊อกของ Mile ที่นี่
+     ไม่มีกฎ padding อื่นมาแข่ง specificity เลยรับ padding ตรงนี้ได้เต็มๆ / หน้าสั่งของฝั่งเจ้าของที่ .stepper .unit-tag
+     มี padding ของตัวเองอยู่แล้วชนะ specificity นี้เสมอ — ต้องแก้แยกอีกจุดด้วย ดูกฎ .stepper .unit-tag-editable
+     ด้านล่างที่บรรทัดหลัง .stepper .unit-tag เพื่อให้ลำดับแหล่งที่มาชนะ specificity เท่ากันได้ถูกต้อง) */
+  .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px; padding:6px;}
   .unit-tag-editable:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .unit-tag-editable i{font-size:10px; vertical-align:-1px; margin-left:1px;}
   .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
@@ -209,6 +214,11 @@
   .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
   .stepper{display:flex; align-items:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:#fff; flex-shrink:0; margin-left:auto;}
   .stepper .unit-tag{font-size:13px; font-weight:600; color:var(--text); margin-left:0; padding:0 8px 0 6px; overflow:visible; text-overflow:clip; white-space:nowrap; flex-shrink:0;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-007): จุดนี้ (หน้าสั่งของฝั่งเจ้าของ) วัดจริงได้ 32.7×21px
+     กว้างพอแล้วแต่สูงขาด 3px จากเกณฑ์ 24px — เพิ่มแค่ padding แนวตั้ง ไม่แตะแนวนอน (กันไม่ให้ความกว้างของแถว
+     .stepper เปลี่ยนจากที่ตั้งใจไว้เดิม) ต้องอยู่ "หลัง" กฎ .stepper .unit-tag ด้านบนเสมอ (specificity เท่ากัน
+     2 คลาส ตัดสินด้วยลำดับในไฟล์ — เอาไว้ก่อนจะแพ้แล้วไม่มีผลอะไรเลย) */
+  .stepper .unit-tag-editable{padding-top:4px; padding-bottom:4px;}
   .stepper button{width:26px; height:28px; border:none; background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; flex-shrink:0;}
   input.stepper-input{width:36px; min-width:0; flex-shrink:0; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); font-size:13px; font-weight:700; padding:5px 0;}
 
@@ -268,23 +278,35 @@
   .hero-left{display:flex; align-items:center; gap:12px;}
   .hero-date{text-align:right; flex-shrink:0;}
   .hero-date strong{display:block; font-size:13px; font-weight:600; color:rgba(252,249,242,0.7);}
-  .hero-date span{font-size:11px; color:rgba(252,249,242,0.38);}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3 — พบว่าจุดนี้ใช้ rgba() ของตัวเอง ไม่ได้ผูกกับ --text-tertiary
+     เลย แก้ตัวแปรตอนแรกจึงไม่ครอบคลุมจุดนี้ เดิม alpha 0.38 contrast ~3.47:1 ต่ำกว่าเกณฑ์ 4.5:1 → เพิ่ม alpha
+     เป็น 0.5 ให้ผ่าน ~5.0:1 บนพื้น --brand */
+  .hero-date span{font-size:11px; color:rgba(252,249,242,0.5);}
   .role-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
   .role-label::after{content:''; flex:1; height:1px; background:var(--border-strong);}
   .action-card{display:flex; align-items:center; gap:16px; padding:22px 20px; border-radius:16px; border:1px solid var(--border-strong); background:#fff; cursor:pointer; margin-bottom:10px; -webkit-tap-highlight-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,0.06);}
   .action-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .action-card.primary{background:var(--brand); border-color:transparent;}
   .action-card.primary .act-title{color:var(--cream);}
-  .action-card.primary .act-sub{color:rgba(252,249,242,0.45);}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): การ์ด .primary/.bill มี override สีของตัวเอง ไม่ได้ผูกกับ
+     --text-tertiary เลย (แก้ตัวแปรตอนแรกจึงไม่ครอบคลุม) เดิม .primary .act-sub alpha 0.45 contrast 4.31:1
+     (ต่ำกว่า 4.5:1 เฉียดนิดเดียว) → เพิ่มเป็น 0.5 ให้ผ่าน ~5.0:1 — .bill .act-sub เดิม alpha 0.6 contrast
+     2.84:1 (ต่ำกว่ามาก) → เพิ่มเป็น 0.9 ให้ผ่าน ~5.6:1 บนพื้น .action-card.bill (#FEF3DF) */
+  .action-card.primary .act-sub{color:rgba(252,249,242,0.5);}
   .action-card.primary .act-chev{color:rgba(252,249,242,0.3);}
   .action-card.bill{background:#FEF3DF; border-color:rgba(122,70,8,0.16);}
   .action-card.bill .act-title{color:#7A4608;}
-  .action-card.bill .act-sub{color:rgba(122,70,8,0.6);}
+  .action-card.bill .act-sub{color:rgba(122,70,8,0.9);}
   .action-card.bill .act-chev{color:rgba(122,70,8,0.3);}
   .act-icon{width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:37.5px; flex-shrink:0;}
   .act-body{flex:1;}
   .act-title{font-size:22.5px; font-weight:700; color:var(--text); margin-bottom:4px;}
-  .act-sub{font-size:15px; color:var(--text-tertiary); line-height:1.4; opacity:0.75;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): เดิมมี opacity:0.75 ทับซ้อนกับ alpha ของ color ที่ override
+     ไว้ใน .action-card.primary/.bill (บรรทัดด้านบน) ทำให้ contrast จริงต่ำกว่าที่คำนวณไว้ตอนแรกมาก (opacity ของ
+     element เองไม่โผล่ใน getComputedStyle().color ตอนคำนวณ ต้องคูณเพิ่มเอง) ลบ opacity ทิ้ง ให้ค่า alpha ที่ตั้งไว้
+     ในแต่ละ context (0.5 / 0.9 ด้านบน, หรือสีทึบของ --text-tertiary ในการ์ดฐาน) เป็นตัวกำหนด contrast ตรงๆ ค่าเดียว
+     ไม่ซ้อนกันอีก — ใช้แค่ 3 จุดนี้เท่านั้นทั้งไฟล์ (การ์ดหน้าแรก 3 ใบ) ปลอดภัยที่จะลบ */
+  .act-sub{font-size:15px; color:var(--text-tertiary); line-height:1.4;}
   .act-chev{font-size:22px; color:var(--text-tertiary); flex-shrink:0; opacity:0.35;}
   .icon-card{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:14px; padding:13px; margin-bottom:9px; cursor:pointer;}
   .icon-box{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
@@ -363,11 +385,16 @@
   .conversion-box .cv-label{font-size:11.5px; color:var(--amber); font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:5px;}
   .conversion-row{display:flex; align-items:center; gap:6px; font-size:13px; flex-wrap:wrap;}
   .conversion-row input{width:64px; text-align:center; padding:6px;}
-  .conversion-hint{font-size:11px; color:rgba(122,70,8,0.75); margin-top:6px; line-height:1.4;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): พื้นหลังจริงคือ --amber-bg (จาก .conversion-box) ไม่ใช่ขาว
+     ตามที่เข้าใจผิดตอนแรก — เดิม rgba(122,70,8,0.75) contrast ~3.85:1 (ต่ำกว่า 4.5:1) เปลี่ยนเป็น var(--amber)
+     สีทึบตรงๆ (ตัวเดียวกับ .cv-label ข้างบนในกล่องเดียวกัน) ให้ผ่าน ~5.86:1 */
+  .conversion-hint{font-size:11px; color:var(--amber); margin-top:6px; line-height:1.4;}
   .fuzzy-box{background:var(--yellow-bg); border-radius:8px; padding:10px 11px; margin-bottom:8px;}
   .fuzzy-box .fz-label{font-size:11.5px; color:var(--yellow); font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:5px;}
   .fuzzy-box .fz-name{font-size:13.5px; font-weight:600; margin-bottom:8px;}
-  .fuzzy-box .fz-hint{font-size:11px; color:rgba(122,105,0,0.8); margin-bottom:9px; line-height:1.4;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): เดิม rgba(122,105,0,0.8) contrast ~3.4:1 บน --yellow-bg
+     (ต่ำกว่า 4.5:1) เปลี่ยนเป็น var(--yellow) สีทึบตรงๆ (ตัวเดียวกับ .fz-label ข้างบนในกล่องเดียวกัน) ให้ผ่าน ~5.0:1 */
+  .fuzzy-box .fz-hint{font-size:11px; color:var(--yellow); margin-bottom:9px; line-height:1.4;}
   .fuzzy-box .fz-actions{display:flex; gap:8px;}
   .fuzzy-box .fz-actions button{flex:1; padding:8px; font-size:12.5px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-weight:600;}
   .fz-confirm{background:var(--yellow); color:#fff;}
@@ -1277,7 +1304,12 @@ function topbar(title, opts={}){
 /* ============ HOME ============ */
 function buildHero(){
   const hero = document.createElement('div'); hero.className='hero';
-  hero.innerHTML = `<img class="hero-logo" src="/logo-hero-mono.png" alt="logo"><div style="font-size:17.5px;color:rgba(255,255,255,0.95);margin-top:15px;letter-spacing:0.3px;font-weight:500">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div><div style="font-size:17.5px;font-weight:500;color:rgba(255,255,255,0.95);margin-top:4px">ระบบจัดการสินค้าคงเหลือและต้นทุน</div>`;;
+  // WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-006): หน้าแรก (renderHome) เป็นจุดเดียวในทั้งแอปที่ไม่เรียก
+  // topbar() (ซึ่งเป็นจุดเดียวที่สร้าง <h1>) ทำให้ไม่มี H1 เลยสักตัว — buildHero() ถูกใช้ทั้งหน้าแรกและหน้า
+  // "กำลังโหลดข้อมูลร้าน..." ตอน cold-load (ซึ่งก็ไม่มี heading เหมือนกัน) เพิ่ม H1 ที่นี่จุดเดียวแก้ทั้งคู่ —
+  // ซ่อนด้วยตา (.sr-only) เพราะมีโลโก้+ข้อความเห็นด้วยตาอยู่แล้ว ไม่ต้องการให้ซ้ำซ้อนกับผู้ใช้ทั่วไป แค่ให้ screen
+  // reader รู้จักหัวข้อหน้าได้
+  hero.innerHTML = `<h1 class="sr-only">ซามูไรไส้กรอก — ระบบเช็คสต๊อกและสั่งของ</h1><img class="hero-logo" src="/logo-hero-mono.png" alt="logo"><div style="font-size:17.5px;color:rgba(255,255,255,0.95);margin-top:15px;letter-spacing:0.3px;font-weight:500">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div><div style="font-size:17.5px;font-weight:500;color:rgba(255,255,255,0.95);margin-top:4px">ระบบจัดการสินค้าคงเหลือและต้นทุน</div>`;;
   return hero;
 }
 
