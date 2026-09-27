@@ -123,6 +123,9 @@
   /* โฟกัสตัวกล่อง dialog เองตอนเปิด (setupDialogFocus) — ไม่ต้องมีกรอบ outline ล้อมทั้งแผ่น เพราะแผ่นทั้งอัน
      ก็คือ dialog ที่มองเห็นชัดเจนอยู่แล้ว ปุ่ม/ช่องกรอกข้างในยังมี focus ring ของตัวเองตามปกติไม่กระทบ */
   .match-sheet:focus{outline:none;}
+  /* กันกรอบ outline เต็มจอตอน setupDialogFocus โฟกัสตัว lightbox เอง — ปุ่ม/รูปข้างในยังมี focus ring
+     ของตัวเองตามปกติไม่กระทบ (เหมือน .match-sheet:focus ด้านบน) */
+  .bill-photo-lightbox:focus, .avatar-lightbox:focus{outline:none;}
   .match-sheet-header{padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0;}
   .match-sheet-header h2{margin:0 0 2px; font-size:15px; font-weight:600;}
   .match-sheet-header p{margin:0; font-size:12px; color:var(--text-tertiary);}
@@ -144,6 +147,7 @@
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px;}
+  .unit-tag-editable:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .unit-tag-editable i{font-size:10px; vertical-align:-1px; margin-left:1px;}
   .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
   /* สินค้าที่เจ้าของตั้งงดสั่ง/งดเช็คไว้เฉพาะวันนี้ (setProductSkipDate) — การ์ดยังโชว์อยู่เหมือนเดิม
@@ -464,6 +468,7 @@
 
   .regroup-grid{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px;}
   .regroup-chip{position:relative; cursor:pointer;}
+  .regroup-chip:focus-visible{outline:2px solid var(--purple); outline-offset:2px;}
   .regroup-chip .bill-photo-chip{transition:box-shadow 0.15s;}
   .regroup-chip.is-picked .bill-photo-chip{box-shadow:0 0 0 3px var(--purple);}
   .regroup-chip .rg-badge{position:absolute; bottom:3px; left:3px; background:rgba(28,26,20,0.72); color:#fff; font-size:9px; font-weight:700; padding:1px 5px; border-radius:5px;}
@@ -593,10 +598,15 @@ async function apiPost(action, payload, retryOnTimeout, timeoutMs, baseUrl){
 // หลายบิล กันโค้ดซ้ำ 2 จุด
 function openBillPhotoLightbox(urls){
   const lb = document.createElement('div'); lb.className = 'bill-photo-lightbox';
+  lb.setAttribute('role','dialog');
+  lb.setAttribute('aria-label', urls.length>1 ? `รูปบิลขยายเต็มจอ (${urls.length} รูป)` : 'รูปบิลขยายเต็มจอ');
   lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button>
     <div class="lb-scroll">${urls.map((url,i)=>`<img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} จาก ${urls.length}">`).join('')}</div>`;
-  lb.onclick = (e)=>{ if(e.target===lb) lb.remove(); };
-  lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
+  document.body.appendChild(lb);
+  const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+  function close(){ lb.remove(); restoreFocus(); }
+  lb.onclick = (e)=>{ if(e.target===lb) close(); };
+  lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   lb.querySelectorAll('img').forEach(img=>{
     let scale = 1;
     const applyScale = ()=>{ img.style.transform = `scale(${scale})`; img.style.cursor = scale>1 ? 'zoom-out' : 'zoom-in'; };
@@ -608,7 +618,6 @@ function openBillPhotoLightbox(urls){
     }, {passive:false});
     applyScale();
   });
-  document.body.appendChild(lb);
 }
 async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAttempt, baseUrl){
   let lastErr;
@@ -739,11 +748,11 @@ function openAddProductScreen(sup, onAdded){
         <p>ซัพพลายเออร์: ${sup.name}</p>
       </div>
       <div class="addprod-body">
-        <label>ชื่อสินค้า</label>
+        <label for="apName">ชื่อสินค้า</label>
         <input type="text" id="apName" placeholder="เช่น ไส้กรอกไก่จัมโบ้">
-        <label>หน่วยสั่งของ</label>
+        <label for="apUnit">หน่วยสั่งของ</label>
         <input type="text" id="apUnit" value="โล">
-        <label>ราคาทุน ต่อหน่วย (บาท)</label>
+        <label for="apPrice">ราคาทุน ต่อหน่วย (บาท)</label>
         <input type="number" id="apPrice" placeholder="0" min="0">
         <p class="addprod-error" id="apError"></p>
       </div>
@@ -807,7 +816,7 @@ function openSkipDatePicker(p, onPicked){
         <label class="date-opt-row" data-opt="${todayISO}"><input type="radio" name="skipdateopt" checked> วันนี้ (${formatShortThaiDate(todayISO)})</label>
         <label class="date-opt-row" data-opt="${tomorrowISO}"><input type="radio" name="skipdateopt"> พรุ่งนี้ (${formatShortThaiDate(tomorrowISO)})</label>
         <label class="date-opt-row" data-opt="custom"><input type="radio" name="skipdateopt"> เลือกวันที่เอง</label>
-        <input type="date" id="skipCustomDate" style="margin-top:8px; display:none;" min="${todayISO}">
+        <input type="date" id="skipCustomDate" style="margin-top:8px; display:none;" min="${todayISO}" aria-label="เลือกวันที่ที่จะงดสั่ง">
       </div>
       <div class="match-sheet-footer">
         <button class="btn btn-primary btn-block" id="skipSave">บันทึก</button>
@@ -1315,10 +1324,14 @@ function renderStaffName(app){
   // ส่วนป้ายกล้องเล็กๆ มุมขวาล่างแยกไว้เป็นปุ่ม "เปลี่ยนรูป" โดยเฉพาะ ไม่ปนกับการซูมอีกต่อไป
   function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
+    lb.setAttribute('role','dialog');
+    lb.setAttribute('aria-label', 'รูปโปรไฟล์ของ ' + name);
     lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
+    const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+    function close(){ lb.remove(); restoreFocus(); }
+    lb.onclick = close;
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
     bindActivatable(avatar, (e)=>{
@@ -1433,10 +1446,14 @@ function renderBillStaff(app){
   };
   function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
+    lb.setAttribute('role','dialog');
+    lb.setAttribute('aria-label', 'รูปโปรไฟล์ของ ' + name);
     lb.innerHTML = `<button class="lb-close" aria-label="ปิด">✕</button><img src="${url}" alt="รูปโปรไฟล์ของ ${name}">`;
-    lb.onclick = ()=> lb.remove();
-    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); lb.remove(); };
     document.body.appendChild(lb);
+    const restoreFocus = setupDialogFocus(lb, lb, ()=>close());
+    function close(){ lb.remove(); restoreFocus(); }
+    lb.onclick = close;
+    lb.querySelector('.lb-close').onclick = (e)=>{ e.stopPropagation(); close(); };
   }
   c.querySelectorAll('.avatar-pick').forEach(avatar=>{
     bindActivatable(avatar, (e)=>{
@@ -2448,17 +2465,21 @@ function renderBillBatchRegroup(app){
       const isPicked = picked.has(i);
       const ownerGroup = state.billBatchGroups.find(gr=>gr.photoIndices.includes(i));
       const gi = state.billBatchGroups.indexOf(ownerGroup);
-      return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}">
+      return `<div class="regroup-chip ${isPicked?'is-picked':''}" data-i="${i}" role="button" tabindex="0" aria-pressed="${isPicked}" aria-label="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} (ตอนนี้อยู่ในกลุ่มบิลที่ ${gi+1})">
         <div class="bill-photo-chip"><img src="${url}" alt="รูปบิลที่ถ่ายไว้ หน้าที่ ${i+1} (ตอนนี้อยู่ในกลุ่มบิลที่ ${gi+1})"></div>
         <span class="rg-badge">บิลที่ ${gi+1}</span>
         <span class="rg-check"><i class="ti ti-check" aria-hidden="true"></i></span>
       </div>`;
     }).join('');
-    grid.querySelectorAll('[data-i]').forEach(el=> el.onclick = ()=>{
+    grid.querySelectorAll('[data-i]').forEach(el=> bindActivatable(el, ()=>{
       const i = +el.dataset.i;
       if(picked.has(i)) picked.delete(i); else picked.add(i);
       draw();
-    });
+      // draw() รื้อ innerHTML ทั้งกริดใหม่ทุกครั้งที่เลือก/ยกเลิก — คืนโฟกัสกลับไปที่รูปเดิมที่เพิ่งกด
+      // กันโฟกัสหลุดไปที่ <body> เงียบๆ เหมือนบั๊กเดิมที่เคยเจอกับ .ord-card-head/accordion มาก่อน
+      const newEl = grid.querySelector(`[data-i="${i}"]`);
+      if(newEl) newEl.focus();
+    }));
     c.querySelector('#regroupBtn').disabled = picked.size===0;
   }
   draw();
@@ -2919,7 +2940,7 @@ async function renderSupplierCheck(app){
               <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
               <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
-              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
+              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${u.label}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
             </div>
           `).join('')}
         </div>
@@ -2988,7 +3009,7 @@ async function renderSupplierCheck(app){
     }
     if(canEditUnitLabel()){
       grid.querySelectorAll('.unit-tag-editable').forEach(tag=>{
-        tag.onclick = async (e)=>{
+        bindActivatable(tag, async (e)=>{
           e.stopPropagation();
           const uid = tag.dataset.unitEdit;
           const p = products.find(x=>x.units.some(u=>u.id===uid));
@@ -3008,7 +3029,7 @@ async function renderSupplierCheck(app){
             renderGrid();
             alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
           }
-        };
+        });
       });
     }
     if(CAMERA_PER_PRODUCT_ENABLED){
@@ -3426,7 +3447,7 @@ async function renderOrderPage(app){
     const head = document.createElement('div'); head.className = 'ord-card-head';
     head.innerHTML = `
       <i class="ti ti-chevron-down chev"></i>
-      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง">${isConfirmed?'✓':''}</button>
+      <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง" aria-pressed="${isConfirmed}">${isConfirmed?'✓':''}</button>
       <span class="ord-card-name">${s.name}</span>
       <div class="ord-card-status">
         <div class="status-top-row">
@@ -3478,6 +3499,7 @@ async function renderOrderPage(app){
         // สถานะเดิมพร้อมแจ้งเตือนถ้าบันทึกไม่สำเร็จ
         confirmedNow = checked;
         confirmBtn.classList.toggle('confirmed', checked);
+        confirmBtn.setAttribute('aria-pressed', String(checked));
         confirmBtn.textContent = checked ? '✓' : '';
         if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
         renderStats();
@@ -3486,6 +3508,7 @@ async function renderOrderPage(app){
         }catch(err){
           confirmedNow = !checked;
           confirmBtn.classList.toggle('confirmed', !checked);
+          confirmBtn.setAttribute('aria-pressed', String(!checked));
           confirmBtn.textContent = !checked ? '✓' : '';
           if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
           renderStats();
@@ -3547,13 +3570,13 @@ async function renderOrderPage(app){
             <button type="button" data-step="-1" aria-label="ลดจำนวน ${p.name}">−</button>
             <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${p.name}">
             <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${p.name}">+</button>
-            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
+            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${p.name}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
           </div>
         </div>
       `;
       groupBox.appendChild(row);
 
-      row.querySelector('[data-unit-edit]').onclick = async (e)=>{
+      bindActivatable(row.querySelector('[data-unit-edit]'), async (e)=>{
         e.stopPropagation();
         const unit = p.units[p.units.length-1];
         const current = unit.orderLabel || unit.label;
@@ -3565,14 +3588,19 @@ async function renderOrderPage(app){
         const oldOrderLabel = unit.orderLabel;
         unit.orderLabel = trimmed; // อัปเดตให้เห็นผลทันทีในเครื่อง
         rebuildCard(s);
+        // rebuildCard() รื้อ DOM การ์ดทั้งใบทิ้ง (ดูคอมเมนต์บนตัวฟังก์ชัน) — เปิดจากคีย์บอร์ดแล้วโฟกัสจะหลุด
+        // ไปที่ <body> เงียบๆ เหมือนบั๊กเดิมที่เคยเจอกับ .ord-card-head มาก่อน คืนโฟกัสกลับไปที่ป้ายหน่วยตัวใหม่เอง
+        const restoreTagFocus = ()=>{ const t = groups.querySelector(`[data-unit-edit="${unit.id}"]`); if(t) t.focus(); };
+        restoreTagFocus();
         try{
           await apiPost('setOrderUnitLabel', { unitId: unit.id, label: trimmed }, true);
         }catch(err){
           unit.orderLabel = oldOrderLabel;
           rebuildCard(s);
+          restoreTagFocus();
           alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
         }
-      };
+      });
 
       row.querySelector('[data-skiptoggle]').onclick = (e)=>{
         e.stopPropagation();
