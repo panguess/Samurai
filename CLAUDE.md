@@ -904,15 +904,52 @@ label ที่มองเห็น/อ่านได้อยู่แล้�
   ด้วยลำดับในไฟล์ถ้าวางกฎใหม่ผิดตำแหน่ง — วางกฎ `.stepper .unit-tag-editable{padding-top:4px; padding-bottom:4px;}`
   ไว้ **หลัง** `.stepper .unit-tag` เสมอ วัดผลจริงหลังแก้: 26.6×27px / 32.7×29px ผ่านทั้งคู่ ไม่กระทบความกว้างแถบ
   `.stepper` เลย (แก้แค่แนวตั้ง)
-- **ACC-008 (High, ยังไม่แก้ — รอผู้ใช้ตัดสินใจ)**: พบรูปแบบการออกแบบที่ใช้ CSS `opacity` (ไม่ใช่ rgba alpha) จางสี
-  การ์ด/แถวทั้งใบสำหรับสถานะ "เสร็จแล้ว/งดแล้ว/ไม่ใช่วันนี้" ใน **7 กฎ CSS**: `.sup-row.done` (0.5),
-  `.sup-card.done` (0.55), `.other-section .sup-card` (0.7 ซ้อน `.done` เป็น 0.55 อีกชั้น), `.prod-card.skip-today`
-  (0.55), `.other-section .ord-card` (0.72), `.item-card.is-skip` (0.6) — คำนวณจริงจุดที่รุนแรงสุด
-  (`.sup-row.done`, ชื่อร้านสีเข้มบนพื้นขาวจาง 50%) ได้ **2.98:1** ต่ำกว่าเกณฑ์ 4.5:1 มาก **กระทบข้อความจริง
-  (ชื่อร้าน/ชื่อสินค้า) ไม่ใช่แค่กราฟิกตกแต่ง** ไม่ได้แก้ในรอบนี้เพราะขอบเขตกว้าง (7 กฎ, หลายหน้าจอ, เปลี่ยนความรู้สึก
-  ภาพรวมของสถานะ "จางแล้ว" ที่ตั้งใจไว้) — **ถ้าจะแก้ ให้ทำ Artifact demo เทียบก่อน-หลังให้ดูก่อนตามธรรมเนียมเดิม
-  ไม่ใช่แก้เงียบๆ** แนวทางที่แนะนำ: เปลี่ยนจาก opacity เป็นสีทึบที่จางกว่าปกติแต่ยังผ่านเกณฑ์ (แพทเทิร์นเดียวกับที่
-  A-5–A-8 เพิ่งแก้ในรอบนี้) แทนการเพิ่ม opacity อีก (จะย้อนกลับไปมีปัญหาแบบ A-5 ซ้ำ)
+- **ACC-008 (High, แก้แล้ว — ผู้ใช้อนุมัติให้แก้ทันทีในรอบถัดมา "ก็แก้เลยสิค้าาาา รออะไร")**: พบรูปแบบการออกแบบที่ใช้
+  CSS `opacity` (ไม่ใช่ rgba alpha) จางสีการ์ด/แถวทั้งใบสำหรับสถานะ "เสร็จแล้ว/งดแล้ว/ไม่ใช่วันนี้" ใน **7 กฎ CSS**:
+  `.sup-row.done` (0.5), `.sup-card.done` (0.55), `.other-section .sup-card` (0.7 ซ้อน `.done` เป็น 0.55 อีกชั้น),
+  `.prod-card.skip-today` (0.55), `.other-section .ord-card` (0.72), `.item-card.is-skip` (0.6) — จุดรุนแรงสุด
+  (`.sup-row.done`) วัดได้ 2.98:1 ต่ำกว่าเกณฑ์ 4.5:1 มาก **กระทบข้อความจริง (ชื่อร้าน/ชื่อสินค้า) ไม่ใช่แค่กราฟิกตกแต่ง**
+
+  **ก่อนแก้ตรวจผลกระทบทีละกฎ** (ตามที่ผู้ใช้ย้ำ "เช็คให้ดีก่อนว่ากระทบกี่จุด"):
+  - `.sup-row.done` — grep + ตรวจ `classList.add`/template-string ทั้งไฟล์ยืนยันว่า **dead CSS จริง** (`.sup-row`
+    ถูกสร้างที่จุดเดียว `renderBillSupplier` ไม่เคยเติมคลาส `done`) ไม่มีผลกับผู้ใช้เลย — แก้ค่าไว้เพื่อความถูกต้องของ
+    source เท่านั้น (`opacity:0.9`)
+  - `.sup-card.done` — ตรวจ `supplierCard()` พบว่า**มี JS-level color compensation อยู่แล้ว** (ชื่อร้าน/ไอคอนสลับเป็น
+    `--text-secondary` เมื่อ `isDone`) เหมือนบั๊ก `.act-sub` เดิมที่เจอในรอบก่อน — `opacity` ซ้อนทับเป็นของซ้ำซ้อน/เป็น
+    ตัวทำลายคอนทราสต์ ลบทิ้งได้เลยไม่ต้องเพิ่มอะไร
+  - `.other-section .sup-card` (ไม่ done) — ไม่มี compensation มาก่อน (ชื่อร้านใช้ `var(--text)` เข้มเต็มที่เสมอ) ลบ
+    opacity ตรงๆ จะทำให้ "เจ้าที่ไม่ถึงรอบวันนี้" หน้าตาเหมือน "เจ้าที่ต้องสั่งวันนี้" เป๊ะ เสียสัญญาณภาพที่ตั้งใจไว้ — แก้โดย
+    เพิ่ม parameter `dim` ให้ `supplierCard(s, isDone, idx, statusPill, dim)` แล้วคุมสีชื่อร้าน/รูปตรงๆ แทน opacity
+    (`nameMuted = isDone || dim` → `--text-secondary`, รูปสินค้าลด opacity เหลือ 0.85 เฉพาะรูปเท่านั้นซึ่งไม่ใช่ตัวอักษร
+    ไม่กระทบเกณฑ์ 1.4.3) — เช็คแล้วมีจุดเรียก `supplierCard()` แค่จุดเดียวในทั้งไฟล์ ปลอดภัยที่จะเพิ่ม parameter
+  - `.other-section .ord-card` (หน้าสั่งของฝั่งเจ้าของ) — `.ord-card-name` ไม่มี inline style (แค่ class เฉยๆ) ต่างจาก
+    `.sup-card` จึงแก้ง่ายกว่า: ลบ opacity ของ container แล้วเพิ่ม CSS rule ตรงๆ
+    `.other-section .ord-card-name{color:var(--text-secondary);}` คำนวณ contrast จริงบนทุกพื้นหลังที่ `.ord-card-head`
+    ใช้ (ปกติ `--brand-bg` 5.49:1, สถานะ `state-ordered` เป็น `--green-bg` 5.72:1) ผ่านทั้งคู่
+  - `.prod-card.skip-today` — `.prod-card-name` ไม่มีสีกำหนดเอง (สืบทอด `--text` เข้มเต็มที่) **เก็บ
+    `filter:grayscale(0.55)` ไว้ตามเดิม** (ไม่กระทบคอนทราสต์ข้อความ) ลบแค่ `opacity` แล้วเพิ่ม
+    `.prod-card.skip-today .prod-card-name{color:var(--text-secondary);}` แทน — เช็ค contrast บนทุกพื้นหลังที่การ์ด
+    อาจมี (ปกติสืบทอด `--cream` 6.18:1, ติ๊กเช็คแล้วพร้อมกันเป็น `#EAF3DE` 5.68:1) ผ่านทั้งคู่
+  - `.item-card.is-skip` (หน้ารีวิวบิล ทั้งโหมดเดี่ยว+โหมดหลายบิล ใช้ class เดียวกัน แก้จุดเดียวครอบคลุมทั้งคู่) —
+    `.item-bill-text` ไม่มีสีกำหนดเอง เหมือนกรณี prod-card — ลบ opacity เพิ่ม
+    `.item-card.is-skip .item-bill-text{color:var(--text-secondary);}` (พื้นหลัง `#fff` 6.49:1)
+
+  **ทดสอบ 3 รอบตามที่ผู้ใช้กำหนด**:
+  - รอบ 1 (impact-scope): วัด contrast จริงในเบราว์เซอร์ทั้ง 4 สถานการณ์ (sup-card ไม่ done ใน due-today section,
+    sup-card ไม่ done ใน other-section, ord-card-name ใน other-section, prod-card-name ใน skip-today) — 8/8 ผ่าน
+  - รอบ 2 (real interaction path ไม่ใช่แค่ตั้งค่าตรงๆ): mock `stockStatus` ให้ P001 เช็คครบจริงแล้วดู
+    `.sup-card.done` ที่ render จริง (ไม่ใช่ inject class เอง) ยืนยันชื่อร้าน 4.5:1+/ไอคอน check ≥3:1/opacity=1จริง,
+    ยืนยัน "ไม่ done + ไม่ dim" (บังคับ S002 ให้ due วันนี้ผ่าน `todayDayName()` จริง) ยังใช้สีเข้มเต็มที่ไม่ถูกจางผิดจุด,
+    คลิก checkbox `.skipToggle` จริงในหน้ารีวิวบิลแล้วยืนยัน `.item-card.is-skip` ที่เกิดขึ้นจริงผ่านเกณฑ์ — 11/11 ผ่าน
+  - รอบ 3 (regression เต็ม): สแกน contrast อัตโนมัติ 12 หน้าจอเดิมซ้ำ = 0 violation + สแกนเจาะจง 5 สถานการณ์ที่แก้
+    รอบนี้โดยเฉพาะ (sup-card done ผสม other-section, ไม่เช็คอะไรเลย, prod-card skip-today, item-card is-skip,
+    orderPage ที่มีทั้ง due-today และ other-section ในหน้าเดียว) = 0 violation ทุกจุด + รันซ้ำเทสเดิมทั้งหมด (test1-3,
+    verify_final, verify_prior_fixes/2) ยืนยันไม่มี regression — เจอ 2 เคส fail ที่เป็น**บั๊กเดิมของไฟล์เทสเอง ไม่ใช่
+    regression จากรอบนี้** (พิสูจน์ด้วย `git stash` เทียบก่อน/หลังแก้ ผลเหมือนกันทุกตัวอักษร): `verify_prior_fixes.js`
+    (ไฟล์เก่าที่ถูกแทนที่ด้วย `verify_prior_fixes2.js` ไปแล้วตั้งแต่รอบก่อน) และ ACC-004 test ใน
+    `verify_prior_fixes2.js` (mock `orderPageData` ไม่ครบทำให้ `.order-done-check` ไม่ขึ้น — ปัญหาของ mock ไม่ใช่โค้ดแอป)
+
+  **ผลลัพธ์**: 27 audit เดิม + ACC-001–008 ทั้งหมด **ปิดครบทุกข้อแล้ว ไม่มีอะไรค้างจาก audit นี้อีก**
 
 **สิ่งที่ตรวจแล้วไม่ใช่บั๊กจริง (false positive จาก automated scanner ของ session เอง — ไม่นับเป็นข้อค้นพบ)**:
 `.rg-badge` (คำนวณ contrast ด้วยมือแบบ composite พื้นหลังกึ่งโปร่งใสของตัวเองถูกต้อง ได้ 6.9:1 ผ่าน — scanner เดินหา
@@ -927,6 +964,11 @@ background ผิดจุดไปเจอพื้นหลังหน้า
 
 **Push**: commit นี้แก้เฉพาะ `stock-check.html` ล้วนๆ ไม่ต้อง deploy `Code.gs`/`BillCapture-Code.gs` เลย —
 Artifact "Post-Fix Verification Audit" อัปเดตเป็นเวอร์ชัน 3 แล้ว (URL เดิม) มีตารางละเอียดครบทุกข้อ
+
+⚠️ **ACC-008 แก้เสร็จแล้วในรอบถัดมาของ session เดียวกัน (ดูรายละเอียดเต็มด้านบน) แต่ ณ ตอนนี้ยังไม่ได้ push** —
+รอผู้ใช้สั่ง push ตามธรรมเนียมเดิมของแอปนี้เสมอ (ห้าม push เองแม้ stop hook จะเตือน) ถ้าคุยเรื่อง accessibility ต่อ
+ให้เช็คก่อนว่า push แล้วหรือยัง — Artifact ยังเป็นเวอร์ชัน 3 (มี ACC-008 อยู่ในสถานะ "ยังไม่แก้") ยังไม่ได้อัปเดตเป็น
+เวอร์ชัน 4 ที่มาร์คว่าแก้แล้ว
 
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
