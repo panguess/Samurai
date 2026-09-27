@@ -32,6 +32,12 @@
    - `source_url`/`source_revision` ชี้ไปที่ `main` (จุดที่เพิ่ง push ไปในข้อ 2)
    - `prompt`: สรุปสั้นๆ ให้อ่าน CLAUDE.md หัวข้อที่เพิ่งเขียนในข้อ 1 + งานค้างสำคัญที่สุด ปิดท้ายด้วย
      "รอรับคำสั่งจากผู้ใช้ต่อได้เลย ไม่ต้องเริ่มทำอะไรเองจนกว่าจะมีข้อความมา"
+3.5. **Archive session เก่าของแอปเดียวกันให้เหลือแค่ 5 อันล่าสุด — ทำเองอัตโนมัติ ไม่ต้องรอสั่ง** (ผู้ใช้กำหนด
+   27 ก.ย. 69): หลังสร้าง session ใหม่ในข้อ 3 สำเร็จ ให้เรียก `mcp__Claude_Code_Remote__list_sessions` (`mine:true`)
+   แล้ว `mcp__Claude_Code_Remote__archive_session` ทุก session ของ**แอปเดียวกัน**ที่เก่ากว่า 5 อันล่าสุด (เรียงตาม
+   วันที่ `DDMMYYYY` ในชื่อ นับรวม session ใหม่ที่เพิ่งสร้างด้วย) — ห้ามแตะ session ของอีกแอป, session ที่ชื่อไม่ตรง
+   pattern `Stock check DDMMYYYY`/`Order app DDMMYYYY` (เช่น session คุยเรื่องอื่น) และ session ปัจจุบันที่กำลังทำงานอยู่
+   — archive เท่านั้น ห้ามลบ (ย้อนกลับได้ด้วย Unarchive) แจ้งรายชื่อที่ archive ไปในข้อความสรุปข้อ 4 ด้วย
 4. แจ้งผู้ใช้ว่าสร้าง session ใหม่ชื่ออะไรแล้ว พร้อม session ID
 
 ## แอปเช็คสต๊อก (stock-check.html + Code.gs) — บริบทที่ต้องรู้ก่อนแก้
@@ -640,6 +646,11 @@ idempotency key) พร้อมใช้งานจริงแล้ว ไ�
 - ยิง request ตรงๆ ไปที่ Vercel ผ่าน MCP tool (`mcp__Vercel__web_fetch_vercel_url`) เทียบทั้งสอง URL — **เนื้อหาไฟล์
   เหมือนกันทุกตัวอักษร** ยืนยันว่าไม่มีโค้ด/เวอร์ชันต่างกันจริง
 - **สรุป**: `?v=2` ไม่มีความหมายอะไรกับแอปนี้เลย เป็นไปได้มากที่สุดว่าเป็นแค่ cache-busting query string เฉยๆ
+- ✅ **ยืนยันที่มาแล้ว (27 ก.ย. 69)**: เจอตอนไล่รายการ session เพื่อ archive — session **"Stock check 15092026"**
+  (`session_01BucdryYYo18r5DUawZC7Li`, archive แล้ว เปิดอ่านย้อนหลังได้) เป็นคนส่งลิงก์นี้ให้จริง สรุปท้าย session นั้นว่า
+  "cache issue confirmed; bare link serves stale version — Use ?v=2 suffix or hard-refresh to bypass browser/CDN
+  cache; bookmark the ?v=2 URL for daily use" — ตรงกับข้อสันนิษฐานด้านบนเป๊ะ (cache-busting ล้วนๆ โค้ดไม่ได้อ่านค่านี้)
+  **เป็นความผิดพลาดของ session นั้นที่ไม่บันทึกไว้ในไฟล์นี้** ถ้าแนะนำ workaround ให้ผู้ใช้บุ๊กมาร์ก/ใช้ประจำ ต้องบันทึกไว้เสมอ
 
 **ผู้ใช้รายงานว่า URL เปล่า (ไม่มี `?v=2`) ช้ากว่าตอนเปิดครั้งถัดมา (หน้าแรกก็ช้าแล้ว ไม่ใช่แค่ตอนโหลดข้อมูล) ส่วน
 `?v=2` ยังเร็วเหมือนเดิม** — ไล่เช็คด้วย MCP tool เทียบ header ของทั้งสอง URL พบว่า **URL เปล่ากลับโดน
