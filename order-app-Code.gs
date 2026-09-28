@@ -998,7 +998,11 @@ function updateDelivery(data) {
     // packing ไม่ notify) พอกด "จัดเสร็จแล้ว" ซ้ำอีกครั้งทีหลัง ก็จัดเสร็จ+แจ้งเตือนซ้ำได้จริงอีกรอบ
     // แก้โดยบังคับว่าแต่ละสถานะต้องมาจากสถานะก่อนหน้าที่ถูกต้องเท่านั้น (pending->packing, packing->done)
     // ถ้าสถานะปัจจุบันไม่ตรงกับที่ควรจะเป็น (เช่น current เป็น done/cancelled ไปแล้ว) ให้ปฏิเสธแทนที่จะปล่อยผ่าน
-    const REQUIRED_PREVIOUS_STATUS = { packing: 'pending', done: 'packing' };
+    // [เพิ่ม 28 ก.ย. 69 — ระบบสถานะ "stockout"] ของหมดทั้งออเดอร์ระหว่างแพ็ค (ทุกรายการถูกลดเหลือ 0 พร้อมกัน) —
+    // ต้องมาจาก "packing" เท่านั้นเหมือน done เพราะเป็นเหตุการณ์ที่ค้นพบระหว่างกำลังแพ็คของ ดู markDone() ฝั่ง
+    // index.html — เป็น terminal state ที่ไม่มี action ไหนในแอปเปลี่ยนสถานะต่อจากนี้ได้อีก (ไม่ใช่ done ไม่ใช่
+    // cancelled) ต้องให้เจ้าของแก้ไขเองในชีตโดยตรง (ตามกฎที่ตั้งไว้ว่าพนักงานหน้าร้านห้ามยกเลิกออเดอร์ได้เอง)
+    const REQUIRED_PREVIOUS_STATUS = { packing: 'pending', done: 'packing', stockout: 'packing' };
     const requiredPrev = REQUIRED_PREVIOUS_STATUS[data.delivery_status];
     if (requiredPrev && currentStatus && currentStatus !== requiredPrev) {
       return response({
@@ -1037,6 +1041,25 @@ function updateDelivery(data) {
           notifyMessage += '\n\n⚠️ มีการแก้ไขก่อนจัดเสร็จ (ยอดเดิม ฿' + formatMoney(editSummary.originalTotal) +
             ' → ยอดนี้ ฿' + formatMoney(total) + ', ต่างกัน ' + diffText + ' บาท):\n- ' +
             editSummary.lines.join('\n- ');
+        }
+      } else if (data.delivery_status === 'stockout') {
+        // [เพิ่ม 28 ก.ย. 69] ไม่มีคอลัมน์ stockout_at ในชีตแบบบังคับ (เหมือน packing_at/done_at) — เขียนเฉพาะถ้ามี
+        // คอลัมน์นี้อยู่แล้วเท่านั้น (h in rowObj pattern เดียวกับที่อื่นในไฟล์) ไม่บังคับให้ผู้ใช้ต้องเพิ่มคอลัมน์ใหม่
+        const stockoutCol = headers.indexOf('stockout_at');
+        if (stockoutCol !== -1) sheet.getRange(rowIndex, stockoutCol + 1).setValue(now);
+
+        const customerName = row[headers.indexOf('customer_name')];
+        const orderItemsBeforeStockout = getOrderEditSummary(data.order_id);
+        // ข้อความแจ้งเตือนแยกจาก "จัดเสร็จแล้ว" โดยสิ้นเชิง — ย้ำชัดว่านี่คือกรณีต้องการให้เจ้าของตัดสินใจเอง
+        // (ยกเลิก/ติดต่อลูกค้า/หาสินค้าทดแทน) ไม่ใช่ออเดอร์ที่จัดสำเร็จตามปกติ
+        notifyMessage =
+          '⚠️ ของหมดทั้งออเดอร์!\n' +
+          'รหัส: ' + data.order_id + '\n' +
+          'ลูกค้า: ' + customerName + '\n' +
+          'สินค้าทุกรายการในออเดอร์นี้หมดระหว่างแพ็ค พนักงานไม่สามารถยกเลิกเองได้\n' +
+          'กรุณาเข้าไปตรวจสอบ/ตัดสินใจในชีต Google Sheet (ยกเลิก หรือ ติดต่อลูกค้า)';
+        if (orderItemsBeforeStockout && orderItemsBeforeStockout.lines.length) {
+          notifyMessage += '\n\nรายการที่ของหมด:\n- ' + orderItemsBeforeStockout.lines.join('\n- ');
         }
       }
 
