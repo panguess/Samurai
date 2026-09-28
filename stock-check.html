@@ -558,6 +558,15 @@ const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อ�
 // (ก่อนเข้าหน้ารีวิว) ใช้ซ้ำได้ทุกครั้งที่ retry ส่งบิลใบเดียวกัน backend เช็คแล้วไม่สร้างซ้อนถ้าเจอ key เดิม
 function genIdemKey(){ return 'BI' + Date.now() + '_' + Math.random().toString(36).slice(2); }
 
+// escape ข้อความก่อนแทรกลง innerHTML — ต้องใช้กับข้อความที่มาจากการพิมพ์มือ (ชื่อสินค้า/ชื่อหน่วยนับ
+// ที่เจ้าของ/Mile ตั้งเองผ่าน "เพิ่มสินค้าใหม่"/"แก้ชื่อหน่วย") เสมอตอนแทรกลง innerHTML แบบ template
+// string ตรงๆ — กัน stored-XSS ถ้ามีคนตั้งชื่อสินค้า/หน่วยเป็น payload เช่น <img onerror=...>
+// (เจอจริงจาก Focused Functional & Bug Audit 28 ก.ย. 69 — BUG-003)
+function escapeHtml(str){
+  return String(str==null?'':str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 // หน่วงการเรียก fn จนกว่าจะไม่มีการเรียกซ้ำอีกภายใน wait ms — ใช้กันช่องค้นหาที่ยิง
 // renderGroups() รีบิลด์ DOM ทั้งลิสต์ทุกตัวอักษรที่พิมพ์ ซึ่งหนักมากถ้ามีการ์ดเปิดอยู่หลายสิบรายการ
 function debounce(fn, wait){
@@ -753,7 +762,7 @@ function openPhotoMatchScreen(files, products, onDone){
         <p class="match-fname">${file.name}</p>
         <select data-idx="${i}" aria-label="เลือกสินค้าให้ตรงกับรูป ${file.name}">
           <option value="" selected disabled>เลือกสินค้า...</option>
-          ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+          ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
         </select>
       </div>
       <span class="match-status pending" data-idx="${i}"><i class="ti ti-circle-dashed" aria-hidden="true"></i></span>
@@ -870,7 +879,7 @@ function openSkipDatePicker(p, onPicked){
     <div class="match-sheet" role="dialog" aria-labelledby="skipDateSheetTitle">
       <div class="match-sheet-header">
         <h2 id="skipDateSheetTitle">งดสั่งชั่วคราว</h2>
-        <p>${p.name} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
+        <p>${escapeHtml(p.name)} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
       </div>
       <div class="addprod-body">
         <label class="date-opt-row" data-opt="${todayISO}"><input type="radio" name="skipdateopt" checked> วันนี้ (${formatShortThaiDate(todayISO)})</label>
@@ -1117,16 +1126,20 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   // ซัพพลายเออร์เดียวกันให้ตอน analyzeBillPhoto เหมือนกัน { matchType, batchId, date, billNumber, photoUrl,
   // status, overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ — เป็นแค่คำเตือน ไม่บล็อกการบันทึก
   billDuplicateWarning:null };
-// สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
-// เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
-let lastOrderMessageSnapshot = null;
 // ข้อมูล "สั่งไปแล้ววันนี้เท่าไหร่" ต่อสินค้า — มาจาก OrderLogs ฝั่ง Apps Script โดยตรง (action
 // orderedItemsToday) ไม่ใช่แค่จำที่เพิ่งสั่งไปในเครื่องแบบ localStorage เดิม เพราะงั้นถึงจะเป็นออเดอร์
 // ที่สั่งไปตั้งแต่ก่อนเปิดแอปรอบนี้ (คนละเครื่อง/ปิดแอปไปแล้ว) ก็ยังกดดูย้อนหลัง/คัดลอกซ้ำได้เหมือนกัน
-// โครงสร้าง: { [productId]: {qty, unit} } — set ครั้งเดียวตอนโหลดหน้าสั่งของ (renderOrderPage)
-// แล้วให้ renderOrderMessage อ่านต่อตอนกด "ดูข้อความที่สั่งไปอีกครั้ง" (ผ่าน viewHistorySupplierId)
+// โครงสร้าง: { [productId]: {qty, unit} } — set ตอนโหลดหน้าสั่งของ (renderOrderPage) และอัปเดตทันทีตอน
+// createOrderBatch สำเร็จ (ดู supplierCard()) แล้วให้ renderOrderMessage อ่านต่อเสมอ (ผ่าน orderMessageSupplierId)
 let orderedItemsTodayMap = {};
-let viewHistorySupplierId = null;
+// ซัพพลายเออร์ที่กำลังจะดูข้อความสั่งของ ให้ renderOrderMessage ใช้กรอง orderedItemsTodayMap มาแสดง — ตั้งค่า
+// ทุกครั้งก่อน go('orderMessage') (ทั้งปุ่ม "สั่งของเจ้านี้" และ "ดูข้อความที่สั่งไปอีกครั้ง") "ไม่เคลียร์เป็น
+// null หลังอ่าน" ตั้งใจ (แก้บั๊กจริงที่เจอ 28 ก.ย. 69 — เดิม viewHistorySupplierId/lastOrderMessageSnapshot
+// เคลียร์ทิ้งหลังอ่านครั้งแรกในนี้ ทำให้กด back/forward ของเบราว์เซอร์ย้อนมาหน้านี้อีกครั้ง (popstate
+// re-render โดยไม่ผ่าน go() เลยไม่ได้ตั้งค่าใหม่) เห็นข้อความ "ยังไม่มีรายการที่เลือกสั่ง" หลอกๆ ทั้งที่จริงๆ
+// สั่งสำเร็จไปแล้ว) ปลอดภัยที่จะไม่เคลียร์เพราะค่านี้ถูกตั้งใหม่เสมอก่อนเข้าหน้านี้จริงทุกครั้งที่มาจากการกดปุ่ม
+// (มีแค่ 2 จุดในทั้งไฟล์ที่ go('orderMessage') — ทั้งคู่ตั้งค่านี้ก่อนเสมอ ไม่มีทางเก่าค้างข้ามคนละซัพพลายเออร์)
+let orderMessageSupplierId = null;
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -2034,7 +2047,7 @@ function renderBillReview(app){
         bodyHtml += `
           <div class="fuzzy-box">
             <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
-            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-name">${product ? escapeHtml(product.name) : ''}</div>
             <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
             <div class="fz-actions">
               <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
@@ -2043,18 +2056,18 @@ function renderBillReview(app){
           </div>`;
       } else if(it.productId){
         const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
-        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? escapeHtml(product.name) : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?escapeHtml(product.orderUnit):''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
         bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
-            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+            ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
           </select>`;
       }
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${escapeHtml(it.unit)} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${escapeHtml(it.unit)} เป็น ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}"> ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -2447,7 +2460,7 @@ function renderBillBatchItemReview(app){
         bodyHtml += `
           <div class="fuzzy-box">
             <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
-            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-name">${product ? escapeHtml(product.name) : ''}</div>
             <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
             <div class="fz-actions">
               <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
@@ -2456,18 +2469,18 @@ function renderBillBatchItemReview(app){
           </div>`;
       } else if(it.productId){
         const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
-        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? escapeHtml(product.name) : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?escapeHtml(product.orderUnit):''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
         bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
-            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+            ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
           </select>`;
       }
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${escapeHtml(it.unit)} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${escapeHtml(it.unit)} เป็น ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}"> ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -3058,14 +3071,14 @@ async function renderSupplierCheck(app){
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
-            ? `<img src="${photoSrc}" alt="รูปสินค้า ${p.name}" loading="lazy">`
+            ? `<img src="${photoSrc}" alt="รูปสินค้า ${escapeHtml(p.name)}" loading="lazy">`
             : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         ${isSkipped ? `<span class="skip-today-badge">🚫 งดสั่งวันนี้</span>` : ''}
-        <p class="prod-card-name">${p.name}</p>
+        <p class="prod-card-name">${escapeHtml(p.name)}</p>
         ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}
         <div class="unit-steppers-row">
           ${p.units.map(u=>`
@@ -3073,7 +3086,7 @@ async function renderSupplierCheck(app){
               <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
               <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
-              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${u.label}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
+              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${escapeHtml(u.label)}"`:''}>${escapeHtml(u.label)}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
             </div>
           `).join('')}
         </div>
@@ -3413,8 +3426,8 @@ function renderStockTab(body){
       tableWrap.appendChild(head);
       const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.fontSize='13px'; tbl.style.marginBottom='10px';
       tbl.innerHTML = items.map(p=>`<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:7px 4px;">${p.name}</td>
-          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${u.label}`).join(' / ')}</td>
+          <td style="padding:7px 4px;">${escapeHtml(p.name)}</td>
+          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${escapeHtml(u.label)}`).join(' / ')}</td>
           <td style="padding:7px 4px; text-align:right; width:55px;">${p.empty? '<span class="badge" style="background:var(--amber-mid); color:#412402;">หมด</span>' : '<span style="color:var(--text-secondary); font-size:12px;">ยังมี</span>'}</td>
         </tr>`).join('');
       tableWrap.appendChild(tbl);
@@ -3674,7 +3687,7 @@ async function renderOrderPage(app){
       const remainEntry = statusByEntry[p.id];
       const remainParts = p.units.map(u=>{
         const v = remainEntry ? remainEntry.remain[u.id] : null;
-        return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
+        return (v!==null && v!==undefined) ? `${v}<span class="u">${escapeHtml(u.label)}</span>` : null;
       }).filter(Boolean);
       const remainValues = p.units.map(u=> remainEntry ? remainEntry.remain[u.id] : null);
       // เช็คแล้ว + ทุกหน่วยคงเหลือ 0 = "หมด" จริง (ไม่ใช่แค่ยังไม่ได้เช็ค) — ไม่ต้องมี flag พิเศษเก็บแยก
@@ -3690,9 +3703,9 @@ async function renderOrderPage(app){
       row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
       row.innerHTML = `
         <div class="prow-top">
-          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}" aria-label="เลือกสั่ง ${p.name}">
+          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}" aria-label="เลือกสั่ง ${escapeHtml(p.name)}">
           <div class="prow-name-wrap">
-            <div class="prow-name">${p.name}</div>
+            <div class="prow-name">${escapeHtml(p.name)}</div>
             ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
           </div>
           <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
@@ -3700,10 +3713,10 @@ async function renderOrderPage(app){
         <div class="prow-bottom">
           <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
           <div class="stepper">
-            <button type="button" data-step="-1" aria-label="ลดจำนวน ${p.name}">−</button>
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${p.name}">
-            <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${p.name}">+</button>
-            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${p.name}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
+            <button type="button" data-step="-1" aria-label="ลดจำนวน ${escapeHtml(p.name)}">−</button>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${escapeHtml(p.name)}">
+            <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${escapeHtml(p.name)}">+</button>
+            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${escapeHtml(p.name)}">${escapeHtml(uLabel)} <i class="ti ti-pencil" aria-hidden="true"></i></span>
           </div>
         </div>
       `;
@@ -3796,7 +3809,7 @@ async function renderOrderPage(app){
         viewBtn.innerHTML = '<i class="ti ti-message-2" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ดูข้อความที่สั่งไปอีกครั้ง';
         viewBtn.onclick = (e)=>{
           e.stopPropagation();
-          viewHistorySupplierId = s.id;
+          orderMessageSupplierId = s.id;
           go('orderMessage');
         };
         btnRow.appendChild(viewBtn);
@@ -3821,8 +3834,8 @@ async function renderOrderPage(app){
           // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
           // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
           // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
-          lastOrderMessageSnapshot = {};
-          supItems.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
+          supItems.forEach(it=>{ state.orderQty[it.productId] = 0; });
+          orderMessageSupplierId = s.id;
           go('orderMessage');
         }catch(err){
           btn.disabled = false; btn.textContent = originalLabel;
@@ -3908,25 +3921,14 @@ function renderOrderMessage(app){
   app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
   const c = document.createElement('div'); c.className='content';
 
-  let items;
-  if(viewHistorySupplierId){
-    // มาจากปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" — ดึงจาก orderedItemsTodayMap (ข้อมูลจริงจาก OrderLogs
-    // ฝั่ง Apps Script) ไม่ใช่ state.orderQty สดๆ (ซึ่งถูกเคลียร์ไปแล้วหลังสั่งสำเร็จ) และไม่ยิง
-    // createOrderBatch ซ้ำด้วย — ใช้ได้กับออเดอร์ที่สั่งไปแล้ววันนี้ทุกอัน ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม
-    const supId = viewHistorySupplierId;
-    viewHistorySupplierId = null;
-    items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
-      .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
-  } else {
-    // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
-    // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
-    const qtySource = lastOrderMessageSnapshot || state.orderQty;
-    lastOrderMessageSnapshot = null;
-    items = Object.entries(qtySource).filter(([id,q])=>q>0).map(([id,q])=>{
-      const p = PRODUCTS.find(x=>x.id===id);
-      return {...p, orderUnit: orderUnitLabel(p), qty:q};
-    });
-  }
+  // ดึงจาก orderedItemsTodayMap เสมอ (ข้อมูลจริงจาก OrderLogs ฝั่ง Apps Script ที่ถูกอัปเดตแล้วตั้งแต่
+  // ก่อนเข้าหน้านี้ — ดู supplierCard()'s ปุ่ม "สั่งของเจ้านี้"/"ดูข้อความที่สั่งไปอีกครั้ง") ไม่ใช้
+  // state.orderQty สดๆ เพราะถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ — ใช้ได้กับออเดอร์ที่สั่งไปแล้ววันนี้ทุกอัน
+  // ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม และยังแสดงถูกต้องแม้กด back/forward ของเบราว์เซอร์กลับมาหน้านี้อีกครั้ง
+  // (orderMessageSupplierId ไม่ถูกเคลียร์เป็น null หลังอ่าน ต่างจากเดิม)
+  const supId = orderMessageSupplierId;
+  const items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
+    .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
   const bySupplier = {};
   items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
 
