@@ -85,7 +85,9 @@
   .progress-fill{height:100%; background:var(--cream); opacity:0.8; border-radius:8px;}
   .sup-row{display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-md); margin-bottom:6px; cursor:pointer; background:#fff;}
   .sup-row:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
-  .sup-row.done{opacity:0.5;}
+  /* WCAG AA fix (27 ก.ย. 69, ACC-008): grep + ตรวจ classList.add ทั้งไฟล์ยืนยันว่า .sup-row ไม่เคยถูกเติมคลาส
+     "done" จริงเลย (dead CSS ไม่มีผลกับผู้ใช้ตอนนี้) แก้ค่าไว้เพื่อความถูกต้องของ source เผื่อถูกใช้ในอนาคต */
+  .sup-row.done{opacity:0.9;}
   .sup-thumb{width:44px; height:44px; border-radius:var(--radius-md); background:var(--bg); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:18px; flex-shrink:0;}
   .sup-row p{margin:0; font-size:14px; font-weight:500; flex:1;}
   .section-label{font-size:13px; color:var(--text-secondary); margin:14px 0 6px; font-weight:500;}
@@ -151,13 +153,22 @@
   .step-btn{width:24px; height:24px; border-radius:50%; background:var(--brand); color:var(--cream); border:none; font-size:13px; flex-shrink:0; cursor:pointer; line-height:1;}
   input.step-input{width:40px; min-width:0; flex:none; text-align:center; border:none; background:transparent; font-size:12.5px; padding:0;}
   .unit-tag{font-size:10px; color:var(--text-secondary); margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-007): เดิมไม่มี padding เลย พื้นที่แตะจริงวัดได้แค่
+     14.6–20.7 × 15.0px (ต่ำกว่าเกณฑ์ 24×24px ของ WCAG 2.5.8) — จุดนี้ใช้ 2 ที่ในไฟล์ (หน้าเช็คสต๊อกของ Mile ที่นี่
+     ไม่มีกฎ padding อื่นมาแข่ง specificity เลยรับ padding ตรงนี้ได้เต็มๆ / หน้าสั่งของฝั่งเจ้าของที่ .stepper .unit-tag
+     มี padding ของตัวเองอยู่แล้วชนะ specificity นี้เสมอ — ต้องแก้แยกอีกจุดด้วย ดูกฎ .stepper .unit-tag-editable
+     ด้านล่างที่บรรทัดหลัง .stepper .unit-tag เพื่อให้ลำดับแหล่งที่มาชนะ specificity เท่ากันได้ถูกต้อง) */
+  .unit-tag-editable{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px; padding:6px;}
   .unit-tag-editable:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .unit-tag-editable i{font-size:10px; vertical-align:-1px; margin-left:1px;}
   .oos-btn{width:100%; margin-top:6px; padding:6px; border-radius:8px; border:1.5px solid var(--danger); background:#fff; color:var(--danger); font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;}
   /* สินค้าที่เจ้าของตั้งงดสั่ง/งดเช็คไว้เฉพาะวันนี้ (setProductSkipDate) — การ์ดยังโชว์อยู่เหมือนเดิม
      ไม่หายไปจากลิสต์ แต่จางลง+ขาวดำ กด +/− พิมพ์ช่อง หรือกดปุ่มของหมดไม่ได้เลย กันลูกจ้างงงว่าแอปพัง */
-  .prod-card.skip-today{opacity:0.55; filter:grayscale(0.55);}
+  /* WCAG AA fix (27 ก.ย. 69, ACC-008): เดิม opacity ทำให้ .prod-card-name (ไม่มีสีกำหนดเอง สืบทอด --text เข้ม
+     เต็มที่) คอนทราสต์ไม่พอ — เก็บ grayscale ไว้ตามเดิม (เป็น filter ที่ไม่กระทบคอนทราสต์ข้อความ) ตัด opacity
+     ออก แล้วคุมสีชื่อสินค้าตรงๆ แทน (ดู .prod-card.skip-today .prod-card-name ด้านล่าง) */
+  .prod-card.skip-today{filter:grayscale(0.55);}
+  .prod-card.skip-today .prod-card-name{color:var(--text-secondary);}
   .prod-card.skip-today .unit-stepper, .prod-card.skip-today .oos-btn{pointer-events:none;}
   .skip-today-badge{display:inline-block; font-size:10px; font-weight:700; color:#fff; background:var(--danger); border-radius:5px; padding:2px 7px; margin:0 0 6px;}
   .stickybar{position:sticky; bottom:0; background:var(--brand); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin:14px -14px -80px; gap:10px;}
@@ -209,6 +220,11 @@
   .stat.danger .lbl, .stat.danger .v{color:var(--danger);}
   .stepper{display:flex; align-items:center; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:#fff; flex-shrink:0; margin-left:auto;}
   .stepper .unit-tag{font-size:13px; font-weight:600; color:var(--text); margin-left:0; padding:0 8px 0 6px; overflow:visible; text-overflow:clip; white-space:nowrap; flex-shrink:0;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-007): จุดนี้ (หน้าสั่งของฝั่งเจ้าของ) วัดจริงได้ 32.7×21px
+     กว้างพอแล้วแต่สูงขาด 3px จากเกณฑ์ 24px — เพิ่มแค่ padding แนวตั้ง ไม่แตะแนวนอน (กันไม่ให้ความกว้างของแถว
+     .stepper เปลี่ยนจากที่ตั้งใจไว้เดิม) ต้องอยู่ "หลัง" กฎ .stepper .unit-tag ด้านบนเสมอ (specificity เท่ากัน
+     2 คลาส ตัดสินด้วยลำดับในไฟล์ — เอาไว้ก่อนจะแพ้แล้วไม่มีผลอะไรเลย) */
+  .stepper .unit-tag-editable{padding-top:4px; padding-bottom:4px;}
   .stepper button{width:26px; height:28px; border:none; background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; flex-shrink:0;}
   input.stepper-input{width:36px; min-width:0; flex-shrink:0; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); font-size:13px; font-weight:700; padding:5px 0;}
 
@@ -250,7 +266,10 @@
   .section-label.due{color:var(--amber);}
   .section-label.due::after{background:rgba(133,79,11,0.25);}
   .section-label:first-child{margin-top:0;}
-  .other-section .ord-card{opacity:0.72;}
+  /* WCAG AA fix (27 ก.ย. 69, ACC-008): opacity เดิมบนการ์ดทั้งใบทำให้ข้อความคอนทราสต์ไม่พอ (คอนทราสต์ 5.49:1
+     ของ --text-secondary บน --brand-bg ผ่านเกณฑ์ ≥4.5:1 อยู่แล้วโดยไม่ต้องหรี่ opacity) เปลี่ยนมาคุมสีชื่อร้าน
+     ตรงๆ แทน คงความรู้สึก "หรี่ลง" ไว้แต่ไม่พังคอนทราสต์ */
+  .other-section .ord-card-name{color:var(--text-secondary);}
   .ord-card-status{display:flex; flex-direction:column; gap:2px; align-items:flex-end; flex-shrink:0;}
   .status-line{font-size:13px; font-weight:600; white-space:nowrap;}
   .status-line.wait{color:var(--text-tertiary);}
@@ -268,23 +287,35 @@
   .hero-left{display:flex; align-items:center; gap:12px;}
   .hero-date{text-align:right; flex-shrink:0;}
   .hero-date strong{display:block; font-size:13px; font-weight:600; color:rgba(252,249,242,0.7);}
-  .hero-date span{font-size:11px; color:rgba(252,249,242,0.38);}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3 — พบว่าจุดนี้ใช้ rgba() ของตัวเอง ไม่ได้ผูกกับ --text-tertiary
+     เลย แก้ตัวแปรตอนแรกจึงไม่ครอบคลุมจุดนี้ เดิม alpha 0.38 contrast ~3.47:1 ต่ำกว่าเกณฑ์ 4.5:1 → เพิ่ม alpha
+     เป็น 0.5 ให้ผ่าน ~5.0:1 บนพื้น --brand */
+  .hero-date span{font-size:11px; color:rgba(252,249,242,0.5);}
   .role-label{font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-tertiary); margin:18px 0 9px 2px; display:flex; align-items:center; gap:7px;}
   .role-label::after{content:''; flex:1; height:1px; background:var(--border-strong);}
   .action-card{display:flex; align-items:center; gap:16px; padding:22px 20px; border-radius:16px; border:1px solid var(--border-strong); background:#fff; cursor:pointer; margin-bottom:10px; -webkit-tap-highlight-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,0.06);}
   .action-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
   .action-card.primary{background:var(--brand); border-color:transparent;}
   .action-card.primary .act-title{color:var(--cream);}
-  .action-card.primary .act-sub{color:rgba(252,249,242,0.45);}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): การ์ด .primary/.bill มี override สีของตัวเอง ไม่ได้ผูกกับ
+     --text-tertiary เลย (แก้ตัวแปรตอนแรกจึงไม่ครอบคลุม) เดิม .primary .act-sub alpha 0.45 contrast 4.31:1
+     (ต่ำกว่า 4.5:1 เฉียดนิดเดียว) → เพิ่มเป็น 0.5 ให้ผ่าน ~5.0:1 — .bill .act-sub เดิม alpha 0.6 contrast
+     2.84:1 (ต่ำกว่ามาก) → เพิ่มเป็น 0.9 ให้ผ่าน ~5.6:1 บนพื้น .action-card.bill (#FEF3DF) */
+  .action-card.primary .act-sub{color:rgba(252,249,242,0.5);}
   .action-card.primary .act-chev{color:rgba(252,249,242,0.3);}
   .action-card.bill{background:#FEF3DF; border-color:rgba(122,70,8,0.16);}
   .action-card.bill .act-title{color:#7A4608;}
-  .action-card.bill .act-sub{color:rgba(122,70,8,0.6);}
+  .action-card.bill .act-sub{color:rgba(122,70,8,0.9);}
   .action-card.bill .act-chev{color:rgba(122,70,8,0.3);}
   .act-icon{width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:37.5px; flex-shrink:0;}
   .act-body{flex:1;}
   .act-title{font-size:22.5px; font-weight:700; color:var(--text); margin-bottom:4px;}
-  .act-sub{font-size:15px; color:var(--text-tertiary); line-height:1.4; opacity:0.75;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): เดิมมี opacity:0.75 ทับซ้อนกับ alpha ของ color ที่ override
+     ไว้ใน .action-card.primary/.bill (บรรทัดด้านบน) ทำให้ contrast จริงต่ำกว่าที่คำนวณไว้ตอนแรกมาก (opacity ของ
+     element เองไม่โผล่ใน getComputedStyle().color ตอนคำนวณ ต้องคูณเพิ่มเอง) ลบ opacity ทิ้ง ให้ค่า alpha ที่ตั้งไว้
+     ในแต่ละ context (0.5 / 0.9 ด้านบน, หรือสีทึบของ --text-tertiary ในการ์ดฐาน) เป็นตัวกำหนด contrast ตรงๆ ค่าเดียว
+     ไม่ซ้อนกันอีก — ใช้แค่ 3 จุดนี้เท่านั้นทั้งไฟล์ (การ์ดหน้าแรก 3 ใบ) ปลอดภัยที่จะลบ */
+  .act-sub{font-size:15px; color:var(--text-tertiary); line-height:1.4;}
   .act-chev{font-size:22px; color:var(--text-tertiary); flex-shrink:0; opacity:0.35;}
   .icon-card{display:flex; align-items:center; gap:13px; background:#fff; border:0.5px solid var(--border); border-radius:14px; padding:13px; margin-bottom:9px; cursor:pointer;}
   .icon-box{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
@@ -303,7 +334,8 @@
      ให้รูปชนขอบการ์ดแล้วปล่อยให้ overflow:hidden ของการ์ดตัดมุมโค้งให้แทน กรอบเดียวพอ (กรอบการ์ด) */
   .sup-card{display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff; border:0.5px solid var(--border); border-radius:16px; padding-bottom:10px; text-align:center; cursor:pointer; overflow:hidden;}
   .sup-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
-  .sup-card.done{opacity:0.55;}
+  /* WCAG AA fix (27 ก.ย. 69, ACC-008): opacity เดิมทำให้ข้อความชื่อร้าน/ไอคอนคอนทราสต์ไม่พอ — ตอนนี้
+     supplierCard() คุมสีตัวอักษร/ไอคอนตรงๆ แทนแล้ว (ดู nameMuted ใน supplierCard()) ไม่ต้องใช้ opacity อีก */
   .sup-card.urgent{border:1px solid rgba(163,45,45,0.4); box-shadow:0 0 0 1px rgba(163,45,45,0.12) inset;}
   .sup-icon-wrap{position:relative; width:100%;}
   .sup-icon{width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; overflow:hidden;}
@@ -320,8 +352,6 @@
   .section-label.urgent::after{background:rgba(163,45,45,0.22);}
   .section-label.ordered{color:var(--green);}
   .section-label.ordered::after{background:rgba(8,80,65,0.22);}
-  .other-section .sup-card{opacity:0.7;}
-  .other-section .sup-card.done{opacity:0.55;}
   .topbar-num-badge{min-width:28px; height:28px; padding:0 6px; border-radius:14px; background:var(--brand); color:var(--cream); border:2px solid #fff; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-left:auto;}
 
   /* ============ รับของ — ถ่ายบิล ============ */
@@ -345,7 +375,9 @@
 
   .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff; scroll-margin-top:64px;}
   .item-card.is-matched{border-color:rgba(8,80,65,0.22);}
-  .item-card.is-skip{opacity:0.6;}
+  /* WCAG AA fix (27 ก.ย. 69, ACC-008): opacity เดิมบนการ์ดทั้งใบทำให้ข้อความชื่อรายการ (.item-bill-text ปกติ
+     ไม่มีสี กำหนดเอง สืบทอด --text เข้มเต็มที่) คอนทราสต์ไม่พอ — คุมสีตรงๆ ที่ .item-bill-text แทน (ดูด้านล่าง) */
+  .item-card.is-skip .item-bill-text{color:var(--text-secondary);}
   .item-head{display:flex; align-items:flex-start; gap:8px; margin-bottom:9px;}
   .item-bill-text{font-size:13.5px; font-weight:600; flex:1; min-width:0;}
   .item-bill-raw{font-size:11px; color:var(--text-tertiary); margin-top:1px;}
@@ -363,11 +395,16 @@
   .conversion-box .cv-label{font-size:11.5px; color:var(--amber); font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:5px;}
   .conversion-row{display:flex; align-items:center; gap:6px; font-size:13px; flex-wrap:wrap;}
   .conversion-row input{width:64px; text-align:center; padding:6px;}
-  .conversion-hint{font-size:11px; color:rgba(122,70,8,0.75); margin-top:6px; line-height:1.4;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): พื้นหลังจริงคือ --amber-bg (จาก .conversion-box) ไม่ใช่ขาว
+     ตามที่เข้าใจผิดตอนแรก — เดิม rgba(122,70,8,0.75) contrast ~3.85:1 (ต่ำกว่า 4.5:1) เปลี่ยนเป็น var(--amber)
+     สีทึบตรงๆ (ตัวเดียวกับ .cv-label ข้างบนในกล่องเดียวกัน) ให้ผ่าน ~5.86:1 */
+  .conversion-hint{font-size:11px; color:var(--amber); margin-top:6px; line-height:1.4;}
   .fuzzy-box{background:var(--yellow-bg); border-radius:8px; padding:10px 11px; margin-bottom:8px;}
   .fuzzy-box .fz-label{font-size:11.5px; color:var(--yellow); font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:5px;}
   .fuzzy-box .fz-name{font-size:13.5px; font-weight:600; margin-bottom:8px;}
-  .fuzzy-box .fz-hint{font-size:11px; color:rgba(122,105,0,0.8); margin-bottom:9px; line-height:1.4;}
+  /* WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3): เดิม rgba(122,105,0,0.8) contrast ~3.4:1 บน --yellow-bg
+     (ต่ำกว่า 4.5:1) เปลี่ยนเป็น var(--yellow) สีทึบตรงๆ (ตัวเดียวกับ .fz-label ข้างบนในกล่องเดียวกัน) ให้ผ่าน ~5.0:1 */
+  .fuzzy-box .fz-hint{font-size:11px; color:var(--yellow); margin-bottom:9px; line-height:1.4;}
   .fuzzy-box .fz-actions{display:flex; gap:8px;}
   .fuzzy-box .fz-actions button{flex:1; padding:8px; font-size:12.5px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-weight:600;}
   .fz-confirm{background:var(--yellow); color:#fff;}
@@ -521,6 +558,15 @@ const API_TIMEOUT_MS = 25000; // สัญญาณมือถืออ่อ�
 // (ก่อนเข้าหน้ารีวิว) ใช้ซ้ำได้ทุกครั้งที่ retry ส่งบิลใบเดียวกัน backend เช็คแล้วไม่สร้างซ้อนถ้าเจอ key เดิม
 function genIdemKey(){ return 'BI' + Date.now() + '_' + Math.random().toString(36).slice(2); }
 
+// escape ข้อความก่อนแทรกลง innerHTML — ต้องใช้กับข้อความที่มาจากการพิมพ์มือ (ชื่อสินค้า/ชื่อหน่วยนับ
+// ที่เจ้าของ/Mile ตั้งเองผ่าน "เพิ่มสินค้าใหม่"/"แก้ชื่อหน่วย") เสมอตอนแทรกลง innerHTML แบบ template
+// string ตรงๆ — กัน stored-XSS ถ้ามีคนตั้งชื่อสินค้า/หน่วยเป็น payload เช่น <img onerror=...>
+// (เจอจริงจาก Focused Functional & Bug Audit 28 ก.ย. 69 — BUG-003)
+function escapeHtml(str){
+  return String(str==null?'':str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 // หน่วงการเรียก fn จนกว่าจะไม่มีการเรียกซ้ำอีกภายใน wait ms — ใช้กันช่องค้นหาที่ยิง
 // renderGroups() รีบิลด์ DOM ทั้งลิสต์ทุกตัวอักษรที่พิมพ์ ซึ่งหนักมากถ้ามีการ์ดเปิดอยู่หลายสิบรายการ
 function debounce(fn, wait){
@@ -716,7 +762,7 @@ function openPhotoMatchScreen(files, products, onDone){
         <p class="match-fname">${file.name}</p>
         <select data-idx="${i}" aria-label="เลือกสินค้าให้ตรงกับรูป ${file.name}">
           <option value="" selected disabled>เลือกสินค้า...</option>
-          ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+          ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
         </select>
       </div>
       <span class="match-status pending" data-idx="${i}"><i class="ti ti-circle-dashed" aria-hidden="true"></i></span>
@@ -833,7 +879,7 @@ function openSkipDatePicker(p, onPicked){
     <div class="match-sheet" role="dialog" aria-labelledby="skipDateSheetTitle">
       <div class="match-sheet-header">
         <h2 id="skipDateSheetTitle">งดสั่งชั่วคราว</h2>
-        <p>${p.name} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
+        <p>${escapeHtml(p.name)} — เลือกวันที่ต้องการงด (ไม่ผูกกับวันในสัปดาห์)</p>
       </div>
       <div class="addprod-body">
         <label class="date-opt-row" data-opt="${todayISO}"><input type="radio" name="skipdateopt" checked> วันนี้ (${formatShortThaiDate(todayISO)})</label>
@@ -995,6 +1041,21 @@ async function getStockStatus(force){
 }
 function invalidateStockStatus(){ stockStatusCache = null; _stockStatusTs = 0; }
 
+// Perf fix (27 ก.ย. 69, จาก Performance Audit): เดิม "วิเคราะห์การสั่งซื้อ" tab (renderOwnerStockAnalytics)
+// ยิง apiGet('analytics') ใหม่ทุกครั้งที่เข้าแท็บนี้ ไม่มีแคชเลย ต่างจากแท็บพี่น้อง "สถานะสต๊อก" ที่มี
+// stockStatusCache/STOCK_STATUS_TTL อยู่แล้ว — วัดจริงพบว่าสลับแท็บไปมา (แม้กลับมาแท็บเดิมภายในไม่กี่วิ)
+// ยิง request ใหม่ทุกครั้ง ~1.3 วิ/ครั้ง ทั้งที่ข้อมูลไม่มีทางเปลี่ยนเร็วขนาดนั้น เพิ่มแคชแบบเดียวกันนี้
+let _analyticsCache = {}; // keyed by range e.g. '7d'/'30d' — { data, ts }
+const ANALYTICS_CACHE_TTL = STOCK_STATUS_TTL; // ms - ใช้ TTL เดียวกับ stockStatus เพื่อความสม่ำเสมอของทั้ง 2 แท็บ
+async function getAnalyticsCached(range, force){
+  const key = range || '7d';
+  const cached = _analyticsCache[key];
+  if(!force && cached && (Date.now() - cached.ts) < ANALYTICS_CACHE_TTL) return cached.data;
+  const data = await apiGet('analytics', {range: key});
+  _analyticsCache[key] = { data, ts: Date.now() };
+  return data;
+}
+
 // เจอ 10 ก.ย. 69 (ต่อ): renderOrderPage() เดิมยิง apiGet('orderPageData') ใหม่ทุกครั้งที่เข้าหน้านี้ ไม่เช็ค
 // cache เลยสักครั้ง (ต่างจากฝั่งลูกจ้างที่ renderSupplierList ใช้ stockStatusCache/STOCK_STATUS_TTL อยู่แล้ว)
 // ระหว่างสั่งของหลายเจ้าในรอบเดียว เจ้าของจะวนเข้าออกหน้านี้บ่อยมาก (สั่งของเจ้านี้ → ข้อความ → เสร็จสิ้น →
@@ -1065,16 +1126,20 @@ let state = { screen:'home', staffName:'', currentSupplierId:null, ownerTab:'sto
   // ซัพพลายเออร์เดียวกันให้ตอน analyzeBillPhoto เหมือนกัน { matchType, batchId, date, billNumber, photoUrl,
   // status, overlapRatio } หรือ null ถ้าไม่เจอที่น่าจะซ้ำ — เป็นแค่คำเตือน ไม่บล็อกการบันทึก
   billDuplicateWarning:null };
-// สแนปช็อตจำนวนที่เพิ่งสั่งไป ให้หน้าข้อความสั่งของใช้แสดงผล — ตั้งไว้ตอนกด "สร้างข้อความสั่งของทั้งหมด"
-// เท่านั้น (ก่อนเคลียร์ state.orderQty จริง) แล้วอ่านทิ้งครั้งเดียวใน renderOrderMessage
-let lastOrderMessageSnapshot = null;
 // ข้อมูล "สั่งไปแล้ววันนี้เท่าไหร่" ต่อสินค้า — มาจาก OrderLogs ฝั่ง Apps Script โดยตรง (action
 // orderedItemsToday) ไม่ใช่แค่จำที่เพิ่งสั่งไปในเครื่องแบบ localStorage เดิม เพราะงั้นถึงจะเป็นออเดอร์
 // ที่สั่งไปตั้งแต่ก่อนเปิดแอปรอบนี้ (คนละเครื่อง/ปิดแอปไปแล้ว) ก็ยังกดดูย้อนหลัง/คัดลอกซ้ำได้เหมือนกัน
-// โครงสร้าง: { [productId]: {qty, unit} } — set ครั้งเดียวตอนโหลดหน้าสั่งของ (renderOrderPage)
-// แล้วให้ renderOrderMessage อ่านต่อตอนกด "ดูข้อความที่สั่งไปอีกครั้ง" (ผ่าน viewHistorySupplierId)
+// โครงสร้าง: { [productId]: {qty, unit} } — set ตอนโหลดหน้าสั่งของ (renderOrderPage) และอัปเดตทันทีตอน
+// createOrderBatch สำเร็จ (ดู supplierCard()) แล้วให้ renderOrderMessage อ่านต่อเสมอ (ผ่าน orderMessageSupplierId)
 let orderedItemsTodayMap = {};
-let viewHistorySupplierId = null;
+// ซัพพลายเออร์ที่กำลังจะดูข้อความสั่งของ ให้ renderOrderMessage ใช้กรอง orderedItemsTodayMap มาแสดง — ตั้งค่า
+// ทุกครั้งก่อน go('orderMessage') (ทั้งปุ่ม "สั่งของเจ้านี้" และ "ดูข้อความที่สั่งไปอีกครั้ง") "ไม่เคลียร์เป็น
+// null หลังอ่าน" ตั้งใจ (แก้บั๊กจริงที่เจอ 28 ก.ย. 69 — เดิม viewHistorySupplierId/lastOrderMessageSnapshot
+// เคลียร์ทิ้งหลังอ่านครั้งแรกในนี้ ทำให้กด back/forward ของเบราว์เซอร์ย้อนมาหน้านี้อีกครั้ง (popstate
+// re-render โดยไม่ผ่าน go() เลยไม่ได้ตั้งค่าใหม่) เห็นข้อความ "ยังไม่มีรายการที่เลือกสั่ง" หลอกๆ ทั้งที่จริงๆ
+// สั่งสำเร็จไปแล้ว) ปลอดภัยที่จะไม่เคลียร์เพราะค่านี้ถูกตั้งใหม่เสมอก่อนเข้าหน้านี้จริงทุกครั้งที่มาจากการกดปุ่ม
+// (มีแค่ 2 จุดในทั้งไฟล์ที่ go('orderMessage') — ทั้งคู่ตั้งค่านี้ก่อนเสมอ ไม่มีทางเก่าค้างข้ามคนละซัพพลายเออร์)
+let orderMessageSupplierId = null;
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -1277,7 +1342,12 @@ function topbar(title, opts={}){
 /* ============ HOME ============ */
 function buildHero(){
   const hero = document.createElement('div'); hero.className='hero';
-  hero.innerHTML = `<img class="hero-logo" src="/logo-hero-mono.png" alt="logo"><div style="font-size:17.5px;color:rgba(255,255,255,0.95);margin-top:15px;letter-spacing:0.3px;font-weight:500">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div><div style="font-size:17.5px;font-weight:500;color:rgba(255,255,255,0.95);margin-top:4px">ระบบจัดการสินค้าคงเหลือและต้นทุน</div>`;;
+  // WCAG AA fix (27 ก.ย. 69, post-fix audit รอบ 3, ACC-006): หน้าแรก (renderHome) เป็นจุดเดียวในทั้งแอปที่ไม่เรียก
+  // topbar() (ซึ่งเป็นจุดเดียวที่สร้าง <h1>) ทำให้ไม่มี H1 เลยสักตัว — buildHero() ถูกใช้ทั้งหน้าแรกและหน้า
+  // "กำลังโหลดข้อมูลร้าน..." ตอน cold-load (ซึ่งก็ไม่มี heading เหมือนกัน) เพิ่ม H1 ที่นี่จุดเดียวแก้ทั้งคู่ —
+  // ซ่อนด้วยตา (.sr-only) เพราะมีโลโก้+ข้อความเห็นด้วยตาอยู่แล้ว ไม่ต้องการให้ซ้ำซ้อนกับผู้ใช้ทั่วไป แค่ให้ screen
+  // reader รู้จักหัวข้อหน้าได้
+  hero.innerHTML = `<h1 class="sr-only">ซามูไรไส้กรอก — ระบบเช็คสต๊อกและสั่งของ</h1><img class="hero-logo" src="/logo-hero-mono.png" alt="logo"><div style="font-size:17.5px;color:rgba(255,255,255,0.95);margin-top:15px;letter-spacing:0.3px;font-weight:500">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา</div><div style="font-size:17.5px;font-weight:500;color:rgba(255,255,255,0.95);margin-top:4px">ระบบจัดการสินค้าคงเหลือและต้นทุน</div>`;;
   return hero;
 }
 
@@ -1557,7 +1627,7 @@ function renderBillCapture(app){
     <div class="bill-photo-strip" id="photoStrip"></div>
     <div class="capture-zone">
       <i class="ti ti-camera" aria-hidden="true"></i>
-      <p id="captureLabel">ยังไม่มีรูปบิล</p>
+      <p id="captureLabel" role="status" aria-live="polite">ยังไม่มีรูปบิล</p>
       <div class="bill-pick-row">
         <button class="btn" id="pickCamera"><i class="ti ti-camera" style="font-size:15px; vertical-align:-2px; margin-right:5px;" aria-hidden="true"></i>ถ่ายรูป</button>
         <button class="btn" id="pickGallery"><i class="ti ti-photo-plus" style="font-size:15px; vertical-align:-2px; margin-right:5px;" aria-hidden="true"></i>เลือกจากคลังภาพ</button>
@@ -1580,8 +1650,10 @@ function renderBillCapture(app){
   galleryInput.style.display = 'none';
   c.appendChild(galleryInput);
 
-  c.querySelector('#pickCamera').onclick = ()=> cameraInput.click();
-  c.querySelector('#pickGallery').onclick = ()=> galleryInput.click();
+  const pickCameraBtn = c.querySelector('#pickCamera');
+  const pickGalleryBtn = c.querySelector('#pickGallery');
+  pickCameraBtn.onclick = ()=> cameraInput.click();
+  pickGalleryBtn.onclick = ()=> galleryInput.click();
 
   function drawPhotos(){
     const strip = c.querySelector('#photoStrip');
@@ -1606,11 +1678,20 @@ function renderBillCapture(app){
   batchToggle.onchange = syncAnalyzeBtn;
   drawPhotos();
 
+  // Perf fix (27 ก.ย. 69, จาก Performance Audit): เดิมเลือกหลายรูปพร้อมกันแล้วไม่มีสัญญาณอะไรขึ้นบนจอเลย
+  // ระหว่างที่ compressImage() ทำงานทีละไฟล์ (แต่ละไฟล์ ~0.5-1+ วิบนมือถือจริง) — วัดจริง 4 รูปใช้เวลารวม
+  // 1.7 วิ แต่ไม่มีอะไรขึ้นบนจอเลยถึง 71% ของเวลานั้น ทำให้เข้าใจผิดว่ากดไม่ติดแล้วกดซ้ำได้ — เพิ่มข้อความ
+  // "กำลังประมวลผลรูป X/N..." + ปิดปุ่มเลือกรูปชั่วคราวระหว่างบีบอัด
   async function onPicked(input){
     const files = [...input.files]; input.value = '';
-    for(const file of files){
-      try{ state.billPhotos.push(await compressImage(file, 1600, 0.8)); }catch(e){}
+    if(!files.length) return;
+    const labelEl = c.querySelector('#captureLabel');
+    pickCameraBtn.disabled = true; pickGalleryBtn.disabled = true;
+    for(let i=0; i<files.length; i++){
+      labelEl.textContent = files.length > 1 ? `กำลังประมวลผลรูป ${i+1}/${files.length}...` : 'กำลังประมวลผลรูป...';
+      try{ state.billPhotos.push(await compressImage(files[i], 1600, 0.8)); }catch(e){}
     }
+    pickCameraBtn.disabled = false; pickGalleryBtn.disabled = false;
     drawPhotos();
   }
   cameraInput.onchange = ()=> onPicked(cameraInput);
@@ -1966,7 +2047,7 @@ function renderBillReview(app){
         bodyHtml += `
           <div class="fuzzy-box">
             <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
-            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-name">${product ? escapeHtml(product.name) : ''}</div>
             <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
             <div class="fz-actions">
               <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
@@ -1975,18 +2056,18 @@ function renderBillReview(app){
           </div>`;
       } else if(it.productId){
         const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
-        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? escapeHtml(product.name) : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?escapeHtml(product.orderUnit):''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
         bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
-            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+            ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
           </select>`;
       }
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${escapeHtml(it.unit)} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${escapeHtml(it.unit)} เป็น ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}"> ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -2026,13 +2107,13 @@ function renderBillReview(app){
     renderDrift();
 
     const sel = card.querySelector('.matchSelect');
-    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; drawAll(); };
+    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; rebuildItemCard(it); };
     const rematchBtn = card.querySelector('[data-rematch]');
-    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; rebuildItemCard(it); };
     const confirmBtn = card.querySelector('[data-confirm]');
-    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; drawAll(); };
+    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; rebuildItemCard(it); };
     const rejectBtn = card.querySelector('[data-reject]');
-    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; rebuildItemCard(it); };
     const fac = card.querySelector('.factorInput');
     if(fac) fac.oninput = ()=>{ it.factor = fac.value ? Number(fac.value) : null; updateFooter(); };
     const qtyI = card.querySelector('.qtyInput');
@@ -2042,9 +2123,20 @@ function renderBillReview(app){
     const priI = card.querySelector('.priceInput');
     if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoney(it.qty*it.unitPrice); updateFooter(); };
     const skipT = card.querySelector('.skipToggle');
-    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; drawAll(); };
+    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; rebuildItemCard(it); };
 
     return card;
+  }
+
+  // Perf fix (27 ก.ย. 69, จาก Performance Audit): เดิมทุกการกระทำต่อ 1 รายการ (จับคู่/เปลี่ยน/ยืนยัน/ปฏิเสธ/
+  // ข้าม) เรียก drawAll() ที่รื้อสร้างการ์ดสินค้าทั้งหมดใหม่ — วัดจริงบนบิลขนาดลุงทวี (55 รายการ) แต่ละคลิก
+  // หน่วง ~140-230ms ทั้งที่แก้แค่รายการเดียว แก้ตามแพทเทิร์นเดียวกับ renderSupplierCheck()'s renderGrid()/
+  // check-toggle และ renderOrderPage()'s rebuildCard() — แพตช์แค่การ์ดที่แก้ ไม่แตะการ์ดอื่นเลย
+  function rebuildItemCard(it){
+    const oldCard = listEl.querySelector('#card-' + it._id);
+    const newCard = itemCard(it);
+    if(oldCard) oldCard.replaceWith(newCard); else listEl.appendChild(newCard);
+    updateFooter();
   }
 
   function drawAll(){
@@ -2368,7 +2460,7 @@ function renderBillBatchItemReview(app){
         bodyHtml += `
           <div class="fuzzy-box">
             <div class="fz-label"><i class="ti ti-sparkles" aria-hidden="true"></i> AI คาดว่าคือ</div>
-            <div class="fz-name">${product ? product.name : ''}</div>
+            <div class="fz-name">${product ? escapeHtml(product.name) : ''}</div>
             <div class="fz-hint">เพราะเจอ "${it.billText}" ใกล้เคียงกับ "${it.matchedAliasText||''}" ที่เคยยืนยันไว้ก่อนหน้า (ต่างกันแค่การเว้นวรรค/ตัวสะกดเล็กน้อย) — กรุณายืนยันว่าใช่รายการเดียวกันจริงก่อน</div>
             <div class="fz-actions">
               <button class="fz-confirm" data-confirm="1"><i class="ti ti-check" aria-hidden="true"></i> ใช่ ยืนยัน</button>
@@ -2377,18 +2469,18 @@ function renderBillBatchItemReview(app){
           </div>`;
       } else if(it.productId){
         const convertedQty = it.factor ? (it.receivedQty * it.factor) : it.receivedQty;
-        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? product.name : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?product.orderUnit:''}` : ''}
+        bodyHtml += `<div class="matched-line"><i class="ti ti-check" aria-hidden="true"></i> ${product ? escapeHtml(product.name) : ''} ${it.factor && it.factor!==1 ? `· = ${convertedQty} ${product?escapeHtml(product.orderUnit):''}` : ''}
           <button class="btn" style="margin-left:auto; padding:3px 8px; font-size:11px;" data-rematch="1">เปลี่ยน</button></div>`;
       } else {
         bodyHtml += `<select class="matchSelect" aria-label="เลือกสินค้าที่ตรงกับ ${it.billText}">
             <option value="" selected disabled>ค้นหา/เลือกสินค้าของเรา...</option>
-            ${products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+            ${products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
           </select>`;
       }
       if(it.productId && it.needsFactor){
         bodyHtml += `<div class="conversion-box">
             <div class="cv-label"><i class="ti ti-sparkles" aria-hidden="true"></i> ตั้งอัตราแปลงหน่วย (ใหม่)</div>
-            <div class="conversion-row">1 ${it.unit} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${it.unit} เป็น ${product ? product.orderUnit : 'หน่วยของเรา'}"> ${product ? product.orderUnit : 'หน่วยของเรา'}</div>
+            <div class="conversion-row">1 ${escapeHtml(it.unit)} = <input type="number" class="factorInput" min="0" step="0.01" placeholder="?" value="${it.factor!=null ? it.factor : ''}" aria-label="อัตราแปลงหน่วย ${escapeHtml(it.unit)} เป็น ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}"> ${product ? escapeHtml(product.orderUnit) : 'หน่วยของเรา'}</div>
             <div class="conversion-hint">จำไว้ใช้อัตโนมัติทุกครั้งที่เจอ "${it.billText}" จาก ${sup.name} อีก</div>
           </div>`;
       }
@@ -2428,13 +2520,13 @@ function renderBillBatchItemReview(app){
     renderDrift();
 
     const sel = card.querySelector('.matchSelect');
-    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; drawAll(); };
+    if(sel) sel.onchange = ()=>{ it.productId = sel.value; it.matchType = 'manual'; it.confirmed = true; it.needsFactor = true; it.factor = null; rebuildItemCard(it); };
     const rematchBtn = card.querySelector('[data-rematch]');
-    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    if(rematchBtn) rematchBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; rebuildItemCard(it); };
     const confirmBtn = card.querySelector('[data-confirm]');
-    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; drawAll(); };
+    if(confirmBtn) confirmBtn.onclick = ()=>{ it.confirmed = true; rebuildItemCard(it); };
     const rejectBtn = card.querySelector('[data-reject]');
-    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; drawAll(); };
+    if(rejectBtn) rejectBtn.onclick = ()=>{ it.productId = null; it.factor = null; it.matchType = null; it.confirmed = false; it.needsFactor = false; rebuildItemCard(it); };
     const fac = card.querySelector('.factorInput');
     if(fac) fac.oninput = ()=>{ it.factor = fac.value ? Number(fac.value) : null; updateFooter(); };
     const qtyI = card.querySelector('.qtyInput');
@@ -2444,9 +2536,17 @@ function renderBillBatchItemReview(app){
     const priI = card.querySelector('.priceInput');
     if(priI) priI.oninput = ()=>{ it.unitPrice = Number(priI.value)||0; card.querySelector('.item-total b').textContent = fmtMoneyBatch(it.qty*it.unitPrice); updateFooter(); };
     const skipT = card.querySelector('.skipToggle');
-    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; drawAll(); };
+    if(skipT) skipT.onchange = ()=>{ it.skip = skipT.checked; rebuildItemCard(it); };
 
     return card;
+  }
+
+  // Perf fix (27 ก.ย. 69, จาก Performance Audit) — เหมือนโหมดบิลเดี่ยว (renderBillReview) ดูคอมเมนต์เต็มที่นั่น
+  function rebuildItemCard(it){
+    const oldCard = listEl.querySelector('#card-' + it._id);
+    const newCard = itemCard(it);
+    if(oldCard) oldCard.replaceWith(newCard); else listEl.appendChild(newCard);
+    updateFooter();
   }
 
   function drawAll(){
@@ -2797,7 +2897,7 @@ async function renderSupplierList(app){
       const wrap = document.createElement('div');
       if(dim) wrap.className = 'other-section';
       const grid = document.createElement('div'); grid.className = 'sup-card-grid';
-      filtered.forEach(s=> grid.appendChild(supplierCard(s, checkedSuppliers.has(s.id), SUPPLIERS.indexOf(s), statusPill)));
+      filtered.forEach(s=> grid.appendChild(supplierCard(s, checkedSuppliers.has(s.id), SUPPLIERS.indexOf(s), statusPill, dim)));
       wrap.appendChild(grid);
       groupsEl.appendChild(wrap);
     }
@@ -2820,7 +2920,7 @@ async function renderSupplierList(app){
   }).catch(()=>{});
 }
 
-function supplierCard(s, isDone, idx, statusPill){
+function supplierCard(s, isDone, idx, statusPill, dim){
   const col = iconColor(idx);
   const hasPhoto = !!s.imageUrl;
   const isUrgent = statusPill==='urgent' && !isDone;
@@ -2829,16 +2929,20 @@ function supplierCard(s, isDone, idx, statusPill){
   const pillHtml = statusPill
     ? `<span class="status-pill ${statusPill}">${statusPill==='urgent'?'รอสั่ง':'สั่งแล้ว'}</span>`
     : '';
+  // WCAG AA fix (27 ก.ย. 69, ACC-008): เดิมใช้ container opacity (.sup-card.done / .other-section .sup-card)
+  // ลดความชัดของ "เช็คแล้ว"/"ไม่ถึงรอบวันนี้" ทำให้ตัวอักษรสีเข้มถูกจางลงจนคอนทราสต์ไม่พอ (พังกฎ 1.4.3)
+  // เปลี่ยนมาคุมสีตัวอักษร/ไอคอนตรงๆ แทน (แยกจากรูปสินค้าที่ยังหรี่ opacity ได้ปกติ เพราะไม่ใช่ตัวอักษร)
+  const nameMuted = isDone || dim;
   card.innerHTML = `
     <div class="sup-icon-wrap">
       <span class="sup-num-badge">${idx+1}</span>
       <div class="sup-icon" style="background:${isDone?'var(--bg)':(hasPhoto?'transparent':col.bg)};">
         ${hasPhoto
-          ? `<img src="${s.imageUrl}" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; opacity:${isDone?'0.55':'1'};">`
+          ? `<img src="${s.imageUrl}" alt="" loading="lazy" style="width:100%; height:100%; object-fit:cover; opacity:${isDone?'0.55':(dim?'0.85':'1')};">`
           : `<i class="ti ${isDone?'ti-check':'ti-meat'}" style="font-size:min(11vw,48px); color:${isDone?'var(--text-secondary)':col.fg};" aria-hidden="true"></i>`}
       </div>
     </div>
-    <p style="margin:0; padding:0 8px; font-size:13px; font-weight:600; color:${isDone?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
+    <p style="margin:0; padding:0 8px; font-size:13px; font-weight:600; color:${nameMuted?'var(--text-secondary)':'var(--text)'}; line-height:1.3;">${s.name}</p>
     ${pillHtml}
   `;
   card.setAttribute('role','button');
@@ -2967,14 +3071,14 @@ async function renderSupplierCheck(app){
       card.innerHTML = `
         <div class="prod-photo-area${(CAMERA_PER_PRODUCT_ENABLED && (!photoSrc || ALLOW_PHOTO_RETAKE))?' no-photo':''}" data-pid="${p.id}" style="background:${photoSrc?'transparent':(isChecked?'rgba(255,255,255,0.6)':col.bg)}; cursor:${CAMERA_PER_PRODUCT_ENABLED?'pointer':'default'};">
           ${photoSrc
-            ? `<img src="${photoSrc}" alt="รูปสินค้า ${p.name}" loading="lazy">`
+            ? `<img src="${photoSrc}" alt="รูปสินค้า ${escapeHtml(p.name)}" loading="lazy">`
             : `<div class="photo-inner"><div class="photo-placeholder"><i class="ti ti-photo-off" style="font-size:28px; color:${col.fg};" aria-hidden="true"></i><span>ยังไม่มีรูป</span></div></div>`}
           ${(photoSrc && ALLOW_PHOTO_RETAKE && CAMERA_PER_PRODUCT_ENABLED) ? `<div class="retake-badge"><i class="ti ti-camera" aria-hidden="true"></i></div>` : ''}
           ${ALLOW_SET_COVER_PHOTO ? `<button class="cover-toggle${isCover?' is-cover':''}" data-pid="${p.id}" ${p.photoUrl?'':'disabled'} aria-label="ตั้งเป็นรูปปกร้านนี้"><i class="ti ${isCover?'ti-heart-filled':'ti-heart'}" aria-hidden="true"></i></button>` : ''}
           <button class="check-toggle" data-pid="${p.id}" aria-label="ทำเครื่องหมายว่าเช็คแล้ว"><i class="ti ${isChecked?'ti-circle-check-filled':'ti-circle'}" aria-hidden="true"></i></button>
         </div>
         ${isSkipped ? `<span class="skip-today-badge">🚫 งดสั่งวันนี้</span>` : ''}
-        <p class="prod-card-name">${p.name}</p>
+        <p class="prod-card-name">${escapeHtml(p.name)}</p>
         ${isCover ? `<p class="cover-tag"><i class="ti ti-heart-filled" style="font-size:10px; vertical-align:-1px;" aria-hidden="true"></i> รูปปกร้านนี้</p>` : ''}
         <div class="unit-steppers-row">
           ${p.units.map(u=>`
@@ -2982,7 +3086,7 @@ async function renderSupplierCheck(app){
               <button class="step-btn minus" data-unit="${u.id}" ${isSkipped?'disabled':''}>−</button>
               <input type="text" inputmode="numeric" pattern="[0-9]*" class="step-input" data-unit="${u.id}" value="${stockValues[u.id]||0}" min="0" ${isSkipped?'disabled':''}>
               <button class="step-btn plus" data-unit="${u.id}" ${isSkipped?'disabled':''}>+</button>
-              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${u.label}"`:''}>${u.label}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
+              <span class="unit-tag${canEditUnitLabel()?' unit-tag-editable':''}" ${canEditUnitLabel()?`data-unit-edit="${u.id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วย ${escapeHtml(u.label)}"`:''}>${escapeHtml(u.label)}${canEditUnitLabel()?' <i class="ti ti-pencil" aria-hidden="true"></i>':''}</span>
             </div>
           `).join('')}
         </div>
@@ -3282,7 +3386,7 @@ async function renderOwnerStockAnalytics(app){
         statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
         renderStockTab(body);
       } else {
-        const analytics = await apiGet('analytics', {range:'7d'});
+        const analytics = await getAnalyticsCached('7d');
         stopTimer();
         renderAnalyticsTab(body, analytics);
       }
@@ -3322,8 +3426,8 @@ function renderStockTab(body){
       tableWrap.appendChild(head);
       const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.fontSize='13px'; tbl.style.marginBottom='10px';
       tbl.innerHTML = items.map(p=>`<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:7px 4px;">${p.name}</td>
-          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${u.label}`).join(' / ')}</td>
+          <td style="padding:7px 4px;">${escapeHtml(p.name)}</td>
+          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${escapeHtml(u.label)}`).join(' / ')}</td>
           <td style="padding:7px 4px; text-align:right; width:55px;">${p.empty? '<span class="badge" style="background:var(--amber-mid); color:#412402;">หมด</span>' : '<span style="color:var(--text-secondary); font-size:12px;">ยังมี</span>'}</td>
         </tr>`).join('');
       tableWrap.appendChild(tbl);
@@ -3583,7 +3687,7 @@ async function renderOrderPage(app){
       const remainEntry = statusByEntry[p.id];
       const remainParts = p.units.map(u=>{
         const v = remainEntry ? remainEntry.remain[u.id] : null;
-        return (v!==null && v!==undefined) ? `${v}<span class="u">${u.label}</span>` : null;
+        return (v!==null && v!==undefined) ? `${v}<span class="u">${escapeHtml(u.label)}</span>` : null;
       }).filter(Boolean);
       const remainValues = p.units.map(u=> remainEntry ? remainEntry.remain[u.id] : null);
       // เช็คแล้ว + ทุกหน่วยคงเหลือ 0 = "หมด" จริง (ไม่ใช่แค่ยังไม่ได้เช็ค) — ไม่ต้องมี flag พิเศษเก็บแยก
@@ -3599,9 +3703,9 @@ async function renderOrderPage(app){
       row.className = 'prow' + (isSkipSet ? ' skip-set' : '');
       row.innerHTML = `
         <div class="prow-top">
-          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}" aria-label="เลือกสั่ง ${p.name}">
+          <input type="checkbox" ${qty>0?'checked':''} data-check="${p.id}" aria-label="เลือกสั่ง ${escapeHtml(p.name)}">
           <div class="prow-name-wrap">
-            <div class="prow-name">${p.name}</div>
+            <div class="prow-name">${escapeHtml(p.name)}</div>
             ${isSkipSet ? `<span class="prow-skip-sub">🚫 งด${skipDates.length>1?`${skipDates.length} วัน: `:'สั่งถึง '}${skipDates.map(formatShortThaiDate).join(', ')}</span>` : ''}
           </div>
           <button type="button" class="skip-toggle-btn${isSkipSet?' active':''}" data-skiptoggle="${p.id}">${isSkipSet?'ยกเลิกงด':'งดสั่งวันนี้'}</button>
@@ -3609,10 +3713,10 @@ async function renderOrderPage(app){
         <div class="prow-bottom">
           <div class="stat"><span class="lbl">คงเหลือ</span><span class="v">${remainDisplay}</span></div>
           <div class="stepper">
-            <button type="button" data-step="-1" aria-label="ลดจำนวน ${p.name}">−</button>
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${p.name}">
-            <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${p.name}">+</button>
-            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${p.name}">${uLabel} <i class="ti ti-pencil" aria-hidden="true"></i></span>
+            <button type="button" data-step="-1" aria-label="ลดจำนวน ${escapeHtml(p.name)}">−</button>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="stepper-input" value="${qty}" min="0" step="1" data-qty="${p.id}" aria-label="จำนวนที่จะสั่ง ${escapeHtml(p.name)}">
+            <button type="button" data-step="1" aria-label="เพิ่มจำนวน ${escapeHtml(p.name)}">+</button>
+            <span class="unit-tag unit-tag-editable" data-unit-edit="${p.units[p.units.length-1].id}" role="button" tabindex="0" aria-label="แก้ชื่อหน่วยที่ใช้สั่งของ ${escapeHtml(p.name)}">${escapeHtml(uLabel)} <i class="ti ti-pencil" aria-hidden="true"></i></span>
           </div>
         </div>
       `;
@@ -3705,7 +3809,7 @@ async function renderOrderPage(app){
         viewBtn.innerHTML = '<i class="ti ti-message-2" style="font-size:13px; vertical-align:-2px;" aria-hidden="true"></i> ดูข้อความที่สั่งไปอีกครั้ง';
         viewBtn.onclick = (e)=>{
           e.stopPropagation();
-          viewHistorySupplierId = s.id;
+          orderMessageSupplierId = s.id;
           go('orderMessage');
         };
         btnRow.appendChild(viewBtn);
@@ -3730,8 +3834,8 @@ async function renderOrderPage(app){
           // พาไปหน้าสร้างข้อความสั่งของทันที (เหมือนปุ่ม "สร้างข้อความสั่งของทั้งหมด" เดิม) แทนการ
           // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
           // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
-          lastOrderMessageSnapshot = {};
-          supItems.forEach(it=>{ lastOrderMessageSnapshot[it.productId] = it.orderQty; state.orderQty[it.productId] = 0; });
+          supItems.forEach(it=>{ state.orderQty[it.productId] = 0; });
+          orderMessageSupplierId = s.id;
           go('orderMessage');
         }catch(err){
           btn.disabled = false; btn.textContent = originalLabel;
@@ -3817,25 +3921,14 @@ function renderOrderMessage(app){
   app.appendChild(topbar('สร้างข้อความสั่งของ', {back:()=>go('orderPage')}));
   const c = document.createElement('div'); c.className='content';
 
-  let items;
-  if(viewHistorySupplierId){
-    // มาจากปุ่ม "ดูข้อความที่สั่งไปอีกครั้ง" — ดึงจาก orderedItemsTodayMap (ข้อมูลจริงจาก OrderLogs
-    // ฝั่ง Apps Script) ไม่ใช่ state.orderQty สดๆ (ซึ่งถูกเคลียร์ไปแล้วหลังสั่งสำเร็จ) และไม่ยิง
-    // createOrderBatch ซ้ำด้วย — ใช้ได้กับออเดอร์ที่สั่งไปแล้ววันนี้ทุกอัน ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม
-    const supId = viewHistorySupplierId;
-    viewHistorySupplierId = null;
-    items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
-      .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
-  } else {
-    // ใช้สแนปช็อตที่เพิ่งสั่งไปถ้ามี (มาจากปุ่ม "สร้างข้อความสั่งของทั้งหมด") แทน state.orderQty
-    // สดๆ เพราะ state.orderQty ถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ กันสั่งซ้ำ
-    const qtySource = lastOrderMessageSnapshot || state.orderQty;
-    lastOrderMessageSnapshot = null;
-    items = Object.entries(qtySource).filter(([id,q])=>q>0).map(([id,q])=>{
-      const p = PRODUCTS.find(x=>x.id===id);
-      return {...p, orderUnit: orderUnitLabel(p), qty:q};
-    });
-  }
+  // ดึงจาก orderedItemsTodayMap เสมอ (ข้อมูลจริงจาก OrderLogs ฝั่ง Apps Script ที่ถูกอัปเดตแล้วตั้งแต่
+  // ก่อนเข้าหน้านี้ — ดู supplierCard()'s ปุ่ม "สั่งของเจ้านี้"/"ดูข้อความที่สั่งไปอีกครั้ง") ไม่ใช้
+  // state.orderQty สดๆ เพราะถูกเคลียร์เป็น 0 ไปแล้วหลังสั่งสำเร็จ — ใช้ได้กับออเดอร์ที่สั่งไปแล้ววันนี้ทุกอัน
+  // ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม และยังแสดงถูกต้องแม้กด back/forward ของเบราว์เซอร์กลับมาหน้านี้อีกครั้ง
+  // (orderMessageSupplierId ไม่ถูกเคลียร์เป็น null หลังอ่าน ต่างจากเดิม)
+  const supId = orderMessageSupplierId;
+  const items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
+    .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
   const bySupplier = {};
   items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
 
