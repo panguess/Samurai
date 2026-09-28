@@ -1485,6 +1485,10 @@ async function switchAdminTab(tab){
   document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
   document.getElementById('overviewFilterBar').style.display=tab==='overview'?'block':'none';
   document.getElementById('ownerDashboard').style.display='none';
+  // [เพิ่ม 28 ก.ย. 69] กันเคสกดแท็บอื่น (รอจัด/กำลังจัด/เสร็จสมบูรณ์/ภาพรวม) ตรงๆ ระหว่างเปิดแดชบอร์ดค้างอยู่
+  // (ข้ามปุ่ม "← กลับ" ที่เรียก closeOwnerDashboard() ตามปกติ) ไม่งั้น #adminApp จะค้างกว้าง 960px ต่อไปทั้งที่
+  // ออกจากแดชบอร์ดไปแล้ว
+  document.getElementById('adminApp').style.maxWidth='600px';
   if(tab==='overview'){
     // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
     // [แก้ 15 ก.ย. 69] cache-first เหมือนแท็บหลัก — ถ้ายังไม่มีในหน่วยความจำ (ยังไม่เคยเปิดแท็บนี้ใน session
@@ -2320,11 +2324,18 @@ function openOwnerDashboard(){
   document.getElementById('adminOverview').style.display='none';
   document.getElementById('overviewFilterBar').style.display='none';
   document.getElementById('ownerDashboard').style.display='block';
+  // [เพิ่ม 28 ก.ย. 69] ขยาย #adminApp (ปกติ max-width:600px ทั้งแอป) ให้กว้างขึ้นเฉพาะตอนเปิดแดชบอร์ดนี้
+  // เท่านั้น — แก้ปัญหาที่แดชบอร์ดบอกว่า "ออกแบบมาสำหรับหน้าจอกว้าง" (ข้อความด้านบน) แต่ก่อนหน้านี้ยังถูก
+  // container เดิมบีบแคบเท่ามือถืออยู่ดีแม้เปิดบนคอม/iPad จอกว้าง — reset กลับเป็น 600px ใน
+  // closeOwnerDashboard() เสมอ ไม่กระทบแท็บอื่น (รอจัด/กำลังจัด/เสร็จสมบูรณ์/ภาพรวม) เพราะจุดนั้นไม่เคยแก้
+  // ค่านี้เลย
+  document.getElementById('adminApp').style.maxWidth='960px';
   dbCurrentTab='sales';
   renderOwnerDashboard();
 }
 
 function closeOwnerDashboard(){
+  document.getElementById('adminApp').style.maxWidth='600px';
   document.getElementById('ownerDashboard').style.display='none';
   switchAdminTab('overview');
 }
