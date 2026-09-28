@@ -433,6 +433,19 @@ function cleanNote(note){return (note||'').replace(/\[รอโอน\]/g,'').tr
 // กัน stored XSS — note/business note เป็น free text ที่ผู้ใช้พิมพ์เอง เขียนลง Sheet ตรงๆ ไม่ sanitize
 // ต้อง escape ก่อน render ทุกจุดที่ใส่ผ่าน innerHTML (ไม่ escape ตอนเก็บ เพื่อให้ข้อมูลดิบใน Sheet ไม่ถูกบิดเบือน)
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// [เพิ่ม 28 ก.ย. 69 — BUG-001] สินค้าที่ชื่อมีเครื่องหมาย ' (apostrophe) ทำให้ onclick/oninput ที่ฝัง p.name
+// แบบ string ตรงๆ ใน renderProducts() พังทันที (JS syntax error, ปุ่ม +/- และช่องพิมพ์จำนวนใช้งานไม่ได้เลย)
+// เพราะ ' ตัดสตริง JS ที่ห่อด้วย ' ให้ขาดกลางคัน — ต่าง escapeHtml ด้านบนที่ escape แค่สำหรับ HTML/attribute
+// เท่านั้น ไม่ได้ช่วยตรงนี้ (context เป็น JS string literal ไม่ใช่ HTML) ใช้ escJsStr() สำหรับค่าที่ต้องฝัง
+// เป็น argument ในสตริง onclick/oninput ที่ห่อด้วย ' โดยเฉพาะ
+//
+// [แก้ 28 ก.ย. 69 — พบระหว่างตรวจสอบซ้ำหลังแก้ BUG-001 รอบแรก] เดิม escape แค่ \ กับ ' (ปิดช่องโหว่ระดับ JS
+// string literal) แต่ยังไม่ครบ เพราะ onclick="..."/oninput="..." ทั้งก้อนยังถูกห่อด้วย " ในระดับ HTML attribute
+// อีกชั้นหนึ่ง — ถ้าชื่อสินค้ามีเครื่องหมาย " ปนอยู่ด้วย (เช่น ชื่อมีทั้ง ' และ " พร้อมกัน) เครื่องหมาย " ที่ยังไม่ได้
+// escape จะไปตัด HTML attribute ให้ขาดก่อนที่ JS จะได้อ่านด้วยซ้ำ (คนละชั้นกับปัญหา ' เดิม) ทำให้พังแบบเดียวกัน
+// อีกแบบ — เพิ่มการแปลง " เป็น &quot; (เบราว์เซอร์จะถอดกลับเป็น " ให้เองตอน parse HTML ก่อนส่งให้ JS อ่าน จึงได้ค่า
+// ตัวอักษร " จริงกลับมาอยู่ดี ไม่กระทบความหมาย) และ & เป็น &amp; ไว้ก่อนเป็นอันดับแรกกันการตีความ entity ผิดเพี้ยน
+function escJsStr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\r?\n/g,'\\n');}
 
 /**
  * ===== Focus trap สำหรับโมดัล (เพิ่ม 27 ก.ย. 69) =====
@@ -764,7 +777,7 @@ function renderProducts(){
     div.id='pc'+p.product_id;
     const imgHtml=p.image_url?`<img class="product-img" src="${p.image_url}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:'' ;
     const ph=`<div class="product-img-placeholder" ${p.image_url?'style="display:none"':''}>🛍️</div>`;
-    div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${fmtMoney(p.price)}</div><div class="qty-row"><button class="qty-btn" aria-label="ลดจำนวน ${escapeHtml(p.name)}" onclick="chg('${p.product_id}',-1,'${p.name}',${p.price})">−</button><input type="number" class="qty-num" id="qty${p.product_id}" aria-label="จำนวน ${escapeHtml(p.name)}" value="${qty}" min="0" max="999" oninput="setQty('${p.product_id}',this.value,'${p.name}',${p.price})"><button class="qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(p.name)}" onclick="chg('${p.product_id}',1,'${p.name}',${p.price})">+</button></div></div>`;
+    div.innerHTML=`${imgHtml}${ph}<div class="product-body"><div class="product-name">${p.name}</div><div class="product-price">฿${fmtMoney(p.price)}</div><div class="qty-row"><button class="qty-btn" aria-label="ลดจำนวน ${escapeHtml(p.name)}" onclick="chg('${p.product_id}',-1,'${escJsStr(p.name)}',${p.price})">−</button><input type="number" class="qty-num" id="qty${p.product_id}" aria-label="จำนวน ${escapeHtml(p.name)}" value="${qty}" min="0" max="999" oninput="setQty('${p.product_id}',this.value,'${escJsStr(p.name)}',${p.price})"><button class="qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(p.name)}" onclick="chg('${p.product_id}',1,'${escJsStr(p.name)}',${p.price})">+</button></div></div>`;
     grid.appendChild(div);
   });
 }
@@ -781,6 +794,10 @@ function chg(id,delta,name,price){
 function setQty(id,val,name,price){
   const nv=Math.max(0,Math.min(999,parseInt(val)||0));
   if(nv===0) delete cart[id]; else cart[id]={qty:nv,name,price:Number(price)};
+  // [แก้ 28 ก.ย. 69 — BUG-003] เดิมไม่เขียนค่าที่ clamp แล้วกลับเข้าช่อง input เลย (ต่างจาก chg()/+- ปุ่มที่
+  // เขียนกลับเสมอ) พิมพ์ -5/999999 ตัวเลขบนจอเลยยังค้างเป็นค่าที่พิมพ์ ทั้งที่ค่าจริงในตะกร้าถูก clamp แล้ว
+  const el=document.getElementById('qty'+id);
+  if(el&&el.value!==String(nv)) el.value=nv;
   const pc=document.getElementById('pc'+id);
   if(pc) pc.classList.toggle('selected',nv>0);
   updateCart();
@@ -943,11 +960,17 @@ function buildHistoryCard(o){
   const isCancelled=ds==='cancelled'||String(ds).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
   const isDoneDelivery=ds==='done'||o.status==='done'||String(ds).toLowerCase().trim()==='done'||String(o.status).toLowerCase().trim()==='done';
   const isPackingDelivery=ds==='packing'||String(ds).toLowerCase().trim()==='packing';
+  // [เพิ่ม 28 ก.ย. 69 — ระบบสถานะ stockout] เดิมไม่มีการเช็คสถานะนี้เลยฝั่งลูกค้า ทำให้ตกไปเข้าเงื่อนไข default
+  // "รอดำเนินการ" ซึ่งหลอกลูกค้าว่ายังไม่เริ่มดำเนินการอะไรเลย ทั้งที่จริงๆ ร้านแพ็คแล้วแต่ของหมดพอดี — และ canEdit/
+  // canCancel เดิม (=!isDoneDelivery&&!isPackingDelivery) จะกลายเป็น true ให้ลูกค้าเห็นปุ่มแก้ไข/ยกเลิกทั้งที่กดแล้ว
+  // ก็ใช้ไม่ได้จริง (backend จะปฏิเสธเพราะสถานะไม่ใช่ pending) ต้องกันไว้ตั้งแต่ระดับ UI เพื่อไม่ให้ลูกค้าสับสน
+  const isStockout=ds==='stockout'||String(ds).toLowerCase().trim()==='stockout';
   const tStr=o.timestamp?new Date(o.timestamp).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.':'';
   const dateTimeStr=fmtOrderDateTime(o.timestamp);
   let badge='';
   if(isCancelled) badge=`<span class="badge" style="background:#f0f0f0;color:#666">ยกเลิกแล้ว</span>`;
   else if(isDoneDelivery) badge=`<span class="badge badge-done">จัดเสร็จแล้ว ✓</span>`;
+  else if(isStockout) badge=`<span class="badge" style="background:#FBEAEA;color:#A32D2D">สินค้าหมด กำลังติดต่อ</span>`;
   else if(isPackingDelivery) badge=`<span class="badge badge-packing">กำลังจัด</span>`;
   else badge=`<span class="badge badge-pending">รอดำเนินการ</span>`;
 
@@ -980,9 +1003,11 @@ function buildHistoryCard(o){
   // [เพิ่ม 26 ก.ย. 69 — AUD-17] เดิมสถานะ "ทำแล้ว"/"ยังไม่ถึง" แยกด้วยสีจุด+ความจางของตัวหนังสือเป็นหลัก
   // เพิ่ม "✓" ต่อท้ายทุก step ที่ทำแล้ว (ไม่ใช่แค่ step สุดท้าย) ให้มีตัวช่วยที่ไม่พึ่งสีเพิ่มอีกชั้น
   const tl1=`<div class="tr"><div class="dot d-on"></div><div class="tlabel">รับคำสั่งซื้อแล้ว ✓</div><div class="ttime">${tStr}</div></div>`;
-  const tl2=(isPackingDelivery||isDoneDelivery)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า ✓</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
+  // [แก้ 28 ก.ย. 69] รวม isStockout เข้าเงื่อนไขนี้ด้วย — ออเดอร์ stockout ผ่านขั้น "กำลังจัดสินค้า" มาแล้วจริง
+  // (ของหมดพอดีตอนแพ็ค ไม่ใช่ตอนยังไม่เริ่ม) แสดงเป็น "ยังไม่ถึง" (จาง/ไม่มี ✓) จะทำให้ไทม์ไลน์ผิดจากความจริง
+  const tl2=(isPackingDelivery||isDoneDelivery||isStockout)?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">กำลังจัดสินค้า ✓</div><div class="ttime">${packTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">กำลังจัดสินค้า</div></div>`;
   const tl3=isDoneDelivery?`<div class="tr"><div class="dot d-on"></div><div class="tlabel">จัดสินค้าสำเร็จ ✓</div><div class="ttime">${doneTStr}</div></div>`:`<div class="tr"><div class="dot d-off"></div><div class="tlabel muted">จัดสินค้าสำเร็จ</div></div>`;
-  const canEdit=!isDoneDelivery&&!isPackingDelivery;
+  const canEdit=!isDoneDelivery&&!isPackingDelivery&&!isStockout;
   const canCancel=canEdit;
   const btnStyle='font-size:12.5px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap';
   let editBtn=canEdit
@@ -1080,6 +1105,9 @@ function editChg(idx,delta){
 
 function editSet(idx,val){
   editQtys[idx]=Math.max(0,Math.min(999,parseInt(val)||0));
+  // [แก้ 28 ก.ย. 69 — BUG-003] เขียนค่า clamp แล้วกลับเข้าช่อง input เหมือน editChg() ทำอยู่แล้ว (ดู setQty ด้านบน)
+  const el=document.getElementById('eq'+idx);
+  if(el&&el.value!==String(editQtys[idx])) el.value=editQtys[idx];
   document.getElementById('editTotalDisplay').textContent=fmtMoney(calcEditTotal());
 }
 
@@ -1096,6 +1124,14 @@ async function saveEdit(){
   btn.disabled=true;btn.textContent='กำลังบันทึก...';
   const prodMap={};products.forEach(p=>{prodMap[p.name]=Number(p.price)||0;});
   const newItems=editingOrder.items.map((item,idx)=>({...item,qty:editQtys[idx]||0})).filter(i=>i.qty>0);
+  // [แก้ 28 ก.ย. 69 — BUG-005] เดิมไม่มีการเช็คขั้นต่ำเลย ลดทุกรายการเหลือ 0 แล้วกดบันทึกได้ปกติ กลายเป็น
+  // ออเดอร์ว่างเปล่า ฿0.00 ที่ยังเป็น "รอดำเนินการ" ค้างอยู่ในคิวของร้านเงียบๆ (ไม่ใช่สถานะยกเลิก ไม่มีการแจ้งร้าน)
+  // บล็อกไว้ก่อนยิง postAction เลย แนะนำให้ใช้ปุ่ม "ยกเลิกออร์เดอร์" แทนถ้าต้องการเลิกสั่งทั้งหมด
+  if(!newItems.length){
+    alert('ไม่สามารถบันทึกได้: ต้องมีสินค้าอย่างน้อย 1 รายการ\nถ้าต้องการยกเลิกออเดอร์นี้ทั้งหมด กรุณาใช้ปุ่ม "ยกเลิกออร์เดอร์" แทน');
+    btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+    return;
+  }
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||i.price||0),0);
   const newNote=document.getElementById('editNote').value.trim();
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
@@ -1563,7 +1599,11 @@ function renderAdminOrders(){
   const ds_done=o=>o.delivery_status==='done'||String(o.delivery_status).toLowerCase().trim()==='done'||o.status==='done';
   const ds_packing=o=>o.delivery_status==='packing'||String(o.delivery_status).toLowerCase().trim()==='packing';
   const ds_cancelled=o=>o.delivery_status==='cancelled'||String(o.delivery_status).toLowerCase().trim()==='cancelled'||o.status==='cancelled';
-  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o);
+  // [เพิ่ม 28 ก.ย. 69] สถานะใหม่ "stockout" — ของหมดทั้งออเดอร์ระหว่างแพ็ค (ทุกรายการถูกลดเหลือ 0 พร้อมกัน)
+  // ต่างจาก done/cancelled/pending/packing เดิมทั้งหมด ต้องกันไม่ให้ ds_pending เข้าใจผิดว่าเป็น pending
+  // (เดิม ds_pending นิยามจาก "ไม่ใช่ done/packing/cancelled" ถ้าไม่กันไว้ ออเดอร์ stockout จะไปโผล่ผิดที่แท็บรอจัด)
+  const ds_stockout=o=>o.delivery_status==='stockout'||String(o.delivery_status).toLowerCase().trim()==='stockout';
+  const ds_pending=o=>!ds_done(o)&&!ds_packing(o)&&!ds_cancelled(o)&&!ds_stockout(o);
   const isToday=o=>{
     const t=o.done_at||o.timestamp;
     if(!t)return false;
@@ -1572,13 +1612,15 @@ function renderAdminOrders(){
     return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
   };
   let filtered;
+  // [เพิ่ม 28 ก.ย. 69] ออเดอร์ stockout โชว์รวมอยู่ในแท็บ "กำลังจัด" (เป็นจุดที่มันค้างอยู่จริงๆ ก่อนของจะหมด)
+  // แต่ล็อกไม่ให้แก้ไข/กดจัดเสร็จต่อได้อีก (ดู canAdjustQty/footerBtns ด้านล่าง) — ต้องให้เจ้าของแก้ในชีตเองเท่านั้น
   if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
-  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(ds_packing);
+  else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(o=>ds_packing(o)||ds_stockout(o));
   else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
   const list=document.getElementById('adminList');
   const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
-  const packingCount2=allAdminOrders.filter(ds_packing).length;
+  const packingCount2=allAdminOrders.filter(o=>ds_packing(o)||ds_stockout(o)).length;
   const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
   const adminSubtitleText=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
   if(adminSubtitleText!==lastAdminSubtitleText){document.getElementById('adminSubtitle').textContent=adminSubtitleText;lastAdminSubtitleText=adminSubtitleText;}
@@ -1618,7 +1660,10 @@ function renderAdminOrders(){
     const isPending=ds_pending(o);
     const isPacking=ds_packing(o);
     const isDone=ds_done(o);
-    const canAdjustQty=isPacking;
+    // [เพิ่ม 28 ก.ย. 69] ออเดอร์ stockout (ของหมดทั้งออเดอร์ระหว่างแพ็ค) ต้องล็อก ไม่ให้แก้จำนวน/กดจัดเสร็จต่อได้อีก
+    // — เป็น terminal state ที่ต้องให้เจ้าของแก้ไขเองในชีต Google Sheet เท่านั้น (พนักงานหน้าร้านห้ามปิดเคสเองได้)
+    const isStockout=ds_stockout(o);
+    const canAdjustQty=isPacking&&!isStockout;
     const itemsHtml=items.map((item,idx)=>{
       const prod=prodMap[item.name]||{};
       const rowKey=o.order_id+'_'+idx;
@@ -1630,17 +1675,35 @@ function renderAdminOrders(){
       // event.target===event.currentTarget ใน keydown กัน Enter จากปุ่ม +/- ข้างในเด้งมา toggle picked ซ้ำ
       const rowClick=canAdjustQty?` role="button" tabindex="0" aria-pressed="${isPicked?'true':'false'}" onclick="toggleItemPicked('${rowKey}',this)" onkeydown="if(event.target===event.currentTarget&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggleItemPicked('${rowKey}',this)}"`:'';
       const unitPrice=Number(prod.price)||0;
-      const lineTotal=unitPrice*item.qty;
-      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${item.qty} = ฿${fmtMoney(lineTotal)}</div>`;
+      // [แก้ 28 ก.ย. 69 — BUG-002] เดิมใช้ item.qty (ค่าจากเซิร์ฟเวอร์) เสมอทั้งตอนคำนวณราคาต่อรายการและตอนตั้ง
+      // ค่าเริ่มต้นของช่อง input — ถ้าแอดมินเพิ่งแก้จำนวนผ่าน adminChg/adminSetQty ไว้ (เก็บอยู่ใน adminQtys) แต่
+      // ยังไม่ได้กด "จัดเสร็จแล้ว"/บันทึก แล้ว renderAdminOrders() ถูกเรียกซ้ำ (เช่น auto-refresh ทุก 30 วิ เจอออเดอร์
+      // อื่นเปลี่ยนแปลง) ค่าที่เพิ่งแก้จะถูกรีเซ็ตกลับเป็นค่าเดิมจากเซิร์ฟเวอร์เงียบๆ โดยไม่มีการเตือน เสี่ยงจัดของ/
+      // บันทึกด้วยจำนวนผิด — แก้โดยใช้ adminQtys (ถ้ามีค่าที่แก้ค้างอยู่) เป็นค่าที่แสดงจริงแทน item.qty เสมอ
+      const displayQty=canAdjustQty&&adminQtys[o.order_id]&&adminQtys[o.order_id][item.name]!=null?adminQtys[o.order_id][item.name]:item.qty;
+      const lineTotal=unitPrice*displayQty;
+      const priceHtml=`<div class="admin-item-price" id="ap${o.order_id}_${idx}">฿${fmtMoney(unitPrice)} x ${displayQty} = ฿${fmtMoney(lineTotal)}</div>`;
       const reasonHtml=buildItemEditNoteHtml(o,item.name);
-      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#CB3E09;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
+      return`<div class="admin-item-row${isPicked?' picked':''}"${rowClick}>${imgHtml}<div style="flex:1"><div class="admin-item-name">${item.name}</div>${priceHtml}${reasonHtml}</div>${canAdjustQty?`<div class="admin-item-qty-row" onclick="event.stopPropagation()"><button class="admin-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},-1)">−</button><input type="number" class="admin-qty-num" id="aq${o.order_id}_${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${displayQty}" min="0" max="999" oninput="adminSetQty('${o.order_id}',${idx},this.value)"><button class="admin-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="adminChg('${o.order_id}',${idx},1)">+</button></div>`:`<span class="item-qty" style="font-weight:600;color:#CB3E09;min-width:30px;text-align:right">x${item.qty}</span>`}</div>`;
     }).join('');
+    // [แก้ 28 ก.ย. 69 — BUG-002 ต่อ] ยอดรวมท้ายการ์ดเดิมใช้ o.total (ค่าจากเซิร์ฟเวอร์) ตรงๆ เสมอ — ถ้าไม่คำนวณ
+    // จาก displayQty แบบเดียวกับราคาต่อรายการด้านบน จะเกิดอาการ "ราคาต่อรายการโชว์เลขที่แก้แล้ว แต่ยอดรวมท้าย
+    // การ์ดยังโชว์เลขเก่า" ขัดแย้งกันเองหลัง auto-refresh ทับ ต้องคำนวณด้วยตรรกะเดียวกันเป๊ะ (เหมือน recalcAdminTotal)
+    const orderDisplayTotal=canAdjustQty?items.reduce((sum,item)=>{
+      const prod=prodMap[item.name]||{};
+      const q=adminQtys[o.order_id]&&adminQtys[o.order_id][item.name]!=null?adminQtys[o.order_id][item.name]:item.qty;
+      return sum+(Number(prod.price)||0)*q;
+    },0):Number(o.total)||0;
     let topBadge='';
     if(isPending) topBadge=`<span class="badge badge-pending">รอจัด</span>`;
+    // [เพิ่ม 28 ก.ย. 69] เช็ค isStockout ก่อน isPacking เสมอ — ออเดอร์ stockout ไม่ตรงเงื่อนไข isPacking
+    // (delivery_status เป็น 'stockout' ไม่ใช่ 'packing') แต่ต้องไม่ไปตกที่ else (เข้าใจผิดว่า "เสร็จสมบูรณ์")
+    else if(isStockout) topBadge=`<span class="badge" style="background:#FBEAEA;color:#A32D2D">⚠️ ของหมดทั้งหมด — รอเจ้าของ</span>`;
     else if(isPacking) topBadge=`<span class="badge" style="background:#EEEDFE;color:#3C3489">กำลังจัด</span>`;
     else topBadge=`<span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>`;
     let footerBtns='';
     if(isPending) footerBtns=`<button class="btn-done" id="btnMarkPacking_${o.order_id}" style="background:#534AB7;font-size:13.5px" onclick="markPacking('${o.order_id}',this)">เริ่มจัดสินค้า</button>`;
+    else if(isStockout) footerBtns=`<div style="font-size:12.5px;color:#A32D2D;font-weight:500;text-align:right">รอเจ้าของตรวจสอบ<br>(แก้ไขได้ในชีต Google Sheet)</div>`;
     else if(isPacking) footerBtns=`<button class="btn-done" id="btnMarkDone_${o.order_id}" style="background:#4f7a1b;font-size:13.5px" onclick="markDone('${o.order_id}',this)">✓ จัดเสร็จแล้ว</button>`;
     else footerBtns=`<button class="btn-done" style="background:#1a0a06;font-size:13.5px" onclick="showOrderSummary('${o.order_id}')">⬇ บันทึกรูปภาพ</button>`;
     return`<div class="admin-order-card">
@@ -1651,7 +1714,7 @@ function renderAdminOrders(){
       <div class="admin-items-list">${itemsHtml}</div>
       ${cleanNote(o.note)?`<div class="admin-note">📝 ${escapeHtml(cleanNote(o.note))}</div>`:''}
       <div class="admin-order-footer">
-        <div><div class="admin-total" id="atotal${o.order_id}">฿${fmtMoney(o.total)}</div><div style="font-size:12.5px;color:#666;margin-top:2px">${items.length} รายการ</div></div>
+        <div><div class="admin-total" id="atotal${o.order_id}">฿${fmtMoney(orderDisplayTotal)}</div><div style="font-size:12.5px;color:#666;margin-top:2px">${items.length} รายการ</div></div>
         ${footerBtns}
       </div>
     </div>`;
@@ -2888,6 +2951,9 @@ function adminSetQty(orderId,idx,val){
   if(!item)return;
   const newQty=Math.max(0,Math.min(999,parseInt(val)||0));
   adminQtys[orderId][item.name]=newQty;
+  // [แก้ 28 ก.ย. 69 — BUG-003] เขียนค่า clamp แล้วกลับเข้าช่อง input เหมือน adminChg() ทำอยู่แล้ว
+  const qtyEl=document.getElementById(`aq${orderId}_${idx}`);
+  if(qtyEl&&qtyEl.value!==String(newQty)) qtyEl.value=newQty;
   const prodMap=getOrderProdMap(order);
   const unitPrice=prodMap[item.name]||0;
   const priceEl=document.getElementById(`ap${orderId}_${idx}`);
@@ -2928,6 +2994,11 @@ async function saveAdminEdit(orderId){
   const prodMap=getOrderProdMap(order);
   const items=parseItems(order.items);
   const newItems=items.map(item=>({...item,qty:adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty})).filter(i=>i.qty>0);
+  // [แก้ 28 ก.ย. 69 — BUG-005] เหตุผลเดียวกับ saveEdit() ฝั่งลูกค้า — กันบันทึกออเดอร์ว่างเปล่า 0 รายการ
+  if(!newItems.length){
+    alert('ไม่สามารถบันทึกได้: ต้องมีสินค้าอย่างน้อย 1 รายการ');
+    return;
+  }
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
   const itemsText=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
   const newTimestamp=new Date().toISOString();
@@ -2991,6 +3062,30 @@ async function markDone(orderId,btnEl){
         const newTimestamp=new Date().toISOString();
         const itemReasons=await promptEditReason(order.items,itemsStr);
         if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> ยังไม่จัดเสร็จ ยังไม่บันทึกจำนวนใหม่
+        // [เพิ่ม 28 ก.ย. 69 — ระบบสถานะ "stockout"] เดิม (ก่อนแก้) ถ้าลดสินค้าทุกตัวเหลือ 0 พร้อมกัน (ของหมดยก
+        // ออเดอร์) โค้ดจะไหลผ่าน branch ปกติด้านล่างต่อไปเรื่อยๆ จนกด "จัดเสร็จแล้ว" ซ้ำรอบสองแล้วปิดเป็นสถานะ
+        // "done" ทั้งที่ไม่ได้จัดอะไรให้ลูกค้าจริงเลยสักชิ้น (ออเดอร์ ฿0.00 ที่ระบบเข้าใจผิดว่า "เสร็จสมบูรณ์") —
+        // แยก branch นี้ออกมาต่างหาก: บันทึกรายการ (ว่างเปล่า) ตามปกติเหมือนเดิม แต่ตั้ง delivery_status เป็น
+        // "stockout" (สถานะใหม่ ไม่ใช่ done/cancelled) แทน จบในคลิกเดียว ไม่ต้องกด "จัดเสร็จแล้ว" ซ้ำรอบสอง
+        // (เพราะไม่มีอะไรเหลือให้ "จัดเสร็จ" แล้ว) — สถานะนี้เป็น terminal state ที่พนักงานปิดเคสเองต่อไม่ได้อีก
+        // (ไม่มีปุ่มให้กดต่อ ดู renderAdminOrders/footerBtns) ต้องให้เจ้าของเข้าไปแก้ในชีต Google Sheet เอง
+        // ตามกฎที่ตั้งไว้ว่าพนักงานหน้าร้านห้ามยกเลิกออเดอร์ได้เอง
+        if(newItems.length===0){
+          const stockoutUpdateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'markDone:stockoutUpdateOrder');
+          if(!stockoutUpdateResult||stockoutUpdateResult.success===false){
+            alert('บันทึกไม่สำเร็จ: '+(stockoutUpdateResult&&stockoutUpdateResult.error?stockoutUpdateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+            return;
+          }
+          const stockoutResult=await postAction({action:'updateDelivery',order_id:orderId,delivery_status:'stockout'},'markDone:stockout');
+          if(!stockoutResult||stockoutResult.success===false){
+            alert('บันทึกรายการสำเร็จ แต่บันทึกสถานะ "ของหมด" ไม่สำเร็จ: '+(stockoutResult&&stockoutResult.error?stockoutResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ (กดปุ่มนี้ซ้ำได้ ไม่สร้างรายการซ้ำ)');
+            return;
+          }
+          order.items=itemsStr;order.total=newTotal;order.timestamp=newTimestamp;order.delivery_status='stockout';
+          renderAdminOrders();
+          showToast('บันทึกแล้ว — แจ้งเจ้าของร้านทาง Telegram ให้ตัดสินใจต่อแล้ว ⚠️');
+          return;
+        }
         const updateResult=await postAction({action:'updateOrder',order_id:orderId,items:itemsStr,total:newTotal,note:order.note||'',timestamp:newTimestamp,itemReasons},'markDone:updateOrder');
         if(!updateResult||updateResult.success===false){
           alert('บันทึกจำนวนที่แก้ไขไม่สำเร็จ: '+(updateResult&&updateResult.error?updateResult.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่ ยังไม่ได้บันทึกสถานะจัดเสร็จ');
@@ -3402,7 +3497,14 @@ function applyReorderSelected(){
   items.forEach((item,idx)=>{
     if(!reorderSelectedIdx.has(idx))return;
     const prod=prodMap[item.name];
-    if(prod){cart[prod.product_id]={qty:item.qty,name:prod.name,price:Number(prod.price)};addedCount++;}
+    if(prod){
+      // [แก้ 28 ก.ย. 69 — BUG-004] เดิมเขียนทับจำนวนเดิมในตะกร้าตรงๆ — ถ้าลูกค้าเลือกสินค้าเองไว้ในตะกร้าอยู่ก่อน
+      // แล้วมาสั่งซ้ำสินค้าตัวเดียวกันจากออเดอร์เก่า จำนวนที่เลือกเองจะหายไปเงียบๆ ถูกแทนที่ด้วยจำนวนจากออเดอร์เก่า
+      // แทน — เปลี่ยนเป็นบวกเพิ่มจากจำนวนเดิมที่มีอยู่แล้ว (clamp ไม่เกิน 999 เหมือนขีดจำกัดจำนวนสินค้าทั่วทั้งแอป)
+      const existingQty=cart[prod.product_id]?cart[prod.product_id].qty:0;
+      cart[prod.product_id]={qty:Math.min(999,existingQty+item.qty),name:prod.name,price:Number(prod.price)};
+      addedCount++;
+    }
   });
   closeReorderModal();
   goSection('shop');
