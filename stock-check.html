@@ -230,6 +230,11 @@
 
   /* order overview + collapsible supplier cards */
   .stat-strip{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-bottom:12px;}
+  /* UX fix (28 ก.ย. 69, UX-003): อธิบายวงกลม ✓ ยืนยันส่งออเดอร์ (.order-done-check) ครั้งเดียวตรงนี้
+     แทนที่จะไม่มีคำอธิบายเลยที่ไหนบนหน้าจอ — โชว์ครั้งเดียวเหนือรายชื่อร้าน ไม่พ่วงทุกแถวกันหน้าจอรก */
+  .confirm-hint{font-size:11.5px; color:var(--text-tertiary); line-height:1.4; margin:0 0 12px;}
+  .confirm-hint .dim{color:var(--text-tertiary);}
+  .order-confirmed-label{font-size:10.5px; color:var(--green); font-weight:600; margin-left:4px;}
   .stat-card{background:#fff; border:1px solid var(--border); border-radius:var(--radius-md); padding:9px 6px; text-align:center;}
   .stat-card .n{font-size:19px; font-weight:700; line-height:1.1;}
   .stat-card .lbl{font-size:10.5px; color:var(--text-tertiary); margin-top:2px; line-height:1.2;}
@@ -718,6 +723,21 @@ function friendlyBillError(err){
   }
   return { title: null, detail: msg };
 }
+// UX fix (28 ก.ย. 69, จาก Focused Usability & UX Audit — UX-001): จุดอื่นๆ ในแอปที่โชว์ error ให้ผู้ใช้เห็น
+// (alert/confirm/showError รวม 18 จุด — ไม่นับ friendlyBillError ด้านบนที่มี pattern ของตัวเองอยู่แล้ว)
+// เดิมเอา err.message ดิบจาก backend มาต่อท้ายข้อความตรงๆ — ถ้า backend โยน exception จริง (เช่น Google
+// Apps Script stack trace) พนักงานจะเห็นข้อความแบบ "Exception: Cannot read properties of null (reading
+// 'getRange') at setUnitLabel(Code:842:19)" ซึ่งอ่านไม่รู้เรื่องและไม่รู้จะทำอะไรต่อ — ฟังก์ชันนี้ตรวจจับว่า
+// ข้อความ "ดูเป็นเทคนิค" (มีคำว่า Exception/TypeError/ReferenceError/SyntaxError หรือรูปแบบ stack trace
+// อย่าง "at ...(file:line:col)") แล้วแทนที่ด้วยข้อความกลางที่บอกให้ทำอะไรต่อแทน — ข้อความที่อ่านรู้เรื่องอยู่แล้ว
+// (เช่น "หมดเวลาเชื่อมต่อ ลองใหม่อีกครั้ง" จาก apiGet/apiPost) ปล่อยผ่านเหมือนเดิมไม่แตะ — ของจริงยัง
+// log ไว้ที่ console.error เสมอ ไม่ได้หายไปไหน เผื่อต้องไล่บั๊กทีหลัง
+function friendlyErrorMessage(err){
+  const raw = String((err && err.message) || err || '');
+  console.error('[friendlyErrorMessage] raw:', raw);
+  const looksTechnical = /Exception|TypeError|ReferenceError|SyntaxError|at\s+\S+\(.*:\d+:\d+\)/.test(raw);
+  return looksTechnical ? 'เกิดข้อผิดพลาดบางอย่าง ลองใหม่อีกครั้งนะครับ ถ้ายังไม่ได้ให้บอกเจ้าของร้าน' : raw;
+}
 
 /* ============ product photo match screen ============ */
 // เปิดหน้าจับคู่รูปที่เลือกจากเครื่อง (files) กับสินค้าของซัพพลายเออร์นี้ (products)
@@ -798,7 +818,7 @@ function openPhotoMatchScreen(files, products, onDone){
       onDone();
     }catch(err){
       saveBtn.disabled = false;
-      alert('บันทึกรูปไม่สำเร็จ: ' + err.message);
+      alert('บันทึกรูปไม่สำเร็จ: ' + friendlyErrorMessage(err));
       updateProgress();
     }
   };
@@ -861,7 +881,7 @@ function openAddProductScreen(sup, onAdded){
       onAdded(product);
     }catch(err){
       btn.disabled = false; btn.textContent = 'บันทึกสินค้าใหม่';
-      showError('บันทึกไม่สำเร็จ: ' + err.message);
+      showError('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err));
     }
   };
 }
@@ -1430,7 +1450,7 @@ function renderStaffName(app){
       const s = STAFF.find(x=>x.id===staffId);
       if(s) s.avatarUrl = avatarUrl;
       if(targetEl) targetEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
-    }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + err.message); }
+    }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
   };
   // แตะที่ตัวรูปเอง = ซูมดูรูปใหญ่ (ถ้ามีรูปแล้ว) กันเผลอกดเลือกพนักงานผิดคนตอนแค่อยากดูรูปชัดๆ
   // ส่วนป้ายกล้องเล็กๆ มุมขวาล่างแยกไว้เป็นปุ่ม "เปลี่ยนรูป" โดยเฉพาะ ไม่ปนกับการซูมอีกต่อไป
@@ -1554,7 +1574,7 @@ function renderBillStaff(app){
       const s = STAFF.find(x=>x.id===staffId);
       if(s) s.avatarUrl = avatarUrl;
       if(targetEl) targetEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
-    }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + err.message); }
+    }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
   };
   function openAvatarLightbox(url, name){
     const lb = document.createElement('div'); lb.className = 'avatar-lightbox';
@@ -2184,7 +2204,7 @@ function renderBillReview(app){
       go('billSuccess', {billLearnedCount: res.learnedCount||0});
     }catch(err){
       saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
-      alert('บันทึกไม่สำเร็จ: ' + err.message);
+      alert('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err));
     }
   };
 
@@ -2205,7 +2225,7 @@ function renderBillReview(app){
     }catch(err){
       discardBtn.disabled = false; discardBtn.textContent = 'ทิ้งบิลนี้ (ไม่บันทึก)';
       updateFooter(); // คืนสถานะ saveBtn.disabled ให้ตรงกับจำนวนรายการที่ยังไม่จับคู่จริง
-      alert('ทิ้งบิลไม่สำเร็จ: ' + err.message);
+      alert('ทิ้งบิลไม่สำเร็จ: ' + friendlyErrorMessage(err));
     }
   };
 
@@ -2226,7 +2246,7 @@ function renderBillReview(app){
       go('billSuccess', {});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
-      alert('บันทึกไม่สำเร็จ: ' + err.message);
+      alert('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err));
     }
   };
 }
@@ -2314,7 +2334,7 @@ async function submitAllBatch(c){
     }catch(err){
       btn.disabled = false;
       drawBatchCards(c);
-      alert('ส่งบิลที่ ' + (gi+1) + ' ไม่สำเร็จ: ' + err.message + '\nบิลที่ส่งไปแล้วก่อนหน้าไม่ถูกส่งซ้ำ กด "ส่งทั้งหมด" อีกครั้งเพื่อลองบิลที่เหลือต่อได้');
+      alert('ส่งบิลที่ ' + (gi+1) + ' ไม่สำเร็จ: ' + friendlyErrorMessage(err) + '\nบิลที่ส่งไปแล้วก่อนหน้าไม่ถูกส่งซ้ำ กด "ส่งทั้งหมด" อีกครั้งเพื่อลองบิลที่เหลือต่อได้');
       return;
     }
   }
@@ -3005,7 +3025,7 @@ async function renderSupplierCheck(app){
     const toast = document.createElement('div'); toast.className='copy-toast'; toast.setAttribute('role','status'); toast.setAttribute('aria-live','polite'); toast.textContent='กำลังบันทึก...';
     document.body.appendChild(toast);
     try{ await saveCheckedItems(); return true; }
-    catch(err){ return confirm('บันทึกอัตโนมัติไม่สำเร็จ (' + err.message + ')\nยืนยันออกจากหน้านี้โดยไม่บันทึกใช่ไหม?'); }
+    catch(err){ return confirm('บันทึกอัตโนมัติไม่สำเร็จ (' + friendlyErrorMessage(err) + ')\nยืนยันออกจากหน้านี้โดยไม่บันทึกใช่ไหม?'); }
     finally{ toast.remove(); }
   }
   supplierCheckAutoSave = autoSaveOnLeave; // ให้ popstate listener (นอกฟังก์ชันนี้) เรียกใช้ได้ตอนปัดกลับ
@@ -3016,17 +3036,21 @@ async function renderSupplierCheck(app){
   app.appendChild(topbar(sup.name, {back:guardedLeave, numBadge:SUPPLIERS.indexOf(sup)+1}));
   const c = document.createElement('div'); c.className='content';
 
+  const grid = document.createElement('div'); grid.className='prod-grid'; grid.setAttribute('role','list');
+  c.appendChild(grid);
+
+  // UX fix (28 ก.ย. 69, จาก Focused Usability & UX Audit — UX-002): เดิมปุ่มนี้อยู่ก่อน grid สินค้าเสมอ
+  // (สิ่งแรกที่เจอทุกครั้งที่เข้าเช็คของเจ้าไหนก็ตาม) ทั้งที่เป็นงานเสริม (แนบรูปสินค้า) ไม่ใช่งานหลักที่ทำ
+  // ทุกวัน (กรอกจำนวน) — ย้ายไปอยู่ท้าย grid แทน ตำแหน่งเดียวที่เปลี่ยน ไม่แตะเงื่อนไข/สิทธิ์การมองเห็นเลย
+  // (ยังโชว์ให้พนักงานทุกคนเห็นเหมือนเดิมทุกประการ เผื่อมีสินค้าใหม่หรืออยากอัปเดตรูปทีหลัง)
   if(!CAMERA_PER_PRODUCT_ENABLED){
     const pickBtn = document.createElement('button');
     pickBtn.className = 'btn btn-block';
-    pickBtn.style.marginBottom = '14px';
+    pickBtn.style.marginTop = '14px';
     pickBtn.innerHTML = '<i class="ti ti-photo-plus" style="font-size:16px; vertical-align:-3px; margin-right:6px;" aria-hidden="true"></i>เลือกรูปสินค้า (หลายไฟล์)';
     pickBtn.onclick = ()=> multiPhotoInput.click();
     c.appendChild(pickBtn);
   }
-
-  const grid = document.createElement('div'); grid.className='prod-grid'; grid.setAttribute('role','list');
-  c.appendChild(grid);
 
   let photoTargetPid = null;
   const photoInput = document.createElement('input');
@@ -3041,7 +3065,7 @@ async function renderSupplierCheck(app){
     if(!file || !pid) return;
     try{
       productPhotos[pid] = await compressImage(file, 800, 0.6);
-    }catch(err){ alert('ถ่ายรูปไม่สำเร็จ: ' + err.message); }
+    }catch(err){ alert('ถ่ายรูปไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
     renderGrid();
   };
 
@@ -3148,7 +3172,7 @@ async function renderSupplierCheck(app){
             renderGrid();
           }catch(err){
             btn.disabled = false;
-            alert('ตั้งรูปปกไม่สำเร็จ: ' + err.message);
+            alert('ตั้งรูปปกไม่สำเร็จ: ' + friendlyErrorMessage(err));
           }
         };
       });
@@ -3173,7 +3197,7 @@ async function renderSupplierCheck(app){
           }catch(err){
             u.label = oldLabel;
             renderGrid();
-            alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
+            alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + friendlyErrorMessage(err));
           }
         });
       });
@@ -3265,7 +3289,7 @@ async function renderSupplierCheck(app){
         go('staffDone');
       }catch(err){
         btn.disabled = false; btn.textContent = 'เสร็จเจ้านี้';
-        alert('บันทึกไม่สำเร็จ: ' + err.message);
+        alert('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err));
       }
     };
   }
@@ -3512,6 +3536,7 @@ async function renderOrderPage(app){
   function productsOf(supplierId){ return productsBySupplier.get(supplierId) || []; }
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
+    <p class="confirm-hint" role="note">แตะ <b>✓</b> เมื่อส่งออเดอร์จริงแล้ว <span class="dim">(ไม่ใช่แค่สร้างข้อความ)</span></p>
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <input type="text" id="search" placeholder="ค้นหาชื่อสินค้าหรือชื่อเจ้า" style="flex:1;">
     </div>
@@ -3594,6 +3619,7 @@ async function renderOrderPage(app){
     head.innerHTML = `
       <i class="ti ti-chevron-down chev"></i>
       <button type="button" class="order-done-check${isConfirmed?' confirmed':''}" title="กดเมื่อส่งออเดอร์ให้ร้านนี้แล้วจริง" aria-label="กดเมื่อส่งออเดอร์ให้ร้าน ${s.name} แล้วจริง" aria-pressed="${isConfirmed}">${isConfirmed?'✓':''}</button>
+      <span class="order-confirmed-label"${isConfirmed?'':' hidden'}>ส่งแล้ว</span>
       <span class="ord-card-name">${s.name}</span>
       <div class="ord-card-status">
         <div class="status-top-row">
@@ -3637,6 +3663,7 @@ async function renderOrderPage(app){
       // ทั้งหน้าหลังกดสำเร็จอีกต่อไป (เพื่อความไว) — ถ้ายังอิง isConfirmed เดิม กดสลับซ้ำสองครั้ง
       // ในการ์ดเดียวกันโดยไม่รีเฟรชหน้า ครั้งที่สองจะยังอ่านค่าตั้งต้นเก่าอยู่ ผิดสถานะจริง
       let confirmedNow = isConfirmed;
+      const confirmedLabel = head.querySelector('.order-confirmed-label');
       confirmBtn.onclick = async (e)=>{
         e.stopPropagation();
         const checked = !confirmedNow;
@@ -3647,6 +3674,7 @@ async function renderOrderPage(app){
         confirmBtn.classList.toggle('confirmed', checked);
         confirmBtn.setAttribute('aria-pressed', String(checked));
         confirmBtn.textContent = checked ? '✓' : '';
+        if(confirmedLabel) confirmedLabel.hidden = !checked;
         if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
         renderStats();
         try{
@@ -3656,9 +3684,10 @@ async function renderOrderPage(app){
           confirmBtn.classList.toggle('confirmed', !checked);
           confirmBtn.setAttribute('aria-pressed', String(!checked));
           confirmBtn.textContent = !checked ? '✓' : '';
+          if(confirmedLabel) confirmedLabel.hidden = checked;
           if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
           renderStats();
-          alert('บันทึกสถานะไม่สำเร็จ: ' + err.message);
+          alert('บันทึกสถานะไม่สำเร็จ: ' + friendlyErrorMessage(err));
         }
       };
     }
@@ -3744,7 +3773,7 @@ async function renderOrderPage(app){
           unit.orderLabel = oldOrderLabel;
           rebuildCard(s);
           restoreTagFocus();
-          alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + err.message);
+          alert('แก้ชื่อหน่วยไม่สำเร็จ: ' + friendlyErrorMessage(err));
         }
       });
 
@@ -3768,7 +3797,7 @@ async function renderOrderPage(app){
               }
               p.skipDates = (p.skipDates||[]).filter(d=> !skipDates.includes(d));
               rebuildCard(s);
-            }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + err.message); }
+            }catch(err){ alert('ยกเลิกไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
           })();
         }else{
           openSkipDatePicker(p, async (date)=>{
@@ -3776,7 +3805,7 @@ async function renderOrderPage(app){
               await apiPost('setProductSkipDate', { productId: p.id, date, skip: true }, true);
               p.skipDates = [...(p.skipDates||[]), date];
               rebuildCard(s);
-            }catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
+            }catch(err){ alert('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
           });
         }
       };
@@ -3839,7 +3868,7 @@ async function renderOrderPage(app){
           go('orderMessage');
         }catch(err){
           btn.disabled = false; btn.textContent = originalLabel;
-          alert('บันทึก OrderLogs ไม่สำเร็จ: ' + err.message);
+          alert('บันทึก OrderLogs ไม่สำเร็จ: ' + friendlyErrorMessage(err));
         }
       };
       btnRow.appendChild(btn);

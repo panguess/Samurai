@@ -1018,6 +1018,59 @@ Verification Audit" อัปเดตเป็น**เวอร์ชัน 4**
 
 **ไม่มีการแก้โค้ดเพิ่มใน session นี้นอกจาก ACC-008** — ทุกอย่างเป็นการตอบคำถาม/ยืนยันสถานะล้วนๆ
 
+### สถานะล่าสุด (อัปเดต 28 ก.ย. 69) — 3 Focused Audit ใหม่ (Regression/Responsive/Usability) + แก้ 3 UX finding แล้ว push แล้ว
+
+**บริบท**: session นี้ทำ 3 audit เต็มรูปแบบตามเทมเพลตมาตรฐานต่อเนื่องกัน แล้วปิดท้ายด้วยการแก้ finding ที่เจอจริง —
+ทุกอย่าง push เข้า `main` แล้ว (commit `d02e31c`, merge เป็น `b06d752`)
+
+**1. Focused Regression Audit** (ตรวจ 2 ชุดการเปลี่ยนแปลงล่าสุดก่อนหน้า) — **PASS, 0 regression**
+
+**2. Focused Responsive & Cross-Browser Compatibility Audit** — ทดสอบ 9 viewport, 8 orientation, touch emulation
+ผ่าน Chromium ครบ — **PASS, 0 issue** ⚠️ Firefox/Safari/Edge รายงานตรงๆ ว่า **"Not Tested"** เพราะ sandbox นี้มีแค่
+Chromium binary จริง (`/opt/pw-browsers/chromium-1194` — เช็คด้วย `ls` ยืนยันแล้วว่า Firefox/WebKit ไม่มี binary จริง
+แม้ Playwright API จะมี launcher ให้เรียกก็ตาม) — **ห้ามอ้างว่าเทสผ่านข้ามเบราว์เซอร์อื่นถ้าไม่มี binary จริงให้รันอีก**
+
+**3. Focused Usability & UX Audit** (10 heuristics ของ Nielsen) — พบ 3 finding จริง: **PASS WITH ISSUES**
+- **UX-001 (High)**: error ดิบจาก backend (Google Apps Script exception string) หลุดไปโชว์ผู้ใช้ตรงๆ ผ่าน `alert()`/
+  `confirm()`/`showError()` — เดิมรายงานว่า "~9 จุด" (นับผิดเพราะใช้ `sort -u` ไปรวม error text ที่ซ้ำกันข้าม
+  call site) ผู้ใช้ถามกลับจึงนับใหม่ไม่ dedupe เจอว่าเป็น **18 จุดจริง**
+- **UX-002 (Medium)**: ปุ่ม "เลือกรูปสินค้า (หลายไฟล์)" อยู่**ก่อน** grid สินค้าเสมอ (สิ่งแรกที่เห็นทุกครั้งที่เข้าเช็ค
+  ของเจ้าไหนก็ตาม) ทั้งที่เป็นงานเสริม ไม่ใช่งานหลักที่ทำทุกวัน (กรอกจำนวน)
+- **UX-003 (Low)**: ปุ่มวงกลม ✓ ยืนยันส่งออเดอร์ให้ซัพพลายเออร์ (`.order-done-check`) ไม่มี label/คำอธิบายเลยว่า
+  กดแล้วหมายถึงอะไร แยกไม่ออกจากการแค่สร้างข้อความในแอปเฉยๆ
+
+**4. ทำเดโม่ Artifact ก่อน implement ตามกติกา UI ของแอปนี้** — override CSS/data จริงจาก `stock-check.html` ให้ดู
+ก่อน-หลังทั้ง 3 เรื่องพร้อมกัน (`https://claude.ai/artifact/5Ni4kvagxUohGg4kBGFp52`) — ผู้ใช้ให้ feedback แก้ไข
+3 จุด (เดโม่เวอร์ชัน 2): (1) ปรับคำ UX-001 ให้ไพเราะขึ้น (2) UX-002 **ห้ามซ่อนปุ่มแม้รูปครบแล้ว** เก็บไว้ถาวรเผื่อ
+อนาคตมีสินค้าใหม่ — ผู้ใช้จำว่าปุ่มนี้จำกัดแค่ Mile แต่เช็คโค้ดจริง (`CAMERA_PER_PRODUCT_ENABLED` เป็น global const
+ไม่เกี่ยวกับ `canAddProduct()`'s Mile-check เลย) พบว่า**ปัจจุบันเห็นได้ทั้ง 5 คน** — สอบถามกลับ ผู้ใช้ยืนยันแล้วว่า
+"ปล่อยให้เข้าได้ทุกคนไปนั่นแหละ" **ปิดประเด็นนี้แล้ว ไม่ต้องจำกัดสิทธิ์** (3) ย่อข้อความ UX-003 ให้สั้นกระชับ
+
+**5. Implement จริงหลัง "แก้เลย"** — ทั้ง 3 จุดอยู่ใน `stock-check.html` เท่านั้น (ไม่แตะ `Code.gs`/
+`BillCapture-Code.gs` เลย ไม่ต้อง deploy Apps Script เพิ่ม):
+- **UX-001**: เพิ่ม `friendlyErrorMessage(err)` (pattern เดียวกับ `friendlyBillError()` เดิม — ตรวจจับข้อความที่
+  "ดูเป็นเทคนิค" ด้วย regex `Exception|TypeError|ReferenceError|SyntaxError|at\s+\S+\(.*:\d+:\d+\)` แล้วแทนด้วย
+  "เกิดข้อผิดพลาดบางอย่าง ลองใหม่อีกครั้งนะครับ ถ้ายังไม่ได้ให้บอกเจ้าของร้าน" — error จริงยัง `console.error` ไว้
+  เสมอเผื่อไล่บั๊ก) แทนที่ `+ err.message` ด้วย `+ friendlyErrorMessage(err)` ครบทั้ง 18 จุด (ยืนยันด้วย grep ก่อน-
+  หลังตรงกัน) — ไม่แตะ `friendlyBillError()` เดิมของฟีเจอร์ถ่ายบิลเลย (มี pattern พิเศษของตัวเองอยู่แล้ว, `[QUOTA]`)
+- **UX-002**: ย้าย pick-photo button (`renderSupplierCheck()`) ไปต่อท้าย grid แทนที่จะอยู่ก่อน — ตำแหน่งเดียวที่
+  เปลี่ยน ไม่แตะเงื่อนไขการมองเห็นเลย (ยังโชว์ให้พนักงานทุกคนเห็นเหมือนเดิม ตามที่ผู้ใช้ยืนยัน)
+- **UX-003**: เพิ่ม CSS `.confirm-hint`/`.order-confirmed-label` + ข้อความ "แตะ **✓** เมื่อส่งออเดอร์จริงแล้ว
+  (ไม่ใช่แค่สร้างข้อความ)" เหนือรายชื่อร้านในหน้าสั่งของ + label "ส่งแล้ว" (`hidden` attribute toggle) ข้างวงกลม
+  ที่ติ๊กแล้ว ครอบคลุมทั้ง success path และ error-rollback path ของ `confirmBtn.onclick`
+
+**ทดสอบครบก่อน push**: `node --check` ผ่าน, เทสใหม่เฉพาะจุด `ux_fixes_test.js` **19/19 ผ่าน**, รันซ้ำ regression
+เดิมทั้งหมดที่มีในโปรเจกต์ (8 ไฟล์ `bugaudit_*` + `round1_billreview.js`/`round1_photo_and_cache.js`/
+`round2_regression.js` รวม 45 เคส) **ผ่านหมด 0 regression ใหม่** (มีแค่ 4 false-positive เดิมที่เคย root-cause
+ไว้แล้วในไฟล์นี้ก่อนหน้านี้ — DATA-1.3 ตั้งใจออกแบบไว้แบบนั้น ไม่ใช่บั๊ก, BILL-1.6/2.2/2.3 เป็น test-harness artifact)
+
+**Push**: commit `d02e31c` (เนื้อหา UX fix) merge กับ `origin/main` ที่มีอีก session ดันงานฝั่ง Order Web App เข้ามา
+พร้อมกัน (`index.html`/`order-app-Code.gs` คนละไฟล์ ไม่ชนกันเลย) เป็น `b06d752` — ยืนยันแล้วว่า local/remote
+ตรงกันเป๊ะหลัง push (`git rev-parse HEAD` == `git rev-parse origin/main`)
+
+**ไม่มีอะไรค้างจาก session นี้** — ถ้าคุยเรื่อง usability ของ `stock-check.html` ต่อในอนาคต ถือว่า 3 finding นี้
+ปิดสมบูรณ์แล้ว ไม่ต้องเริ่ม audit ใหม่เว้นแต่มีการแก้ UI ใหม่หลังจากนี้
+
 ## Order Web App (`index.html`) — รายละเอียดเชิงลึก
 
 **Production**: https://samurai-murex.vercel.app/ (frontend hosted บน Vercel, deploy จาก repo นี้) ต่อกับ
