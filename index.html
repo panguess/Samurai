@@ -27,6 +27,15 @@
     #errorScreen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;padding:2rem;text-align:center}
     #errorScreen h2{font-size:22.5px;color:#993c1d}
     #app,#adminApp{display:none;max-width:600px;margin:0 auto;padding-bottom:100px}
+    /* [เพิ่ม UX-011] เดิม #adminApp (แท็บรอจัด/กำลังจัด/เสร็จสมบูรณ์/ภาพรวม) ล็อกความกว้างไว้เท่ามือถือ
+       (600px) เสมอ แม้เปิดจากคอม/iPad จอกว้าง — มีแค่ Owner Dashboard ที่เคยถูกขยายให้กว้างขึ้น (960px ผ่าน JS)
+       ทั้งที่งานจัดของประจำวัน (ฝั่งพนักงาน/แอดมิน) ก็ใช้จากคอม/iPad บ่อยเหมือนกัน — เพิ่ม media query ให้กว้างขึ้น
+       พอสมควรบนจอกว้าง (900px ไม่เท่า 960px ของแดชบอร์ดที่มีกราฟ/กริดตารางซับซ้อนกว่าและได้ประโยชน์จากพื้นที่
+       มากกว่า) ไม่กระทบ #app (ฝั่งลูกค้า) เลย เพราะเลือกด้วย #adminApp เจาะจง — JS ที่เคยตั้ง/ล้าง inline
+       style.maxWidth ของ Owner Dashboard ต้องเปลี่ยนจาก hardcode '600px' เป็นล้าง property ทิ้งแทน (ดู
+       switchAdminTab/closeOwnerDashboard) ไม่งั้น inline style (specificity สูงกว่า media query เสมอ) จะบัง
+       ค่าจาก media query นี้ไว้ถาวรหลังปิดแดชบอร์ดครั้งแรก */
+    @media (min-width:768px){ #adminApp{max-width:900px} }
     .header{background:#CB3E09;color:#fff;padding:1.25rem 1rem}
     .header-name{font-size:25px;font-weight:600}
     .header-sub{font-size:14.5px;opacity:0.8;margin-top:4px}
@@ -149,6 +158,10 @@
     .btn-close{background:none;border:none;font-size:25px;cursor:pointer;color:#666;line-height:1}
     .modal-body{padding:16px;display:flex;flex-direction:column;gap:14px}
     .edit-item{display:flex;align-items:center;gap:12px;padding:10px;background:#f8f8f8;border-radius:12px}
+    /* [เพิ่ม UX-008] เดิมแยกรายการที่อยู่ในออเดอร์อยู่แล้วกับรายการที่ยังไม่ได้สั่งไม่ออกเลยจากหน้าตา (สีพื้นหลัง
+       เหมือนกันหมดทุกแถว) ต้องไล่อ่านตัวเลขจำนวนทีละแถว — เพิ่มพื้นหลังอ่อนๆ ให้แถวที่ qty>0 (จัดเรียงไว้ด้านบนสุด
+       แล้วด้วย ดู openEditOrder) ให้เห็นภาพรวมได้ทันทีว่าออเดอร์นี้มีอะไรอยู่บ้าง ไม่ต้องไล่อ่านทุกแถว */
+    .edit-item.in-order{background:#fdf1ea;border:1px solid #f5d9c8}
     .edit-img{width:80px;height:80px;border-radius:10px;object-fit:cover;background:#e8e8e8;flex-shrink:0}
     .edit-img-placeholder{width:80px;height:80px;border-radius:10px;background:#e8e8e8;display:flex;align-items:center;justify-content:center;font-size:38px;flex-shrink:0}
     .edit-info{flex:1;min-width:0}
@@ -328,9 +341,13 @@
         <h1 class="header-name" style="font-size:20px;margin:0">สั่งสินค้า</h1>
       </div>
     </div>
-    <button onclick="openReorderModal()" style="width:calc(100% - 24px);margin:10px 12px 4px;background:#fff;border:2px solid #534AB7;border-radius:999px;padding:13px 18px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer">
-      <span style="font-size:21.5px;color:#534AB7">↻</span>
-      <span style="font-size:16px;font-weight:700;color:#534AB7">สั่งซ้ำจากออเดอร์เก่า</span>
+    <!-- [แก้ UX-010] เดิมปุ่มนี้ใหญ่/หนา/เป็น pill เท่าปุ่ม CTA หลัก แย่งความสนใจจากงานหลักของหน้านี้ (เลือกสินค้า
+         จากกริดด้านล่าง) ทั้งที่เป็นแค่ทางลัดสำหรับลูกค้าประจำที่อยากสั่งซ้ำเท่านั้น ไม่ใช่สิ่งที่ต้องทำทุกครั้งที่
+         เข้าหน้านี้ — ลดน้ำหนักภาพ (ตัวเล็กลง เส้นขอบบางลง สีอ่อนลง ไม่ตัวหนา) แต่ยังคงตำแหน่งเดิมไว้ (ก่อนกริด)
+         เพื่อไม่ให้หาไม่เจอ/ต้องเลื่อนผ่านสินค้าทั้งร้านไปหาที่ท้ายลิสต์ซึ่งอาจยาวมากสำหรับบางกลุ่มลูกค้า -->
+    <button onclick="openReorderModal()" style="width:calc(100% - 24px);margin:10px 12px 8px;background:#fff;border:1px solid #e0d8f0;border-radius:10px;padding:8px 14px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer">
+      <span style="font-size:15px;color:#534AB7">↻</span>
+      <span style="font-size:13px;font-weight:500;color:#534AB7">สั่งซ้ำจากออเดอร์เก่า</span>
     </button>
     <div id="reorderToast" aria-live="polite" aria-atomic="true" style="display:none;background:#EAF3DE;color:#27500A;font-size:12.5px;padding:8px 12px;margin:4px 12px;border-radius:8px;text-align:center"></div>
     <div id="shopTab"><div class="product-grid" id="productGrid"></div></div>
@@ -357,24 +374,31 @@
     <div class="history-list" id="trackList"></div>
   </div>
   <!-- Reorder Modal -->
+  <!-- [แก้ UX-006] เดิม overflow-y:auto อยู่ที่กล่อง dialog ทั้งก้อน ทำให้หัวข้อ+รายการ+ปุ่มหลักเลื่อนไปด้วยกัน
+       ถ้ารายการยาว (เช่นออเดอร์ 20-30 รายการ) ปุ่มหลักจะตกขอบจอ ต้องเลื่อนหาเอง — เปลี่ยนเป็น flex column: หัวข้อ
+       คงที่ด้านบน / เนื้อหา (#reorderModalBody) scroll ได้เฉพาะตัวเอง (flex:1) / ปุ่มหลัก (#reorderModalFooter)
+       ปักหมุดด้านล่างเสมอ ตามแพทเทิร์นเดียวกับ #reasonModal ที่ทำแบบนี้อยู่แล้ว -->
   <div id="reorderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;align-items:flex-end;justify-content:center">
-    <div role="dialog" aria-modal="true" aria-labelledby="reorderModalTitle" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div role="dialog" aria-modal="true" aria-labelledby="reorderModalTitle" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;padding:1.25rem 1.25rem 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-shrink:0">
         <h2 id="reorderModalTitle" style="font-size:18px;font-weight:600">สั่งซ้ำจากประวัติ</h2>
         <button onclick="closeReorderModal()" aria-label="ปิด" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#666;padding:8px;line-height:1">✕</button>
       </div>
-      <div id="reorderModalBody"><div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div></div>
+      <div id="reorderModalBody" style="overflow-y:auto;flex:1;min-height:0"><div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div></div>
+      <div id="reorderModalFooter" style="flex-shrink:0"></div>
     </div>
   </div>
-  <!-- Edit Modal -->
+  <!-- Edit Modal — โครงเดียวกับ reorderModal ด้านบน (ดูเหตุผลเดียวกันที่คอมเมนต์นั้น) -->
   <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-end;justify-content:center">
-    <div role="dialog" aria-modal="true" aria-labelledby="editModalTitle" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;overflow-y:auto;padding:1.25rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div role="dialog" aria-modal="true" aria-labelledby="editModalTitle" style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;padding:1.25rem 1.25rem 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-shrink:0">
         <h2 id="editModalTitle" style="font-size:18px;font-weight:600">แก้ไขรายการสินค้า</h2>
         <button onclick="closeEditModal()" aria-label="ปิด" style="background:none;border:none;font-size:22.5px;cursor:pointer;color:#666;padding:8px;line-height:1">✕</button>
       </div>
-      <div id="editModalBody"></div>
-      <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
+      <div id="editModalBody" style="overflow-y:auto;flex:1;min-height:0"></div>
+      <div style="flex-shrink:0;padding:12px 0 1.25rem">
+        <button class="btn-save" id="btnSaveEdit" onclick="saveEdit()">บันทึกการแก้ไข</button>
+      </div>
     </div>
   </div>
 </div>
@@ -485,6 +509,18 @@ function releaseModalFocus(){
 }
 var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',orderIdemKey='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
+// [เพิ่ม UX-002] เดิมแท็บ "เสร็จสมบูรณ์" ล็อกไว้แค่ของวันนี้เท่านั้น (isToday) ไม่มีทางดูออเดอร์ที่เสร็จไปแล้วของ
+// วันก่อนๆ ได้เลยสักจุดในทั้งแอป ทั้งที่ allAdminOrders ในหน่วยความจำมีข้อมูลย้อนหลังอยู่แล้ว (backend จำกัดส่งมา
+// 60 วัน) — เพิ่ม toggle ให้สลับดูได้ ไม่กระทบตัวเลขนับบนแท็บ/แถบสรุปด้านบนซึ่งยังคงหมายถึง "วันนี้" เสมอเหมือนเดิม
+let doneDateMode='today'; // 'today' | 'all' (ทั้งหมดในหน้าต่าง 60 วันที่มีอยู่ในหน่วยความจำ)
+function setDoneDateMode(mode){ doneDateMode=mode; renderAdminOrders(); }
+function doneFilterBarHtml(){
+  const chip=(mode,label)=>{
+    const active=doneDateMode===mode;
+    return`<button onclick="setDoneDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#CB3E09':'#ddd'};background:${active?'#CB3E09':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
+  };
+  return`<div style="display:flex;gap:6px;padding:10px 12px 2px;flex-wrap:wrap">${chip('today','วันนี้')}${chip('all','ทั้งหมด (60 วันล่าสุด)')}</div>`;
+}
 let lastAdminSubtitleText=''; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนตัวเลขไม่เปลี่ยนจากรอบก่อน
 let lastCartAnnounce=null; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนจำนวน/ยอดตะกร้าไม่เปลี่ยน
 let cartAnnounceTimer=null; // [เพิ่ม 27 ก.ย. 69 — ACC-008] ดีเลย์การประกาศให้ screen reader กันแจ้งรัวตอนกด +/- ถี่ๆ (ค่าที่โชว้บนจอยังอัปเดตทันทีเหมือนเดิม)
@@ -754,21 +790,43 @@ function applyOpenHistoryState(){
   });
 }
 
+// [แก้ UX-001] เดิมถ้า getProducts พังแม้แต่ retry ของ safeFetchJSON ครบแล้ว (ค่า fallback คือ [] — หน้าตา
+// เหมือนกับ "ร้านนี้ไม่มีสินค้าเลย" เป๊ะ) หน้าสั่งของจะโล่งว่างเปล่าไม่มีข้อความ/ปุ่มลองใหม่ให้เห็นเลย ลูกค้าไม่มีทาง
+// รู้ว่าเป็นปัญหาเชื่อมต่อหรือร้านไม่มีของขายจริง — เปลี่ยนเป็น fallback เป็น null (แยกจาก [] ที่หมายถึง "โหลดสำเร็จ
+// แต่ไม่มีสินค้าจริง") แล้ววนลองใหม่อัตโนมัติเงียบๆ ทุก 3 วิเหมือน pattern เดิมของ loadAdminOrders/loadTrackSection
+// จนกว่าจะสำเร็จจริง — ระหว่างรอ productsLoading บอก renderProducts() ให้โชว์ตัวโหลดแทนที่จะโชว์กริดว่างเปล่า
+let productsLoading=false;
 async function loadProducts(){
   const prodCacheKey='products_'+customer.product_group;
   const cached=cacheGet(prodCacheKey);
   if(cached){
     products=cached;
-  } else {
-    products=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,[],'loadProducts(customer)',15000,1);
-    if(!Array.isArray(products))products=[];
-    if(products.length) cacheSet(prodCacheKey,products,30000);
+    renderProducts();
+    return;
   }
+  productsLoading=true;
   renderProducts();
+  while(true){
+    const data=await safeFetchJSON(`${API}?action=getProducts&group=${customer.product_group}`,null,'loadProducts(customer)',15000,1);
+    if(data!==null){
+      products=Array.isArray(data)?data:[];
+      if(products.length) cacheSet(prodCacheKey,products,30000);
+      productsLoading=false;
+      renderProducts();
+      return;
+    }
+    await new Promise(r=>setTimeout(r,3000));
+  }
 }
 
 function renderProducts(){
   const grid=document.getElementById('productGrid');
+  if(!products.length){
+    grid.innerHTML=productsLoading
+      ?'<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>'
+      :'<div class="empty-state">ยังไม่มีสินค้าให้เลือกในขณะนี้</div>';
+    return;
+  }
   grid.innerHTML='';
   products.forEach(p=>{
     const qty=cart[p.product_id]?cart[p.product_id].qty:0;
@@ -841,7 +899,10 @@ function showConfirm(){
   // key เฉพาะรอบเข้าหน้ายืนยันนี้ (สร้างใหม่ทุกครั้งที่กลับมาหน้านี้ เช่น แก้ตะกร้าแล้วกลับมาใหม่) ส่งให้
   // backend เช็คก่อนสร้างออเดอร์ซ้ำ — ดูเหตุผลเต็มที่ placeOrder()
   orderIdemKey=pendingOid+'-'+Math.random().toString(36).slice(2,10);
-  document.getElementById('confirmOid').textContent='Order ID: '+pendingOid;
+  // [แก้ UX-004] เดิมตั้ง textContent เป็น 'Order ID: '+pendingOid ทับ แต่ HTML ฝั่ง static ก็มีคำว่า
+  // "Order ID: " นำหน้า <span> นี้อยู่แล้ว (ดู confirmScreen ด้านล่างสุดของไฟล์) รวมกันแล้วขึ้นซ้ำเป็น
+  // "Order ID: Order ID: ORD-..." — ตัดส่วนนี้ให้ใส่แค่ตัวเลขออเดอร์ดิบๆ ให้ label ฝั่ง HTML ทำหน้าที่นำหน้าแค่ครั้งเดียว
+  document.getElementById('confirmOid').textContent=pendingOid;
   document.getElementById('orderNote').value='';
   const items=Object.values(cart);
   const total=items.reduce((s,i)=>s+i.qty*i.price,0);
@@ -881,7 +942,7 @@ async function findRecentMatchingOrder(itemsText,total){
   }catch(e){ return null; }
 }
 
-function showOrderSuccessScreen(oid,items){
+function showOrderSuccessScreen(oid,items,note){
   document.getElementById('confirmScreen').style.display='none';
   const nowDateTimeStr=fmtOrderDateTime(new Date().toISOString());
   const nowDatePart=nowDateTimeStr.split(' ')[0];
@@ -890,6 +951,16 @@ function showOrderSuccessScreen(oid,items){
   document.getElementById('successItems').innerHTML=items.map(i=>`<div class="s-item-row"><span>${i.name}</span><span>x${i.qty}</span></div>`).join('');
   document.getElementById('successTime').textContent=nowTimePart;
   document.getElementById('successMsg').textContent=`คุณ${customer.name} สามารถติดตามสถานะของสินค้าได้ โดยกลับไปที่หน้าหลัก แล้วเลือก "ติดตามสถานะ" ครับ`;
+  // [แก้ UX-007] โชว์โน้ตกลับให้ลูกค้าเห็นทันทีว่าบันทึกไปแล้วจริง (textContent เอง escape ให้อัตโนมัติอยู่แล้ว
+  // ไม่ต้องผ่าน escapeHtml เพิ่ม) ซ่อนการ์ดทั้งใบถ้าไม่มีโน้ต กันพื้นที่ว่างเปล่าไม่มีประโยชน์
+  const noteCard=document.getElementById('successNoteCard');
+  const cleanedNote=cleanNote(note||'');
+  if(cleanedNote){
+    document.getElementById('successNoteText').textContent='📝 '+cleanedNote;
+    noteCard.style.display='block';
+  }else{
+    noteCard.style.display='none';
+  }
   cart={};orderIdemKey='';
   document.getElementById('successScreen').style.display='flex';
 }
@@ -914,7 +985,9 @@ async function placeOrder(){
       // ก่อนจะให้ลูกค้ากดลองใหม่ (ซึ่งจะยิง createOrder ซ้ำ) เช็คก่อนว่าออเดอร์นี้อาจสำเร็จไปแล้วจริงๆ
       const maybeExisting=await findRecentMatchingOrder(itemsText,total);
       if(maybeExisting){
-        showOrderSuccessScreen(maybeExisting.order_id,items);
+        // ใช้โน้ตที่ backend ยืนยันว่าบันทึกจริง (maybeExisting.note) ไม่ใช่แค่ค่าที่พิมพ์ไว้ในเครื่อง — เส้นทางนี้
+        // คือตอนไม่แน่ใจว่าคำขอก่อนหน้าสำเร็จจริงไหม ควรโชว์สิ่งที่ backend มีจริงมากกว่าเดาจาก local state
+        showOrderSuccessScreen(maybeExisting.order_id,items,maybeExisting.note);
         btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
         return;
       }
@@ -925,7 +998,7 @@ async function placeOrder(){
     // createOrder สำเร็จ (result.success!==false) คืน order_id จริงมาให้ในตัวอยู่แล้ว ไม่ต้องเดาจาก genOid()
     // หรือยิง getOrders ซ้ำไปเดาเอาจากรายการล่าสุดอีกต่อไป (เดิมทำแบบนั้น เสี่ยงได้ order_id ผิดถ้ามีออเดอร์อื่น
     // แทรกมาในช่วงเวลาไล่เลี่ยกัน แถมเปลืองคำขอโดยไม่จำเป็นในจุดที่ลูกค้าใช้บ่อยที่สุดของแอป)
-    showOrderSuccessScreen(result.order_id||pendingOid,items);
+    showOrderSuccessScreen(result.order_id||pendingOid,items,note);
   }catch(e){alert('เกิดข้อผิดพลาด กรุณาลองใหม่');}
   btn.disabled=false;btn.textContent='✓ ยืนยันสั่งซื้อ';
 }
@@ -1072,6 +1145,10 @@ function openEditOrder(orderId,itemsEncoded,total,noteEncoded){
   const orderedMap={};
   orderedItems.forEach(i=>{orderedMap[i.name]=i.qty;});
   const allItems=products.map(p=>({name:p.name,qty:orderedMap[p.name]||0,price:Number(p.price)||0}));
+  // [แก้ UX-008] จัดรายการที่อยู่ในออเดอร์นี้แล้ว (qty>0) ไว้ด้านบนสุดก่อนเสมอ ใช้ stable sort (รับประกันโดย
+  // สเปค ES2019+ ที่เบราว์เซอร์จริงทุกตัวรองรับ) รักษาลำดับเดิมภายในกลุ่มเดียวกันไว้ — เรียงตรงนี้ที่เดียวพอ เพราะ
+  // editQtys/renderEditModal/calcEditTotal ทั้งหมดอ้างอิง idx จาก editingOrder.items แถวเดียวกันนี้อยู่แล้ว
+  allItems.sort((a,b)=>(b.qty>0?1:0)-(a.qty>0?1:0));
   editingOrder={orderId,items:allItems,total,note};
   editQtys={};
   allItems.forEach((item,idx)=>{editQtys[idx]=item.qty;});
@@ -1090,16 +1167,23 @@ function renderEditModal(items,note){
     const imgHtml=prod.image_url
       ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
       :`<div class="edit-img-placeholder">🛍️</div>`;
-    return`<div class="edit-item">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},1)">+</button></div></div>`;
+    return`<div class="edit-item${item.qty>0?' in-order':''}" id="ei${idx}">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
   html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" aria-label="โน้ตถึงร้าน" placeholder="หมายเหตุ...">${escapeHtml(note)}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${fmtMoney(calcEditTotal())}</span></div>`;
   document.getElementById('editModalBody').innerHTML=html;
 }
 
+// [แก้ UX-008] toggle ไฮไลท์ .in-order ให้ตรงกับจำนวนล่าสุดแบบสดๆ (ตอนลดเหลือ 0 ต้องจางลง ตอนเพิ่มจาก 0 ต้อง
+// ไฮไลท์ขึ้นมา) ไม่ต้อง re-render ทั้งโมดัลใหม่ทุกครั้งที่กด +/-/พิมพ์ เรียกจากทั้ง editChg และ editSet
+function updateEditItemHighlight(idx){
+  const el=document.getElementById('ei'+idx);
+  if(el) el.classList.toggle('in-order',(editQtys[idx]||0)>0);
+}
 function editChg(idx,delta){
   editQtys[idx]=Math.max(0,(editQtys[idx]||0)+delta);
   const el=document.getElementById('eq'+idx);if(el)el.value=editQtys[idx];
+  updateEditItemHighlight(idx);
   document.getElementById('editTotalDisplay').textContent=fmtMoney(calcEditTotal());
 }
 
@@ -1108,6 +1192,7 @@ function editSet(idx,val){
   // [แก้ 28 ก.ย. 69 — BUG-003] เขียนค่า clamp แล้วกลับเข้าช่อง input เหมือน editChg() ทำอยู่แล้ว (ดู setQty ด้านบน)
   const el=document.getElementById('eq'+idx);
   if(el&&el.value!==String(editQtys[idx])) el.value=editQtys[idx];
+  updateEditItemHighlight(idx);
   document.getElementById('editTotalDisplay').textContent=fmtMoney(calcEditTotal());
 }
 
@@ -1322,7 +1407,14 @@ async function ensureThaiHolidaysLoaded(year){
   (Array.isArray(list)?list:[]).forEach(h=>{ if(h&&h.date) map[h.date]=h.name; });
   thaiHolidaysCache[year]=map;
   thaiHolidaysLoading[year]=false;
-  if(adminCurrentTab==='overview') renderAdminOverview();
+  // [แก้ UX-003] เดิมเช็คแค่ adminCurrentTab==='overview' อย่างเดียว — เปิด Owner Dashboard ไม่เปลี่ยน
+  // adminCurrentTab เลย (ยังค้างเป็น 'overview' จากตอนกดเข้ามา) ทำให้เคสนี้ผ่านเงื่อนไขได้ แต่ไป re-render
+  // renderAdminOverview() ซึ่งเป็นคนละ DOM section กับ Owner Dashboard ที่กำลังเปิดอยู่จริง ผลคือข้อความ
+  // "กำลังโหลดข้อมูลวันหยุด..." บน Dashboard ค้างตลอดไปแม้โหลดเสร็จแล้วจริง จนกว่าจะมีการกระทำอื่นมาบังคับ
+  // re-render ทับ (เช่นสลับแท็บ) — เช็คให้ตรงจริงว่าตอนนี้กำลังโชว์หน้าไหนอยู่แล้ว re-render หน้านั้น
+  const dashboardVisible=document.getElementById('ownerDashboard')&&document.getElementById('ownerDashboard').style.display!=='none';
+  if(dashboardVisible) renderOwnerDashboard();
+  else if(adminCurrentTab==='overview') renderAdminOverview();
 }
 
 async function loadBusinessNotes(){
@@ -1488,7 +1580,10 @@ async function switchAdminTab(tab){
   // [เพิ่ม 28 ก.ย. 69] กันเคสกดแท็บอื่น (รอจัด/กำลังจัด/เสร็จสมบูรณ์/ภาพรวม) ตรงๆ ระหว่างเปิดแดชบอร์ดค้างอยู่
   // (ข้ามปุ่ม "← กลับ" ที่เรียก closeOwnerDashboard() ตามปกติ) ไม่งั้น #adminApp จะค้างกว้าง 960px ต่อไปทั้งที่
   // ออกจากแดชบอร์ดไปแล้ว
-  document.getElementById('adminApp').style.maxWidth='600px';
+  // [แก้ UX-011] เดิม hardcode กลับเป็น '600px' ตรงๆ — ตอนนี้แท็บปกติมี media query กว้างขึ้นเป็น 900px บนจอใหญ่
+  // (ดู CSS) ถ้ายัง hardcode 600px ไว้ตรงนี้ inline style จะบัง media query ไว้ถาวร ต้องล้าง property ทิ้งแทน
+  // ให้ CSS (ซึ่งรู้ว่าจอกว้างแค่ไหนจริง) เป็นคนตัดสินความกว้างของแท็บปกติต่อไป
+  document.getElementById('adminApp').style.removeProperty('max-width');
   if(tab==='overview'){
     // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
     // [แก้ 15 ก.ย. 69] cache-first เหมือนแท็บหลัก — ถ้ายังไม่มีในหน่วยความจำ (ยังไม่เคยเปิดแท็บนี้ใน session
@@ -1620,18 +1715,25 @@ function renderAdminOrders(){
   // แต่ล็อกไม่ให้แก้ไข/กดจัดเสร็จต่อได้อีก (ดู canAdjustQty/footerBtns ด้านล่าง) — ต้องให้เจ้าของแก้ในชีตเองเท่านั้น
   if(adminCurrentTab==='pending') filtered=allAdminOrders.filter(ds_pending);
   else if(adminCurrentTab==='packing') filtered=allAdminOrders.filter(o=>ds_packing(o)||ds_stockout(o));
+  // [แก้ UX-002] เนื้อหาที่ "เห็น" ในแท็บนี้ขึ้นกับ doneDateMode ได้แล้ว (เดิมล็อก isToday() เสมอ)
+  else if(doneDateMode==='all') filtered=allAdminOrders.filter(ds_done);
   else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
   const list=document.getElementById('adminList');
-  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:'ยังไม่มีรายการที่เสร็จสมบูรณ์'};
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:doneDateMode==='all'?'ยังไม่มีรายการที่เสร็จสมบูรณ์ในช่วง 60 วันล่าสุด':'ยังไม่มีรายการที่เสร็จสมบูรณ์วันนี้'};
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
   const packingCount2=allAdminOrders.filter(o=>ds_packing(o)||ds_stockout(o)).length;
+  // ตัวเลขบนแท็บ/แถบสรุปด้านบนหมายถึง "วันนี้" เสมอ ไม่ขึ้นกับ doneDateMode ที่ใช้กรองแค่เนื้อหาในลิสต์ด้านล่าง
   const doneCount2=allAdminOrders.filter(o=>ds_done(o)&&isToday(o)).length;
   const adminSubtitleText=`รอจัด ${pendingCount2} · กำลังจัด ${packingCount2} · เสร็จแล้ว ${doneCount2}`;
   if(adminSubtitleText!==lastAdminSubtitleText){document.getElementById('adminSubtitle').textContent=adminSubtitleText;lastAdminSubtitleText=adminSubtitleText;}
   document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
   document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
   document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
-  if(!filtered.length){list.innerHTML=`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;return;}
+  if(!filtered.length){
+    const filterBar=adminCurrentTab==='done'?doneFilterBarHtml():'';
+    list.innerHTML=filterBar+`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;
+    return;
+  }
   if(adminCurrentTab==='done'){
     const sorted=[...filtered].sort((a,b)=>new Date(b.done_at||b.timestamp)-new Date(a.done_at||a.timestamp));
     const groups=[];
@@ -1643,12 +1745,13 @@ function renderAdminOrders(){
       if(key!==curKey){groups.push({key,orders:[]});curKey=key;}
       groups[groups.length-1].orders.push(o);
     });
-    list.innerHTML=groups.map(g=>{
+    const groupsHtml=groups.map(g=>{
       const dayTotal=g.orders.reduce((sum,o)=>sum+(Number(o.total)||0),0);
       const header=`<div class="date-divider"><span class="date-divider-label">${g.key}</span><span class="date-divider-sum">${g.orders.length} ออเดอร์ · ฿${fmtMoney(dayTotal)}</span></div>`;
       const cards=g.orders.map(o=>buildDoneAdminCard(o)).join('');
       return header+cards;
     }).join('');
+    list.innerHTML=doneFilterBarHtml()+groupsHtml;
     return;
   }
   if(adminCurrentTab==='pending'){
@@ -2029,12 +2132,14 @@ function notesInMonth(monthKey){
     return !isNaN(d)&&d.getFullYear()===y&&d.getMonth()===m;
   });
 }
+// [แก้ UX-005] แปลง div ให้เป็น <button> จริง (เดิมเป็น div onclick เฉยๆ กดด้วย keyboard ไม่ได้) ให้ตรงกับ
+// แพทเทิร์นปุ่มไอคอนอื่นๆ ทั่วทั้งไฟล์ที่ผ่าน accessibility audit ไปแล้ว (summaryCloseBtn/lightboxCloseBtn ฯลฯ)
 function renderOverviewNoteIconButton(monthKey){
   const count=notesInMonth(monthKey).length;
-  return`<div onclick="toggleOverviewNotePanel()" title="บันทึกเหตุการณ์เดือนนี้" style="position:relative;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#faf8f5;border:1px solid #efe9e3;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer">
+  return`<button onclick="toggleOverviewNotePanel()" aria-label="บันทึกเหตุการณ์เดือนนี้ (${count} รายการ)" aria-expanded="${overviewNotePanelOpen?'true':'false'}" style="position:relative;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#faf8f5;border:1px solid #efe9e3;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer">
     📝
-    ${count>0?`<span style="position:absolute;top:-4px;right:-4px;background:#CB3E09;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
-  </div>`;
+    ${count>0?`<span aria-hidden="true" style="position:absolute;top:-4px;right:-4px;background:#CB3E09;color:#fff;font-size:9.5px;font-weight:600;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;border:1.5px solid #fff">${count}</span>`:''}
+  </button>`;
 }
 async function addOverviewNote(monthKey){
   const input=document.getElementById('overviewNoteInput');
@@ -2281,7 +2386,16 @@ function renderAdminOverview(){
 
   const dashboardBtn=`<button onclick="openOwnerDashboard()" style="width:100%;padding:10px;border-radius:10px;font-size:13px;font-weight:500;border:0.5px solid #CB3E09;background:#fff;color:#CB3E09;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">📊 ดูแดชบอร์ดแบบละเอียด</button>`;
 
-  wrap.innerHTML=statCards
+  // [แก้ UX-005] ปุ่ม/แผง "บันทึกเหตุการณ์สำคัญ" (renderOverviewNoteIconButton/renderOverviewNotePanel)
+  // มีโค้ดสมบูรณ์อยู่แล้ว (รวมถึง loadBusinessNotes() ที่ initAdmin() ดึงข้อมูลมาให้ทุกครั้ง) แต่ไม่เคยถูกต่อเข้า
+  // หน้า "ภาพรวม" จริงที่ผู้ใช้เห็นเลยสักจุด (จุดเดียวที่เคยเรียกใช้คือใน renderOverviewMonthChart ซึ่งเป็นฟังก์ชัน
+  // ที่ไม่มีใครเรียกอีกทีเลย) ต่อเข้ากับ wrap.innerHTML จริงตรงนี้ — ใช้เดือนที่กำลังดูอยู่ถ้าเลือกโหมด "เลือกเดือน"
+  // ไม่งั้น fallback เป็นเดือนปัจจุบันจริง (โหมด "วันนี้"/"ทั้งหมด" ไม่มีเดือนเฉพาะเจาะจงให้อ้างอิง)
+  const noteMonthKey=overviewDateMode==='month'?(overviewSelectedMonth||currentMonthKey()):currentMonthKey();
+  const noteSection=`<div style="display:flex;justify-content:flex-end;margin:2px 0 8px">${renderOverviewNoteIconButton(noteMonthKey)}</div>${overviewNotePanelOpen?renderOverviewNotePanel(noteMonthKey):''}`;
+
+  wrap.innerHTML=noteSection
+    + statCards
     + rankingSection('ลูกค้าอันดับต้น',customerRows)
     + rankingSection('สินค้าขายดี',productRows)
     + dashboardBtn;
@@ -2335,7 +2449,8 @@ function openOwnerDashboard(){
 }
 
 function closeOwnerDashboard(){
-  document.getElementById('adminApp').style.maxWidth='600px';
+  // [แก้ UX-011] เหตุผลเดียวกับใน switchAdminTab — ล้าง property แทน hardcode '600px' กันบัง media query
+  document.getElementById('adminApp').style.removeProperty('max-width');
   document.getElementById('ownerDashboard').style.display='none';
   switchAdminTab('overview');
 }
@@ -2680,7 +2795,14 @@ function renderDashboardProduct(){
   </div>`:'';
 
   const allProductNames=Array.from(new Set(currOrders.flatMap(o=>parseItems(o.items).map(it=>it.name)))).sort((a,b)=>a.localeCompare(b,'th'));
-  if(!dbSelectedProduct&&allProductNames.length) dbSelectedProduct=allProductNames[0];
+  // [แก้ UX-009] เดิม default เป็น allProductNames[0] (เรียงตามตัวอักษร ก-ฮ) ซึ่งมักไม่ใช่สินค้าขายดีอันดับ 1
+  // ที่โชว์อยู่ใน "ขายดี Top 10" ด้านบนของหน้าเดียวกัน (topByBaht คำนวณไว้แล้วก่อนหน้านี้ในฟังก์ชัน) ทำให้เจ้าของ
+  // ร้านต้องมาเลือกสินค้าเองทุกครั้งทั้งที่คำถามแรกที่มักอยากรู้คือเทรนด์ของตัวขายดีที่สุด — ใช้ตัวเดียวกับอันดับ 1
+  // ของ Top 10 เป็นค่าเริ่มต้นแทน (ตัวเลือกใน dropdown ยังคงเรียงตามตัวอักษรเหมือนเดิม แก้แค่ค่าเริ่มต้นที่เลือกไว้)
+  if(!dbSelectedProduct){
+    if(topByBaht.length) dbSelectedProduct=topByBaht[0];
+    else if(allProductNames.length) dbSelectedProduct=allProductNames[0];
+  }
   const drilldownCard=`<div style="background:#faf8f5;border-radius:10px;padding:12px">
     <div style="font-size:12.5px;font-weight:600;color:#333;margin-bottom:8px">เทรนด์รายสินค้า (6 เดือนล่าสุด)</div>
     <select onchange="dbSelectProduct(this.value)" aria-label="เลือกสินค้า" style="width:100%;padding:7px 10px;border-radius:8px;border:1px solid #ddd;font-size:12.5px;margin-bottom:10px;font-family:inherit">
@@ -3362,6 +3484,7 @@ async function openReorderModal(){
   modalEl.style.display='flex';
   trapModalFocus(modalEl,closeReorderModal);
   const body=document.getElementById('reorderModalBody');
+  document.getElementById('reorderModalFooter').innerHTML=''; // เคลียร์ปุ่ม "เพิ่มลงตะกร้า" ค้างจากรอบก่อน (ถ้ามี)
   body.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
   try{
     const orders=await safeFetchJSON(`${API}?action=getTrackOrders&customer_id=${customer.customer_id}`,null,'openReorderModal',15000,1);
@@ -3378,6 +3501,7 @@ async function openReorderModal(){
 }
 
 function renderReorderList(){
+  document.getElementById('reorderModalFooter').innerHTML=''; // หน้ารายการออเดอร์ไม่มีปุ่มหลักปักหมุด (เลือกแถวแล้วไปหน้าต่อไปเลย)
   const body=document.getElementById('reorderModalBody');
   body.innerHTML=reorderOrdersCache.map(o=>{
     const items=parseItems(o.items);
@@ -3453,6 +3577,9 @@ function renderReorderPicker(){
     selectedTotal+=(prod?Number(prod.price)||0:0)*item.qty;
   });
   const disabled=selectedCount===0;
+  // [แก้ UX-006] แยกส่วนที่เลื่อนได้ (หัวข้อออเดอร์/คำแนะนำ/รายการสินค้า) ออกจากปุ่มหลัก "เพิ่มลงตะกร้า" —
+  // ปุ่มหลักไปอยู่ใน #reorderModalFooter ที่ปักหมุดไว้นอกพื้นที่ scroll เสมอ (ดู HTML) กันปุ่มตกขอบจอตอนออเดอร์
+  // มีรายการเยอะ ต้องเรียก 2 ครั้งคู่กันเสมอ (เคยเป็น innerHTML ก้อนเดียวรวมทุกอย่าง)
   document.getElementById('reorderModalBody').innerHTML=`
     <button onclick="${reorderBackToList?'renderReorderList()':'closeReorderModal()'}" style="background:none;border:none;color:#666;font-size:13.5px;cursor:pointer;padding:8px;margin:-8px -8px 2px -8px">‹ ${reorderBackToList?'กลับไปเลือกออเดอร์อื่น':'กลับ'}</button>
     <div style="font-size:12.5px;color:#666;margin-bottom:2px">${order.order_id} · ${order.timestamp?fmtOrderDateTime(order.timestamp):''}</div>
@@ -3464,8 +3591,9 @@ function renderReorderPicker(){
         <button id="reorderDeselectAllBtn" onclick="reorderDeselectAll()" style="background:none;border:none;color:#666;font-size:12.5px;cursor:pointer;padding:6px">ไม่เลือกทั้งหมด</button>
       </span>
     </div>
-    <div>${rowsHtml}</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:8px;border-top:1px solid #f0f0f0">
+    <div>${rowsHtml}</div>`;
+  document.getElementById('reorderModalFooter').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 1.25rem;border-top:1px solid #f0f0f0;background:#fff">
       <div>
         <div style="font-size:12.5px;color:#666">${selectedCount} รายการที่เลือก</div>
         <div style="font-size:18px;font-weight:600;color:#CB3E09">฿${fmtMoney(selectedTotal)}</div>
@@ -3552,7 +3680,13 @@ function hide(id){const el=document.getElementById(id);if(el)el.style.display='n
 function showError(isNetwork){
   document.getElementById('loading').style.display='none';
   document.getElementById('errorTitle').textContent=isNetwork?'เชื่อมต่อไม่ได้':'ไม่พบข้อมูล';
-  document.getElementById('errorMsg').textContent=isNetwork?'สัญญาณอินเทอร์เน็ตอาจมีปัญหา กรุณาลองใหม่อีกครั้ง':'ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าครับ';
+  // [แก้ UX-012] เดิมกรณีลิงก์ผิด (isNetwork===false) บอกแค่ "กรุณาติดต่อร้านค้าครับ" ไม่มีเบอร์โทร/ช่องทางให้
+  // ลูกค้าติดต่อจริงๆ เลย ทั้งที่แอปมีเบอร์ร้านฝังไว้แล้วในหน้าใบวางบิล (showOrderSummary) — เพิ่มเบอร์เดียวกัน
+  // เข้ามาตรงนี้ด้วย เป็นลิงก์ tel: กดโทรออกได้ทันทีบนมือถือ ใช้ innerHTML เฉพาะจุดนี้ (ข้อความทั้งสองแบบเป็น
+  // string คงที่ในโค้ด ไม่มีข้อมูลจากผู้ใช้ปนมาเลย ปลอดภัยไม่ต้อง escape)
+  document.getElementById('errorMsg').innerHTML=isNetwork
+    ?'สัญญาณอินเทอร์เน็ตอาจมีปัญหา กรุณาลองใหม่อีกครั้ง'
+    :'ลิงค์นี้อาจไม่ถูกต้อง กรุณาติดต่อร้านค้าที่เบอร์ <a href="tel:0969642264" style="color:#CB3E09;font-weight:600">096-964-2264</a> ครับ';
   document.getElementById('errorRetryBtn').style.display=isNetwork?'inline-block':'none';
   document.getElementById('errorScreen').style.display='flex';
 }
@@ -3640,7 +3774,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
   </div>
   <div style="padding:12px;max-width:600px;margin:0 auto;width:100%">
     <div class="s-card">
-      <div class="s-card-title">Order ID: <span id="confirmOid" style="font-family:monospace"></span></div>
+      <div class="s-card-title">เลขที่ออเดอร์: <span id="confirmOid" style="font-family:monospace"></span></div>
       <div class="s-card-title" style="margin-top:8px">รายการสินค้า <span id="confirmItemCount" style="color:#666;font-weight:400"></span></div>
       <div id="confirmItems"></div>
       <div class="s-total-row"><span>ยอดรวม</span><span id="confirmTotal">฿0</span></div>
@@ -3664,6 +3798,13 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     <div class="s-card">
       <div class="s-card-title">รายการที่สั่ง</div>
       <div id="successItems"></div>
+    </div>
+    <!-- [เพิ่ม UX-007] เดิมหน้านี้ไม่เคยโชว์โน้ตที่ลูกค้าเพิ่งพิมพ์ไว้ตอนยืนยันสั่งซื้อเลย ลูกค้าไม่มีทางรู้ทันทีว่า
+         คำขอพิเศษ (เช่น "ขอแพ็คแยกถุง") ถูกบันทึกไปด้วยจริงไหม ต้องไปเปิด "ติดตามสถานะ" มากางดูเองทีหลัง —
+         ซ่อนไว้ก่อน (display:none) โผล่เฉพาะตอนมีโน้ตจริงเท่านั้น (ดู showOrderSuccessScreen) -->
+    <div class="s-card" id="successNoteCard" style="display:none">
+      <div class="s-card-title">โน้ตถึงร้านของคุณ</div>
+      <div id="successNoteText" class="order-note" style="margin-bottom:0"></div>
     </div>
     <div class="s-card" style="background:#fdf5f2;border-color:#f5c4b3">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
