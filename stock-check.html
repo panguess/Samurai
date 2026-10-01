@@ -710,6 +710,35 @@ async function apiPostSilentRetry(action, payload, timeoutMs, maxAttempts, onAtt
   }
   throw lastErr;
 }
+// E2E fix + perf (1 ต.ค. 69, จาก Final E2E Audit — E2E-003): จำคำขอ analyzeBillPhoto ล่าสุดไว้ 1 ชุด (ทั้งระหว่าง
+// รอและหลังได้ผลแล้ว) — กดวิเคราะห์ซ้ำด้วยรูปชุดเดิม+ซัพพลายเออร์เดิม (เช่น ย้อนกลับออกไประหว่างรอแล้วกดใหม่, หรือ
+// กลับไปหน้าถ่ายรูปแล้วกดวิเคราะห์อีกรอบ) จะได้ผลทันที/ต่อคิวคำขอเดิมที่กำลังรออยู่ แทนการยิงให้ Gemini อ่านใหม่อีก
+// 45-100 วิและเปลืองโควต้า — ปลอดภัยเพราะ analyzeBillPhoto อ่านอย่างเดียวไม่เขียนชีต ล้างทิ้งเมื่อ: พัง (ลองใหม่ได้
+// จริง), ส่งบิลเข้าคิว/บันทึกต้นทุนสำเร็จ (คำเตือนบิลซ้ำ/alias ที่เพิ่งเรียนรู้ต้องคำนวณใหม่), หรือเกิน 10 นาที
+// คืน deep copy ทุกครั้ง — หน้าตรวจแก้ billHeader ตรงๆ (h.billNumber = ...) ห้ามไปแก้ผลที่จำไว้ด้วย
+const ANALYZE_CACHE_TTL = 10 * 60 * 1000;
+let _analyzeCache = null; // { key, promise, ts }
+// key = ซัพพลายเออร์ + hash เต็มทุกตัวอักษรของรูปทุกใบ (FNV-1a 32 บิต + ความยาว) — ไม่ใช้แค่ท้ายสตริง กันรูปคนละใบ
+// ที่บังเอิญยาวเท่ากันถูกนับเป็นรูปเดียวกัน ใช้เวลาไม่กี่สิบ ms แม้รูปรวมหลาย MB (เทียบกับรอ AI 45-100 วิ)
+function analyzeCacheKey(supplierId, photos){
+  return supplierId + '|' + photos.map(p=>{
+    const str = String(p);
+    let h = 0x811c9dc5;
+    for(let i=0; i<str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return str.length + ':' + (h >>> 0).toString(36);
+  }).join(',');
+}
+function analyzeBillPhotoShared(supplierId, photos, onAttempt){
+  const key = analyzeCacheKey(supplierId, photos);
+  if(!_analyzeCache || _analyzeCache.key !== key || (Date.now() - _analyzeCache.ts) > ANALYZE_CACHE_TTL){
+    const entry = { key, ts: Date.now(),
+      promise: apiPostSilentRetry('analyzeBillPhoto', { supplierId, photos }, 270000, 3, onAttempt, BILL_API_URL) };
+    entry.promise.catch(()=>{ if(_analyzeCache === entry) _analyzeCache = null; });
+    _analyzeCache = entry;
+  }
+  return _analyzeCache.promise.then(res=> JSON.parse(JSON.stringify(res)));
+}
+function clearAnalyzeCache(){ _analyzeCache = null; }
 // error ที่มี marker [QUOTA] มาจาก backend (callGeminiOnce เจอ Gemini 429) — แปลข้อความดิบของ Gemini
 // (เต็มไปด้วยศัพท์เทคนิค/ลิงก์ billing) เป็นข้อความที่พนักงานเข้าใจและรู้ว่าต้องทำอะไรต่อ ใช้ร่วมกันทั้ง 3
 // จุดที่เรียก analyzeBillPhoto/analyzeBillBatch แล้วต้องโชว์ error ให้คนเห็น
@@ -1331,7 +1360,20 @@ async function bootstrap(){
   }
 }
 
+// E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-002/E2E-003): หน้าที่ต้องรอ network (เช็คสต๊อก/รายชื่อร้าน/
+// สั่งของ/Dashboard/บิลรอตรวจ/AI อ่านบิล/ตรวจ PIN) เดิมไม่รู้ตัวเลยว่าผู้ใช้ออกจากหน้าไปแล้ว — ข้อมูลมาถึงทีหลัง
+// ก็ยังวาดทับหน้าปัจจุบัน (เจอจริงในเทส: หน้าเช็คสต๊อกโผล่ทับรายชื่อร้านทั้งที่ state.screen ยังเป็นรายชื่อร้าน
+// ทำให้กดย้อนกลับแล้วข้อมูลที่กรอกไม่ถูกเซฟอัตโนมัติ / AI อ่านบิลเสร็จแล้วพาไปหน้าตรวจที่พังเป็นจอว่าง) และวนลอง
+// เชื่อมต่อใหม่ทุก 3 วิไม่หยุดแม้ไม่มีใครดูหน้านั้นแล้ว (ไปแย่งโควต้า Apps Script กับหน้าที่ใช้อยู่จริง)
+// _renderSeq เพิ่มขึ้นทุกครั้งที่ render() — หน้า async จับค่าไว้ตอนเริ่มผ่าน renderToken() แล้วเช็คหลังทุก await
+// ถ้าไม่ใช่รอบล่าสุดแล้วให้หยุดเงียบๆ ทันที (ไม่วาด ไม่ go() ไม่วนลองต่อ)
+let _renderSeq = 0;
+function renderToken(){
+  const seq = _renderSeq;
+  return ()=> seq === _renderSeq;
+}
 function render(){
+  _renderSeq++;
   const app = document.getElementById('app');
   app.innerHTML = '';
   const map = {
@@ -1400,7 +1442,7 @@ const c = document.createElement('div'); c.className='content';
   app.appendChild(c);
   bindActivatable(c.querySelector('#goStaff'), ()=>go('staffName'));
   bindActivatable(c.querySelector('#goOwner'), ()=>go('ownerPin'));
-  bindActivatable(c.querySelector('#goBill'), ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null, billBatchGroups:[]}));
+  bindActivatable(c.querySelector('#goBill'), ()=>go('billStaff', {billMode:'staff', billSupplierId:null, billPhotos:[], billItems:[], billLearnedCount:0, billHeader:null, billBatchGroups:[], billKeepPhotos:false}));
 }
 
 /* ============ STAFF: choose name ============ */
@@ -1603,7 +1645,7 @@ function renderBillStaff(app){
       avatarInput.click();
     });
   });
-  c.querySelectorAll('.staff-pick').forEach(el=> bindActivatable(el, ()=>go('billSupplier', {billStaffName: el.dataset.name})));
+  c.querySelectorAll('.staff-pick').forEach(el=> bindActivatable(el, ()=>go('billSupplier', {billStaffName: el.dataset.name, billKeepPhotos:false})));
 }
 
 /* ---- 2) เลือกซัพพลายเออร์ ---- */
@@ -1623,7 +1665,8 @@ function renderBillSupplier(app){
         <i class="ti ti-chevron-right" style="color:var(--text-tertiary);" aria-hidden="true"></i>
       </div>`;
     }).join('') || `<p class="empty-state">ไม่พบซัพพลายเออร์</p>`;
-    listEl.querySelectorAll('.sup-row').forEach(el=> bindActivatable(el, ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos:[], billBatchGroups:[]})));
+    // billKeepPhotos: true เฉพาะตอนมาจากปุ่ม "เลือกซัพพลายเออร์ใหม่" ในหน้าตรวจ (E2E-007) — ใช้แล้วรีเซ็ตทันที
+    listEl.querySelectorAll('.sup-row').forEach(el=> bindActivatable(el, ()=> go('billCapture', {billSupplierId: el.dataset.id, billPhotos: state.billKeepPhotos ? state.billPhotos : [], billBatchGroups:[], billKeepPhotos:false})));
   }
   app.appendChild(c);
   draw('');
@@ -1741,13 +1784,18 @@ function renderBillAnalyzing(app){
   // backend สำเร็จทุกครั้งไม่มีข้อยกเว้น ไม่ใช่ AbortError ของเราเองด้วยเพราะยังไม่ทันถึง 270 วิ) ผู้ใช้ต้อง
   // กด "ลองใหม่" เองซ้ำๆ จนหงุดหงิด — เปลี่ยนมาใช้ apiPostSilentRetry() แทน (ดูคอมเมนต์เต็มที่นิยามฟังก์ชัน
   // ด้านบน) ปลอดภัยเพราะ analyzeBillPhoto ไม่เขียนอะไรลงชีตเลย ยิงซ้ำได้ไม่จำกัดโดยไม่เสี่ยงข้อมูลซ้ำ
-  apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos: state.billPhotos }, 270000, 3, (attempt, max)=>{
+  // E2E-003: ผู้ใช้กดย้อนกลับออกจากหน้านี้ระหว่างรอ AI — เดิมพอผลกลับมาก็ go('billReview') ทับหน้าที่ผู้ใช้อยู่
+  // (ถ้าย้อนไปถึงหน้าเลือกซัพพลายเออร์ billSupplierId เป็น null แล้ว หน้าตรวจพังเป็นจอว่าง) ตอนนี้ทิ้งผลเงียบๆ แทน —
+  // ผลยังถูกจำไว้ใน analyzeBillPhotoShared ถ้ากลับมากดวิเคราะห์รูปชุดเดิมจะได้ทันที
+  const isCurrent = renderToken();
+  analyzeBillPhotoShared(state.billSupplierId, state.billPhotos, (attempt, max)=>{
     const msgEl = c.querySelector('#analyzeMsg');
     if(msgEl) msgEl.textContent = attempt===1
       ? 'กำลังแยกรายการ จำนวน และราคาจากรูปที่ถ่ายไว้ อาจใช้เวลาสักครู่'
       : `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
-  }, BILL_API_URL)
+  })
     .then(res=>{
+      if(!isCurrent()) return;
       const items = (res.items||[]).map((it,i)=>({
         _id: 'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
         receivedQty: it.qty, // ค่าเริ่มต้น = ตามบิล — AI อ่านได้แค่ตัวเลขบนบิล ส่วน "รับจริง" ให้คนถ่ายแก้เองถ้านับไม่ตรง
@@ -1758,19 +1806,23 @@ function renderBillAnalyzing(app){
         matchedAliasText: it.matchedAliasText || null, // ข้อความเดิมที่ทำให้เกิด fuzzy match (โชว์เป็นคำอธิบาย)
         confirmed: it.matchType === 'exact', // fuzzy ต้องกดยืนยันเองเสมอ ไม่นับว่าจับคู่แล้วจนกว่าจะกด
       }));
-      if(!items.length){ throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
+      if(!items.length){
+        clearAnalyzeCache(); // ผลว่างไม่ควรถูกจำไว้ — กด "ลองใหม่" ต้องให้ AI อ่านใหม่จริง
+        throw new Error('อ่านรายการจากบิลไม่ได้เลย ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง');
+      }
       // null สำหรับบิลเขียนมือที่ไม่มีเลขที่บิล/VAT — renderBillReview จะไม่โชว์การ์ดหัวบิลเลยในกรณีนั้น
       go('billReview', {billItems: items, billHeader: res.billHeader || null, billSupplierMismatchWarning: res.supplierMismatchWarning || null, billDuplicateWarning: res.duplicateBillWarning || null, billMode:'staff', billSubmitIdemKey: genIdemKey()}, {replace:true});
     })
     .catch(err=>{
-      // เจอ error "The string did not match the expected pattern" ซ้ำๆ 7 ก.ย. 69 ทั้งที่ Executions log
-      // ยืนยันว่า backend สำเร็จทุกครั้ง (ไม่มี [analyzeBillPhoto] prefix แปลว่าพังฝั่ง client ตอนประมวลผล
-      // response ไม่ใช่ backend) โชว์ stack trace ชั่วคราวเพื่อไล่หาบรรทัดที่พังจริงจากอุปกรณ์จริง
+      if(!isCurrent()) return; // ออกจากหน้านี้ไปแล้ว ไม่ต้องโชว์ error ทับหน้าอื่น
+      // E2E fix (1 ต.ค. 69, E2E-009): เดิมโชว์ err.message ดิบ + กล่อง stack trace (โค้ด debug ชั่วคราวตั้งแต่ 7 ก.ย. 69
+      // ที่ไม่เคยถูกถอดออก) ให้พนักงานเห็นตรงๆ — ใช้ friendlyErrorMessage() ตัวเดียวกับที่แก้ UX-001 ไปแล้ว 18 จุดแทน
+      // ข้อความ [QUOTA] ยังใช้ข้อความเฉพาะของ friendlyBillError เหมือนเดิม และ error จริงยังถูก console.error ไว้ไล่บั๊กได้
       const fe = friendlyBillError(err);
+      const detail = fe.title ? fe.detail : friendlyErrorMessage(err);
       c.querySelector('.analyzing-wrap').innerHTML = `
         <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">${fe.title || 'อ่านบิลไม่สำเร็จ'}</p>
-        <p style="margin-bottom:16px;">${fe.detail}</p>
-        ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
+        <p style="margin-bottom:16px;">${escapeHtml(detail)}</p>
         <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
         <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
       `;
@@ -1795,12 +1847,16 @@ function renderBillBatchAnalyzing(app){
     </div>`;
   app.appendChild(c);
 
+  // E2E-003: ผู้ใช้ออกจากหน้านี้ระหว่างรอ → หยุดอ่านบิลกลุ่มถัดไป (ประหยัดโควต้า Gemini) และไม่ go() ทับหน้าปัจจุบัน
+  const isCurrent = renderToken();
   function showError(err){
+    if(!isCurrent()) return;
+    // E2E-009: ไม่โชว์ error ดิบ + stack trace อีกต่อไป (ดูคอมเมนต์เดียวกันใน renderBillAnalyzing)
     const fe = friendlyBillError(err);
+    const detail = fe.title ? fe.detail : friendlyErrorMessage(err);
     c.querySelector('.analyzing-wrap').innerHTML = `
       <p style="color:var(--danger); font-weight:600; margin-bottom:6px;">${fe.title || 'แยกบิลไม่สำเร็จ'}</p>
-      <p style="margin-bottom:16px;">${fe.detail}</p>
-      ${err.stack ? `<pre style="text-align:left; font-size:10px; color:var(--text-secondary); white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--bg); border-radius:8px; padding:8px; margin-bottom:16px;">${err.stack}</pre>` : ''}
+      <p style="margin-bottom:16px;">${escapeHtml(detail)}</p>
       <button class="btn btn-primary" id="retryAnalyze">ลองใหม่</button>
       <button class="btn-text-cancel" id="backCapture">กลับไปถ่ายรูปใหม่</button>
     `;
@@ -1818,6 +1874,7 @@ function renderBillBatchAnalyzing(app){
         if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่ (${attempt}/${max})...`;
         else if(msgEl) msgEl.textContent = 'แยกว่ารูปไหนเป็นบิลใบเดียวกันก่อน อาจใช้เวลาสักครู่';
       }, BILL_API_URL);
+      if(!isCurrent()) return;
       const rawGroups = groupsRes.groups || [];
       if(!rawGroups.length){ throw new Error('แยกกลุ่มบิลไม่สำเร็จ ลองถ่ายรูปให้ชัดขึ้นอีกครั้ง'); }
 
@@ -1830,9 +1887,10 @@ function renderBillBatchAnalyzing(app){
         if(stageEl) stageEl.textContent = `กำลังอ่านบิลที่ ${gi+1}/${rawGroups.length}...`;
         if(msgEl) msgEl.textContent = 'กำลังแยกรายการ จำนวน และราคาของบิลใบนี้ อาจใช้เวลาสักครู่';
         const photos = photoIndices.map(i=> state.billPhotos[i]);
-        const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
+        const res = await analyzeBillPhotoShared(state.billSupplierId, photos, (attempt, max)=>{
           if(attempt>1 && msgEl) msgEl.textContent = `การเชื่อมต่อหลุดระหว่างรอ กำลังลองใหม่บิลที่ ${gi+1} (${attempt}/${max})...`;
-        }, BILL_API_URL);
+        });
+        if(!isCurrent()) return;
         groups.push({
           photoIndices,
           items: (res.items||[]).map((it,i)=>({
@@ -1864,9 +1922,21 @@ function renderBillBatchAnalyzing(app){
 // - 'owner-resume': เจ้าของเปิดบิลค้างจากหน้า "บิลรอตรวจสอบ" มาทำต่อ — ต้องจับคู่ครบก่อนถึงจะกด
 //   "บันทึกต้นทุน" ได้ (เรียก finalizePurchaseReceipt เขียนลง PurchaseReceipts จริง)
 function renderBillReview(app){
+  const isResume = state.billMode === 'owner-resume';
+  // E2E-001 (อีกทางหนึ่ง): กดปุ่ม back ของเครื่อง/เบราว์เซอร์จากหน้า "บันทึกต้นทุนเรียบร้อย" ย้อนกลับมาหน้านี้ได้ —
+  // state.billItems ยังอยู่ครบ ปุ่ม "บันทึกต้นทุน" กดได้อีกรอบ = เขียน PurchaseReceipts ซ้ำ ถ้าบิลนี้ถูกบันทึก/ทิ้ง
+  // ไปแล้วจากเครื่องนี้ ให้บอกชัดๆ แทนการเปิดฟอร์มให้บันทึกซ้ำ
+  if(isResume && _closedPendingBatchIds.has(state.billResumeBatchId)){
+    app.appendChild(topbar('ตรวจสอบรายการ', {back: ()=> go('billPendingList')}));
+    const done = document.createElement('div'); done.className = 'content';
+    done.innerHTML = `<p class="empty-state">บิลนี้บันทึกหรือทิ้งไปแล้ว ไม่ต้องทำซ้ำ</p>
+      <button class="btn btn-primary btn-block" id="toPendingBtn">กลับไปหน้าบิลรอตรวจสอบ</button>`;
+    app.appendChild(done);
+    done.querySelector('#toPendingBtn').onclick = ()=> go('billPendingList');
+    return;
+  }
   const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
-  const isResume = state.billMode === 'owner-resume';
   // ออโต้เซฟความคืบหน้าไว้ในเครื่อง (localStorage) เฉพาะโหมดเจ้าของตรวจบิลค้าง — เจอจริงว่าบิลใหญ่บางเจ้า
   // (เช่นลุงทวี 20-30+ รายการ) กว่าจะจับคู่+ตั้งอัตราแปลงหน่วยครบทุกรายการใช้เวลานาน ถ้าปัดนิ้ว/กดออกจากหน้า
   // นี้โดยไม่ตั้งใจก่อนกด "บันทึกต้นทุน" (ซึ่งเป็นจุดเดียวที่เขียนข้อมูลไปเซิร์ฟเวอร์จริง) งานที่ทำมาทั้งหมดจะ
@@ -1914,7 +1984,23 @@ function renderBillReview(app){
       }catch(e){}
     }
   }
+  let draftCleared = false; // กัน saveDraftSoon ที่ค้างคิวอยู่เขียน draft กลับมาหลังส่ง/บันทึกสำเร็จไปแล้ว
+  // หน่วง 400ms ระหว่างพิมพ์ (ไม่ stringify รูปบิลหลาย MB ทุกตัวอักษร) แต่ถ้าแอปถูกปิด/สลับไปแอปอื่น/รีเฟรชก่อนครบ
+  // 400ms ให้เซฟทันทีผ่าน _draftFlushHook (ดู listener pagehide/visibilitychange ระดับไฟล์) — ไม่งั้นแก้หัวบิลแล้ว
+  // ปิดแอปทันทีก็ยังหายเหมือนเดิม
+  let draftTimer = null;
+  function flushDraftSoon(){
+    clearTimeout(draftTimer); draftTimer = null;
+    if(_draftFlushHook === flushDraftSoon) _draftFlushHook = null;
+    if(!draftCleared) saveDraft();
+  }
+  function saveDraftSoon(){
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(flushDraftSoon, 400);
+    _draftFlushHook = flushDraftSoon;
+  }
   function clearDraft(){
+    draftCleared = true;
     if(draftKey){ try{ localStorage.removeItem(draftKey); }catch(e){} }
     if(isStaffDraftable){ try{ localStorage.removeItem(STAFF_DRAFT_KEY); }catch(e){} }
   }
@@ -1965,7 +2051,10 @@ function renderBillReview(app){
   `;
   app.appendChild(c);
   const wrongSupplierBtn = c.querySelector('#wrongSupplierBtn');
-  if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=> go('billSupplier');
+  // E2E fix (1 ต.ค. 69, E2E-007): เดิมพาไปเลือกซัพพลายเออร์ใหม่แล้วรูปบิลถูกล้างทิ้งหมด (ต้องถ่ายใหม่ทั้งชุด) และ
+  // draft ของเจ้าที่ผิดยังค้างในเครื่องให้กด "ทำต่อ" ผิดเจ้าในครั้งหน้า — ตอนนี้ลบ draft เจ้าที่ผิดทิ้ง แล้วพารูปชุดเดิม
+  // ไปหน้าถ่ายรูปของเจ้าที่เลือกใหม่ (ต้องให้ AI อ่านใหม่อยู่ดีเพราะการจับคู่สินค้าขึ้นกับซัพพลายเออร์)
+  if(wrongSupplierBtn) wrongSupplierBtn.onclick = ()=>{ clearDraft(); go('billSupplier', {billKeepPhotos:true}); };
   const viewDupePhotoBtn = c.querySelector('#viewDupePhoto');
   if(viewDupePhotoBtn) viewDupePhotoBtn.onclick = ()=> openBillPhotoLightbox(state.billDuplicateWarning.photoUrl.split(','));
   c.querySelector('#viewPhoto').onclick = ()=> openBillPhotoLightbox(state.billPhotos);
@@ -2037,11 +2126,14 @@ function renderBillReview(app){
         </div>
         <div id="bhcMismatchSlot" role="status" aria-live="polite"></div>
       </div>`;
-    headerSlot.querySelector('.bhDate').oninput = (e)=>{ h.billDate = e.target.value; };
-    headerSlot.querySelector('.bhNumber').oninput = (e)=>{ h.billNumber = e.target.value; };
-    headerSlot.querySelector('.bhSubtotal').oninput = (e)=>{ h.subtotal = Number(e.target.value)||0; updateBillHeaderMismatch(); };
-    headerSlot.querySelector('.bhVat').oninput = (e)=>{ h.vat = Number(e.target.value)||0; };
-    headerSlot.querySelector('.bhTotal').oninput = (e)=>{ h.total = Number(e.target.value)||0; };
+    // E2E fix (1 ต.ค. 69, E2E-008): เดิมช่องหัวบิลไม่เรียก saveDraft() เลย กด "ทำต่อ" draft แล้วเลขที่บิล/ยอดที่แก้เองหาย
+    // ใช้ saveDraftSoon (หน่วง 400ms) ไม่ใช่ saveDraft ตรงๆ ทุกตัวอักษร เพราะ draft ฝั่งลูกจ้างรวมรูปบิล (หลาย MB)
+    // stringify ทุกครั้งที่พิมพ์จะหน่วงการพิมพ์บนมือถือ
+    headerSlot.querySelector('.bhDate').oninput = (e)=>{ h.billDate = e.target.value; saveDraftSoon(); };
+    headerSlot.querySelector('.bhNumber').oninput = (e)=>{ h.billNumber = e.target.value; saveDraftSoon(); };
+    headerSlot.querySelector('.bhSubtotal').oninput = (e)=>{ h.subtotal = Number(e.target.value)||0; updateBillHeaderMismatch(); saveDraftSoon(); };
+    headerSlot.querySelector('.bhVat').oninput = (e)=>{ h.vat = Number(e.target.value)||0; saveDraftSoon(); };
+    headerSlot.querySelector('.bhTotal').oninput = (e)=>{ h.total = Number(e.target.value)||0; saveDraftSoon(); };
     updateBillHeaderMismatch();
   }
   renderBillHeaderCard();
@@ -2201,6 +2293,8 @@ function renderBillReview(app){
         billHeader: state.billHeader
       }, false, undefined, BILL_API_URL);
       clearDraft(); // บันทึกจริงสำเร็จแล้ว — เลิกต้องมี draft ค้างไว้ในเครื่องอีกต่อไป
+      markPendingBillClosed(state.billResumeBatchId); // E2E-001: กันบิลนี้กลับมาโผล่ในคิวแล้วถูกบันทึกซ้ำ
+      clearAnalyzeCache(); // alias ที่เพิ่งเรียนรู้ทำให้ผลจับคู่อัตโนมัติเปลี่ยน — สแกนครั้งถัดไปต้องอ่านใหม่จริง
       go('billSuccess', {billLearnedCount: res.learnedCount||0});
     }catch(err){
       saveBtn.disabled = false; saveBtn.textContent = 'บันทึกต้นทุน';
@@ -2221,6 +2315,7 @@ function renderBillReview(app){
       // ลบแถวด้วย batchId เป็น idempotent อยู่แล้ว (เรียกซ้ำ = ไม่เจอแถว = ไม่ throw) ปลอดภัยที่จะ retry
       await apiPost('discardPendingBill', { batchId: state.billResumeBatchId }, true, undefined, BILL_API_URL);
       clearDraft();
+      markPendingBillClosed(state.billResumeBatchId); // E2E-001: รายการอัปเดตทันที ไม่โชว์บิลที่เพิ่งทิ้งค้างจากแคช
       go('billPendingList');
     }catch(err){
       discardBtn.disabled = false; discardBtn.textContent = 'ทิ้งบิลนี้ (ไม่บันทึก)';
@@ -2243,6 +2338,7 @@ function renderBillReview(app){
         billHeader: state.billHeader, idempotencyKey: state.billSubmitIdemKey
       }, false, undefined, BILL_API_URL);
       clearDraft(); // ส่งสำเร็จแล้ว (ไม่ว่า backend จะสร้างแถวใหม่จริงหรือแค่คืน batchId เดิมเพราะเลขบิลซ้ำ) — เลิกต้องมี draft ค้างไว้ในเครื่อง
+      clearAnalyzeCache(); // บิลเข้าคิวแล้ว — สแกนรูปเดิมซ้ำต้องได้คำเตือนบิลซ้ำใหม่จาก backend ไม่ใช่ผลเก่าที่จำไว้
       go('billSuccess', {});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
@@ -2331,6 +2427,7 @@ async function submitAllBatch(c){
         idempotencyKey: g.idemKey
       }, false, undefined, BILL_API_URL);
       g.submitted = true;
+      clearAnalyzeCache(); // เหตุผลเดียวกับโหมดบิลเดี่ยว (คำเตือนบิลซ้ำต้องคำนวณใหม่)
     }catch(err){
       btn.disabled = false;
       drawBatchCards(c);
@@ -2646,6 +2743,7 @@ function renderBillBatchRegroup(app){
   }
   draw();
 
+  const isCurrent = renderToken(); // E2E-003: กดย้อนกลับระหว่างรอ AI — ทิ้งผล ไม่แก้กลุ่ม/ไม่ go() ทับหน้าปัจจุบัน
   c.querySelector('#regroupBtn').onclick = async ()=>{
     const btn = c.querySelector('#regroupBtn');
     btn.disabled = true; btn.textContent = 'กำลังวิเคราะห์...';
@@ -2658,6 +2756,7 @@ function renderBillBatchRegroup(app){
       const res = await apiPostSilentRetry('analyzeBillPhoto', { supplierId: state.billSupplierId, photos }, 270000, 3, (attempt, max)=>{
         if(attempt>1) btn.textContent = `การเชื่อมต่อหลุด กำลังลองใหม่ (${attempt}/${max})...`;
       }, BILL_API_URL);
+      if(!isCurrent()) return;
       const items = (res.items||[]).map((it,i)=>({
         _id: 'rg'+Date.now()+'it'+i, billText: it.billText, unit: it.unit, qty: it.qty,
         receivedQty: it.qty, unitPrice: it.unitPrice,
@@ -2675,9 +2774,11 @@ function renderBillBatchRegroup(app){
       state.billBatchGroups.push({ photoIndices: selected, items, billHeader: res.billHeader||null, supplierMismatchWarning: res.supplierMismatchWarning||null, duplicateBillWarning: res.duplicateBillWarning||null, reviewed:false, submitted:false, idemKey: genIdemKey() });
       go('billBatchReview');
     }catch(err){
+      if(!isCurrent()) return;
       btn.disabled = false; btn.textContent = 'วิเคราะห์กลุ่มที่เลือกใหม่';
       const fe = friendlyBillError(err);
-      alert(fe.title ? (fe.title + '\n' + fe.detail) : ('วิเคราะห์ไม่สำเร็จ: ' + fe.detail));
+      // E2E-009: ข้อความที่ไม่ใช่ [QUOTA] ผ่าน friendlyErrorMessage เหมือนจุดอื่นทั้งแอป (ไม่โชว์ exception ดิบ)
+      alert(fe.title ? (fe.title + '\n' + fe.detail) : ('วิเคราะห์ไม่สำเร็จ: ' + friendlyErrorMessage(err)));
     }
   };
 }
@@ -2743,7 +2844,7 @@ function renderBillSuccess(app){
       ${kept.map(it=>{
         const p = products.find(x=>x.id===it.productId);
         const diff = Number((it.receivedQty-it.qty).toFixed(2));
-        return `<div class="recap-row"><span class="rr-name">${p?p.name:it.billText}${diff!==0?` <span style="color:${diff<0?'var(--danger)':'var(--amber)'};font-weight:700;">(${diff<0?'ขาด':'เกิน'} ${Math.abs(diff)})</span>`:''}</span><span class="rr-val">${it.qty}${it.unit} · ฿${(it.qty*it.unitPrice).toLocaleString('th-TH',{maximumFractionDigits:0})}</span></div>`;
+        return `<div class="recap-row"><span class="rr-name">${escapeHtml(p?p.name:it.billText)}${diff!==0?` <span style="color:${diff<0?'var(--danger)':'var(--amber)'};font-weight:700;">(${diff<0?'ขาด':'เกิน'} ${Math.abs(diff)})</span>`:''}</span><span class="rr-val">${it.qty}${escapeHtml(it.unit)} · ฿${(it.qty*it.unitPrice).toLocaleString('th-TH',{maximumFractionDigits:0})}</span></div>`;
       }).join('')}
       <div class="recap-row"><span class="rr-name"><b>ยอดรวม (ตามบิล)</b></span><span class="rr-val" style="font-size:15px;">฿${total.toLocaleString('th-TH',{maximumFractionDigits:2})}</span></div>
     </div>
@@ -2770,18 +2871,40 @@ function renderBillSuccess(app){
 // เท่านั้น) แก้ด้วย client-side cache แบบเดียวกับ bootstrap(): โชว์รายการล่าสุดที่เคยโหลดได้ทันทีจาก
 // sessionStorage ระหว่างรอของจริงมาแทนที่เงียบๆ เบื้องหลัง ผู้ใช้จะรู้สึกว่าเร็วขึ้นทันทีแม้ backend ยังช้าอยู่
 const PENDING_BILLS_CACHE_KEY = 'samurai_pending_bills_cache_v1';
+// E2E-008: draft หัวบิลที่ยังรอเซฟแบบหน่วงเวลา (saveDraftSoon ใน renderBillReview) — เซฟทันทีก่อนหน้าเว็บถูกปิด/ซ่อน
+// ผูก listener แค่ครั้งเดียวทั้งไฟล์ (ไม่ผูกซ้ำทุกครั้งที่ render หน้าตรวจ) หน้าตรวจแต่ละรอบแค่ตั้ง/ล้าง hook นี้
+let _draftFlushHook = null;
+function flushPendingDraft(){ if(_draftFlushHook) _draftFlushHook(); }
+window.addEventListener('pagehide', flushPendingDraft);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushPendingDraft(); });
 function readPendingBillsCache(){
   try{ return JSON.parse(sessionStorage.getItem(PENDING_BILLS_CACHE_KEY)); }catch(e){ return null; }
 }
 function writePendingBillsCache(batches){
   try{ sessionStorage.setItem(PENDING_BILLS_CACHE_KEY, JSON.stringify(batches)); }catch(e){}
 }
+// E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-001): เดิมหลังกด "บันทึกต้นทุน"/"ทิ้งบิลนี้" สำเร็จ แคชรายการ
+// ใน sessionStorage ยังมีบิลนั้นอยู่ พอกลับมาหน้า "บิลรอตรวจสอบ" ก็โชว์บิลเดิมทันทีระหว่างรอรีเฟรช (ถ้ารีเฟรชล้มเหลว
+// ค้างทั้ง session) กดเข้าไปบันทึกซ้ำได้ — finalizePurchaseReceipt ไม่ idempotent จึงเขียน PurchaseReceipts ซ้ำจริง
+// (เทสยืนยัน 1 → 2 แถว) แก้: ลบออกจากแคชทันที + จำ batchId ไว้ซ่อนจากรายการตลอด session นี้ (batchId ไม่ซ้ำกันเลย
+// มี ms ใน ID — ปลอดภัยที่จะจำไว้ทั้ง session) — ได้ผลพลอยได้คือรายการอัปเดตทันทีไม่ต้องรอ network
+const _closedPendingBatchIds = new Set();
+function markPendingBillClosed(batchId){
+  if(!batchId) return;
+  _closedPendingBatchIds.add(batchId);
+  const cached = readPendingBillsCache();
+  if(Array.isArray(cached)) writePendingBillsCache(cached.filter(b=> b.batchId !== batchId));
+}
 async function renderBillPendingList(app){
+  const isCurrent = renderToken();
   app.appendChild(topbar('บิลรอตรวจสอบ', {back:()=>go('ownerMenu')}));
   const c = document.createElement('div'); c.className='content';
   app.appendChild(c);
 
-  function drawList(batches){
+  function drawList(allBatches){
+    // E2E-001: ซ่อนบิลที่เครื่องนี้เพิ่งบันทึกต้นทุน/ทิ้งไปสำเร็จเสมอ — กันแคชเก่า (หรือรีเฟรชเบื้องหลังที่ยังไม่
+    // กลับมา/ล้มเหลว) โชว์บิลเดิมค้างให้กดเข้าไปบันทึกซ้ำจนต้นทุนถูกนับ 2 เท่า (ดู markPendingBillClosed)
+    const batches = allBatches.filter(b=> !_closedPendingBatchIds.has(b.batchId));
     if(!batches.length){ c.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
     c.innerHTML = batches.map(b=>{
       const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
@@ -2833,11 +2956,12 @@ async function renderBillPendingList(app){
       }catch(err){
         if(silent) return; // มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังไม่ต้องรบกวนหน้าจอ ลองใหม่รอบหน้าแทน
         await new Promise(r=> setTimeout(r, 3000));
+        if(!isCurrent()){ if(stopTimer) stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง
         continue;
       }
       if(stopTimer) stopTimer();
       writePendingBillsCache(data.batches);
-      drawList(data.batches);
+      if(isCurrent()) drawList(data.batches);
       return;
     }
   }
@@ -2854,6 +2978,7 @@ async function renderBillPendingList(app){
 // ภายในแต่ละกลุ่ม ไม่แยกหัวข้อย่อย "เช็คแล้ว/ยังไม่เช็ค" อีกชั้น (จะกลายเป็น 6 หัวข้อ รกเกิน) แค่เรียง
 // ร้านที่เช็คแล้วไปท้ายกลุ่มนั้นๆ แล้วให้การ์ดจางลง+ติ๊กถูกเหมือนเดิม
 async function renderSupplierList(app){
+  const isCurrent = renderToken();
   let statusList;
   if(stockStatusCache){
     statusList = stockStatusCache;
@@ -2865,7 +2990,9 @@ async function renderSupplierList(app){
     for(;;){
       try{ statusList = await getStockStatus(); stopTimer(); break; }
       catch(err){ await new Promise(r=> setTimeout(r, 3000)); }
+      if(!isCurrent()){ stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง (ดู renderToken)
     }
+    if(!isCurrent()) return; // โหลดเสร็จหลังผู้ใช้ออกไปแล้ว — ห้ามวาดทับหน้าปัจจุบัน
   }
   checkedProducts = new Set(statusList.filter(s=>s.checked).map(s=>s.productId));
   checkedSuppliers = new Set(
@@ -2936,6 +3063,7 @@ async function renderSupplierList(app){
   // ค่อย re-render อัปเดตกลุ่ม/ป้ายสถานะให้ตรง ถ้าโหลดไม่สำเร็จก็แค่ป้ายรอสั่ง/สั่งแล้วไม่อัปเดต ไม่กระทบการเช็คสต๊อก
   apiGet('orderedToday').then(orderedRes=>{
     orderedProductIds = new Set((orderedRes && orderedRes.productIds) || []);
+    if(!isCurrent()) return; // ข้อมูลยังเก็บไว้ใช้ (บรรทัดบน) แต่ไม่ต้องวาดหน้าที่ผู้ใช้ออกไปแล้ว
     renderLists(c.querySelector('#search').value);
   }).catch(()=>{});
 }
@@ -2976,6 +3104,7 @@ async function renderSupplierCheck(app){
   const sup = SUPPLIERS.find(s=>s.id===state.currentSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
 
+  const isCurrent = renderToken();
   const stopTimer = renderLoading(app, 'กำลังโหลดข้อมูลสต๊อกวันนี้...');
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที (ต้องกดย้อนกลับแล้วเข้าใหม่เอง) — เปลี่ยนเป็นวนลอง
   // เงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทน
@@ -2988,7 +3117,12 @@ async function renderSupplierCheck(app){
     }catch(err){
       await new Promise(r=> setTimeout(r, 3000));
     }
+    if(!isCurrent()){ stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง (ดู renderToken)
   }
+  // E2E-002: โหลดเสร็จหลังผู้ใช้กดย้อนกลับไปแล้ว — เดิมวาดหน้าเช็คทับหน้าปัจจุบัน แต่ state.screen ไม่ใช่
+  // 'supplierCheck' ระบบเซฟอัตโนมัติตอนปัดกลับ (popstate) เลยไม่ทำงาน ข้อมูลที่กรอกหายเงียบๆ — ตอนนี้หยุดตรงนี้
+  // ก่อนแตะ DOM/supplierCheckDirty/supplierCheckAutoSave ใดๆ เลย
+  if(!isCurrent()) return;
   statusList.filter(s=>products.some(p=>p.id===s.productId)).forEach(s=>{
     Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; });
     if(s.checked) checkedProducts.add(s.productId);
@@ -3336,6 +3470,7 @@ function renderOwnerPin(app){
   const timerEl = c.querySelector('#pinTimer');
   input.focus();
 
+  const isCurrent = renderToken();
   let checking = false;
   async function trySubmit(){
     if(checking) return;
@@ -3352,12 +3487,15 @@ function renderOwnerPin(app){
       try{
         const res = await apiGet('checkPin', {pin: val});
         stopTimer();
+        // ผู้ใช้กดย้อนกลับออกจากหน้า PIN ระหว่างรอไปแล้ว — ห้ามพาเข้าเมนูเจ้าของเองทั้งที่เขาไม่ได้อยู่หน้านี้แล้ว
+        if(!isCurrent()) return;
         if(res && res.valid){ go('ownerMenu'); return; }
         errEl.textContent = 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง'; errEl.style.color = 'var(--danger)';
         input.value='';
         break;
       }catch(err){
         await new Promise(r=> setTimeout(r, 3000));
+        if(!isCurrent()){ stopTimer(); return; } // ออกจากหน้า PIN ไปแล้ว — เลิกวนลอง
       }
     }
     checking = false; input.disabled = false; input.focus();
@@ -3402,22 +3540,26 @@ async function renderOwnerStockAnalytics(app){
 
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
   // bootstrap()/checkPin() แทน
+  const isCurrent = renderToken();
   for(;;){
     try{
       if(state.ownerTab === 'stock'){
         const statusList = await getStockStatus();
         stopTimer();
+        if(!isCurrent()) return; // E2E-002: ผู้ใช้ออก/สลับแท็บไปแล้ว ไม่ต้องวาด (ข้อมูลยังอยู่ในแคช)
         statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
         renderStockTab(body);
       } else {
         const analytics = await getAnalyticsCached('7d');
         stopTimer();
+        if(!isCurrent()) return;
         renderAnalyticsTab(body, analytics);
       }
       break;
     }catch(err){
       await new Promise(r=> setTimeout(r, 3000));
     }
+    if(!isCurrent()){ stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง
   }
 }
 
@@ -3470,7 +3612,7 @@ function renderAnalyticsTab(body, analytics){
       <table style="width:100%; font-size:13px;">
         <thead><tr><th style="text-align:left; font-weight:600;">สินค้า</th><th style="text-align:right; font-weight:600;">จำนวนที่สั่ง</th></tr></thead>
         <tbody>
-        ${rows.length ? rows.map(r=>`<tr><td>${r.name}</td><td style="text-align:right;">${r.total}</td></tr>`).join('')
+        ${rows.length ? rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td style="text-align:right;">${escapeHtml(r.total)}</td></tr>`).join('')
                       : '<tr><td colspan="2" style="color:var(--text-secondary);">ยังไม่มีข้อมูลสั่งของในช่วงนี้</td></tr>'}
         </tbody>
       </table>
@@ -3513,6 +3655,7 @@ async function renderOrderPage(app){
   // ทุกครั้งที่กลับมาหน้านี้
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
   // bootstrap()/checkPin() แทน
+  const isCurrent = renderToken();
   for(;;){
     try{
       await ensureOrderPageData();
@@ -3521,7 +3664,9 @@ async function renderOrderPage(app){
     }catch(err){
       await new Promise(r=> setTimeout(r, 3000));
     }
+    if(!isCurrent()){ stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง (ดู renderToken)
   }
+  if(!isCurrent()) return; // ข้อมูลถูกเก็บลงแคชแล้ว (ensureOrderPageData) แต่ไม่ต้องสร้างหน้าที่ไม่มีใครดู
   const statusList = stockStatusCache;
   const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
   const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
@@ -3974,10 +4119,12 @@ function renderOrderMessage(app){
     // แก้โดยไม่พึ่งการนับตัวอักษรเลย ใช้ CSS grid 3 คอลัมน์ (ชื่อ | จำนวน | หน่วยนับ)
     // — ต้องเป็น grid container เดียวที่ครอบทุกแถว (ไม่ใช่ grid แยกทีละแถว) ความกว้างคอลัมน์
     // ถึงจะคำนวณรวมจากทุกแถวแล้วตรงกันจริง ไม่ว่าชื่อแถวไหนจะสั้นหรือยาวแค่ไหน
+    // E2E-011 (ต่อจาก BUG-003): ชื่อสินค้า/ชื่อหน่วยมาจากการพิมพ์มือ ต้อง escape ก่อนแทรก innerHTML เหมือนจุดอื่น —
+    // เฉพาะตัวอย่างบนจอเท่านั้น ข้อความที่คัดลอก (text ด้านล่าง) เป็น plain text อยู่แล้ว ไม่ต้อง/ห้าม escape
     const rowsHtml = list.map((it,i)=>`
-      <span style="min-width:0;">${i+1}. ${it.name}</span>
-      <span style="text-align:right; white-space:nowrap;">${it.qty}</span>
-      <span style="text-align:left; white-space:nowrap;">${it.orderUnit}</span>`).join('');
+      <span style="min-width:0;">${i+1}. ${escapeHtml(it.name)}</span>
+      <span style="text-align:right; white-space:nowrap;">${escapeHtml(it.qty)}</span>
+      <span style="text-align:left; white-space:nowrap;">${escapeHtml(it.orderUnit)}</span>`).join('');
     // ข้อความล้วนสำหรับคัดลอกไปวางแอปอื่น (LINE ฯลฯ) — คุมฟอนต์ปลายทางไม่ได้ จึงคั่นด้วยช่องว่างคงที่
     // แทนการพยายามจัดคอลัมน์ด้วยจำนวนช่องว่างผันแปร (ซึ่งตรงเฉพาะตอนพรีวิวในแอปเท่านั้น)
     // ใช้ non-breaking space ( ) คั่นระหว่าง "จำนวน" กับ "หน่วยนับ" แทนช่องว่างปกติ
