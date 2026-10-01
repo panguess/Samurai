@@ -679,6 +679,16 @@ function getPendingBillReceipts() {
 // ใส่ retryOnTimeout ฝั่งเว็บ
 function discardPendingBill(body) {
   if (!body.batchId) throw new Error('ข้อมูลไม่ครบ (batchId หายไป)');
+  // [1 ต.ค. 69] ล็อกเดียวกับ finalizePurchaseReceipt — กันการทิ้งบิลแทรกกลางระหว่างบันทึกบิลอื่น (แถวเลื่อน)
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('ระบบกำลังบันทึกบิลอื่นอยู่ ลองอีกครั้งในอีกสักครู่');
+  try {
+    return discardPendingBillLocked_(body);
+  } finally {
+    lock.releaseLock();
+  }
+}
+function discardPendingBillLocked_(body) {
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) return { ok: true };
   const data = sh.getDataRange().getValues();
@@ -703,10 +713,49 @@ function discardPendingBill(body) {
 // submitBillForReview ไม่ต้องอัปโหลดซ้ำ แค่ลบแถวออกจาก PENDING_BILL_SHEET หลังบันทึกจริงสำเร็จ
 // body = { batchId, supplierId, staffName, items:[{productId, billText, billQty, billUnit, receivedQty,
 //          conversionFactor, unitPrice, saveAlias}] } — ไม่รวมรายการที่ข้าม (ไม่ใช่สินค้า) แล้ว
+// [1 ต.ค. 69 — E2E-001 ชั้น backend] เดิมฟังก์ชันนี้ไม่เช็คเลยว่าบิลถูกบันทึกไปแล้วหรือยัง เรียกซ้ำด้วย batchId เดิม
+// (หน้าเว็บโชว์บิลเก่าค้างจากแคช / กดย้อนกลับมาหน้าเดิม / 2 เครื่องกดพร้อมกัน) = เขียน PurchaseReceipts ซ้ำ ต้นทุนนับ
+// 2 เท่า (ยืนยันด้วยเทส E2E) หน้าเว็บแก้ไปแล้ว (stock-check.html commit fd27d29) ชั้นนี้คือด่านสุดท้ายฝั่งเซิร์ฟเวอร์:
+// 1) LockService — ให้ finalize/discard ทำทีละคำขอ (เจ้าของคนเดียว แต่ละครั้งจบในไม่กี่วินาที) ไม่ล็อก
+//    submitBillForReview ของพนักงานเลย (ดูเหตุผลที่ไม่ล็อกฟังก์ชันนั้นในคอมเมนต์ด้านบน) จึงไม่กระทบการส่งบิล
+// 2) ถ้าบิลไม่อยู่ในคิวแล้ว: เคยบันทึกลง PurchaseReceipts แล้ว → คืน ok เฉยๆ ไม่เขียนซ้ำ (alreadyFinalized),
+//    ไม่เคยบันทึก (ถูกทิ้งไปแล้ว) → แจ้ง error ไม่สร้างต้นทุนให้บิลที่ถูกทิ้ง — เช็คนี้อ่านแค่คอลัมน์ BatchID และทำ
+//    เฉพาะตอนหาบิลในคิวไม่เจอ (ไม่เกิดในการใช้งานปกติ) การบันทึกปกติจึงไม่ช้าลงเลย
 function finalizePurchaseReceipt(body) {
   if (!body.batchId || !body.supplierId || !body.staffName || !body.items || !body.items.length) {
     throw new Error('ข้อมูลไม่ครบ (batchId, supplierId, staffName หรือรายการสินค้าหายไป)');
   }
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('ระบบกำลังบันทึกบิลอื่นอยู่ ลองกดบันทึกอีกครั้งในอีกสักครู่');
+  try {
+    return finalizePurchaseReceiptLocked_(body);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// คืน index แถว (0-based รวมหัวตาราง) ของ batchId ในชีตคิวรอตรวจ หรือ -1 — ใช้หาใหม่ทุกครั้งก่อนลบแถว
+function findPendingRowIndex_(pendingSh, batchId) {
+  if (!pendingSh) return -1;
+  const pData = pendingSh.getDataRange().getValues();
+  const batchCol = pData[0].indexOf('BatchID');
+  for (let i = 1; i < pData.length; i++) {
+    if (String(pData[i][batchCol]).trim() === String(batchId).trim()) return i;
+  }
+  return -1;
+}
+
+// เคยบันทึก batchId นี้ลง PurchaseReceipts แล้วหรือยัง — อ่านแค่คอลัมน์ BatchID คอลัมน์เดียว
+function receiptExistsForBatch_(sh, headers, batchId) {
+  const col = headers.indexOf('BatchID');
+  const lastRow = sh.getLastRow();
+  if (col === -1 || lastRow < 2) return false;
+  const ids = sh.getRange(2, col + 1, lastRow - 1, 1).getValues();
+  const target = String(batchId).trim();
+  return ids.some(r => String(r[0]).trim() === target);
+}
+
+function finalizePurchaseReceiptLocked_(body) {
   const sh = SHEET.getSheetByName(PURCHASE_RECEIPTS_SHEET);
   if (!sh) throw new Error('ไม่พบชีต ' + PURCHASE_RECEIPTS_SHEET + ' — สร้างชีตนี้ก่อน (คอลัมน์: ReceiptID, BatchID, Date, SupplierID, ProductID, BillText, BillQty, ReceivedQty, BillUnit, ConversionFactor, ConvertedQty, UnitPrice, TotalPrice, PhotoURL, StaffName, BillDate, BillNumber, BillSubtotal, BillVat, BillTotal, Timestamp)');
   // อ่านหัวคอลัมน์จริงจากชีต ไม่ hardcode ลำดับ — กันกรณีผู้ใช้สร้างชีตเรียงคอลัมน์ไม่ตรงที่แนะนำเป๊ะๆ
@@ -725,6 +774,13 @@ function finalizePurchaseReceipt(body) {
     for (let i = 1; i < pData.length; i++) {
       if (String(pData[i][batchCol]).trim() === String(body.batchId).trim()) { pendingRowIdx = i; photoUrl = pData[i][photoCol]; break; }
     }
+  }
+  if (pendingRowIdx === -1) {
+    if (receiptExistsForBatch_(sh, headers, body.batchId)) {
+      cacheClear('pendingBills');
+      return { ok: true, learnedCount: 0, alreadyFinalized: true };
+    }
+    throw new Error('บิลนี้ไม่อยู่ในคิวรอตรวจสอบแล้ว (อาจถูกทิ้งไปแล้ว) — กลับไปหน้าบิลรอตรวจสอบเพื่อดูรายการล่าสุด');
   }
 
   const ts = new Date().toISOString();
@@ -757,7 +813,10 @@ function finalizePurchaseReceipt(body) {
   const toLearn = body.items.filter(it => it.saveAlias && it.productId);
   const learnedCount = toLearn.length ? batchUpsertProductAlias(body.supplierId, toLearn, body.staffName, ts) : 0;
 
-  if (pendingRowIdx !== -1) pendingSh.deleteRow(pendingRowIdx + 1);
+  // หาแถวใหม่อีกรอบก่อนลบ — index ที่หาไว้ตอนต้นอาจเลื่อนไปแล้วถ้ามีแถวอื่นถูกลบระหว่างนี้ เดิมใช้ index เก่า
+  // ตรงๆ เสี่ยงลบบิลใบอื่นทิ้งจากคิว (บิลของคนอื่นหายเงียบๆ)
+  const rowNow = findPendingRowIndex_(pendingSh, body.batchId);
+  if (rowNow !== -1) pendingSh.deleteRow(rowNow + 1);
 
   cacheClear('pendingBills'); // บิลนี้ออกจากคิวรอตรวจแล้ว — กันเห็นแถวที่บันทึกจริงแล้วค้างอยู่ในหน้ารอตรวจ
   invalidateDuplicateCandidatesCache(body.supplierId); // ย้ายจาก pending ไป PurchaseReceipts จริงแล้ว ต้องอัปเดต candidate ด้วย
