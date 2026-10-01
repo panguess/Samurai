@@ -1049,6 +1049,55 @@ Chromium binary จริง (`/opt/pw-browsers/chromium-1194` — เช็ค�
 ⚠️ **ห้ามหยิบเรื่องนี้ขึ้นมาเสนอแก้เองจนกว่าผู้ใช้จะพูดถึงก่อน** — ถ้าผู้ใช้กลับมาคุย ให้เริ่มจากวางแผนเป็นขั้นตอนพร้อมจุดตรวจแต่ละขั้นตามที่ผู้ใช้ขอ
 (กลุ่มกระทบน้อยก่อน → ตัดสินใจเรื่องรหัสพนักงาน → ทำ demo SEC-001/002) ไม่ใช่ลงมือแก้รวดเดียว
 
+### สถานะล่าสุด (อัปเดต 1 ต.ค. 69 — ต่อ 2) — Final E2E audit แก้ครบ 4 เฟส + Speed รอบ 1 (push แล้วทั้งหมด) + ติ๊กถูกกลับมา
+
+**push แล้วทั้งหมดขึ้น `main`** (ล่าสุด `a0661dd`) — `BillCapture-Code.gs` เฟส 2 ผู้ใช้ deploy แล้ว ไม่มีอะไรค้าง deploy
+
+**1) Final E2E & Release Readiness audit → แก้ 12/13 ข้อ** (รายงาน: https://claude.ai/artifact/6enCYYuMF5eP5sAdGVW62M ,
+เอกสารสรุปให้ผู้เชี่ยวชาญ: https://claude.ai/code/artifact/696c13af-c1a8-417d-8d5f-c8a7bf76a298)
+- เฟส 1 `fd27d29`: E2E-001/002/003/007/008/009/011 (`renderToken()` กันหน้า async วาดทับ, `markPendingBillClosed`,
+  `flushPendingDraft` บน pagehide/visibilitychange, `analyzeBillPhotoShared` ฯลฯ)
+- เฟส 2 `e4e9b5a` (`BillCapture-Code.gs`, deploy แล้ว): `finalizePurchaseReceipt`/`discardPendingBill` ใช้ lock +
+  `receiptExistsForBatch_` → บันทึกต้นทุนซ้ำไม่ได้แล้ว (idempotent)
+- เฟส 3 `96935f8`: UI E2E-004/010/012 — ป้ายงดยังคง "🚫 งดสั่งวันนี้" (ผู้ใช้เลือก), กราฟแนวโน้มปลอมซ่อนไว้
+- เฟส 4 `9249eae`: E2E-005 (ทาง A) + E2E-006
+- **E2E-013 พักไว้** — ผูกกับ SEC-001 (ดู section Security ด้านบน ห้ามหยิบมาเสนอเองจนกว่าผู้ใช้พูดถึง)
+
+**2) Speed audit ทั้งแอป → รอบ 1 ทำแล้ว `8cf96bf`** (วัดด้วย Playwright จำลองมือถือ CPU ช้า 4 เท่า + Apps Script ช้า 1.5-2.5 วิ)
+- B: แคช bootstrap ย้าย sessionStorage → localStorage คีย์ `samurai_bootstrap_cache_v2` (`{savedAt,data}` อายุสูงสุด 7 วัน,
+  อ่านคีย์ v1 ใน sessionStorage เป็นทางสำรอง) — ปิดแอปแล้วเปิดใหม่ 2.4 วิ → 0.3 วิ
+  - **ข้อควรระวังที่ใส่ไว้แล้ว**: รีเฟรชเบื้องหลังจะ `render()` ซ้ำเฉพาะเมื่อข้อมูลเปลี่ยนจริง + อยู่ในหน้า
+    `BOOTSTRAP_SAFE_RERENDER_SCREENS` (home/staffName/supplierList/ownerMenu/billSupplier) + ไม่มีคำค้นค้าง/ไม่ได้โฟกัสช่องกรอก
+    (`canSilentlyRerenderAfterBootstrap`) — เดิม render ทับหน้าเช็คสต๊อกแล้วค่าที่พิมพ์หาย + `supplierCheckDirty` ถูกรีเซ็ต
+- C: แคชบิลรอตรวจ → localStorage `samurai_pending_bills_cache_v2` — เปิดแอปใหม่แล้วเข้าหน้าบิลรอตรวจ ~3 วิ → ทันที
+  (ข้อแลก: รายการบิลที่มีราคาค้างอยู่ในเครื่องที่เจ้าของเคยเปิด — แจ้งผู้ใช้แล้ว ถอยเฉพาะ C ได้ถ้าต้องการ)
+- `setItemDraftFirst`: draft บิลสำคัญกว่าแคชเสมอ — localStorage เต็มจะลบแคช 2 ตัวนี้ทิ้งแล้วเซฟ draft ใหม่
+- F: `.item-card{content-visibility:auto; contain-intrinsic-size:auto 330px}` — เปิดบิล 55 รายการ 1.5 → 0.5 วิ
+  (overlay ทั้งหมด append ที่ body จึงไม่ถูก containment ตัด — ถ้าจะเพิ่ม popup ในการ์ดบิล ต้อง append ที่ body เหมือนกัน)
+- G: ล็อก Tabler เป็น `@3.48.0` (เดิม `@latest`) + **พบบั๊กเก่า**: ตั้งแต่ Tabler 3.37.0 ไอคอนทึบถูกย้ายไปฟอนต์แยก
+  `ti-circle-check-filled` (ติ๊กถูกบนการ์ดที่เช็คแล้ว หน้าเช็คสต๊อก) จึงว่างเปล่ามาตลอด → แก้ด้วย `@font-face` ดึง
+  `tabler-icons-filled.woff2` ผูกเฉพาะคลาสนี้ (ห้ามโหลด `tabler-icons-filled.min.css` ทั้งไฟล์ — บังคับ `.ti` ทุกตัวเป็นฟอนต์ทึบ)
+- แก้เพิ่ม: อัปโหลดรูปโปรไฟล์พนักงานอัปเดตรูปบนจอปัจจุบันแม้หน้าถูกวาดใหม่ระหว่างอัปโหลด
+
+⚠️ **ฟีเจอร์รูปปก/หัวใจ (`ALLOW_SET_COVER_PHOTO = false`) — คงไว้แบบเดิมทุกตัวอักษร ห้ามลบโค้ด ห้ามเปิด ห้ามทำหัวใจ
+(`ti-heart-filled`) ให้กลับมาแสดง** ผู้ใช้ "ไม่เอาหัวใจแล้ว" แต่**ไม่ได้สั่งให้ลบฟีเจอร์รูปปก** (session นี้เข้าใจผิด
+ลบไปแล้วต้องคืนกลับ — ผู้ใช้ตำหนิว่าต้องฟังให้เข้าใจก่อนทำ) รูปปกร้านที่ตั้งไว้แล้วยังแสดงบนการ์ดร้านตามปกติ
+
+**งานค้าง (รอผู้ใช้สั่ง ห้ามเริ่มเอง)**
+- Speed รอบ 2-A: stale-while-revalidate หน้าเช็คร้าน/สั่งของ/แท็บสต๊อก (อายุไม่เกิน 5 นาที) — เสี่ยงสุด: ต้องกันทับค่าที่
+  กำลังพิมพ์ (ใช้แนวเดียวกับ B) + ป้าย "กำลังอัปเดต" + ระวังตัวเลขสต๊อกเก่าชั่วครู่ในหน้าสั่งของ
+- Speed รอบ 2-E: หน้าสั่งของสร้าง `.ord-card-body` ตอนกางการ์ดเท่านั้น (prototype เร็วขึ้น ~2 เท่า) — จำนวนสั่งอยู่ใน
+  `state.orderQty` ไม่พึ่ง DOM, ต้องดู search/"เลือกทั้งหมด"/ปฏิทินงดสั่ง — แนะนำทำ E ก่อน A (เสี่ยงต่ำกว่า)
+- Speed รอบ 3-D (`Code.gs`, ผู้ใช้ต้อง deploy): `getOrderPageData` อ่าน OrderLogs ครั้งเดียว — ให้ผู้ใช้ดูเวลา
+  `orderPageData` ใน Apps Script Executions ก่อนว่าคุ้มไหม, ผลลัพธ์ต้องเหมือนเดิมทุกตัวอักษร
+- E2E-013 + Security audit ทั้งชุด — พักไว้ตามผู้ใช้
+
+**กติกาที่ผู้ใช้ย้ำใน session นี้**: ทุกการแก้ต้องไม่ก่อบั๊ก/ไม่กระทบฟีเจอร์อื่น — **"ทวนงาน 3 รอบ"** = ทวนงานชิ้นเดียวกัน 3 รอบ
+(อ่านโค้ด+ทุกจุดที่เรียกใช้ / ไล่ทีละฟีเจอร์ / รันเทสทั้งหมด) ไม่ใช่ "ดูแผน 3 รอบ" · UI เปลี่ยนต้องทำ demo ก่อน ·
+ผู้ใช้สับสนง่ายเมื่อเปลี่ยนกลับไปกลับมา — สรุปสถานะเป็นภาพ (ก่อน/หลัง) ช่วยได้มาก · เทส Playwright ชุดเต็ม (j1–j4, p1/p3/p4,
+r1_speed) อยู่ใน scratchpad ของ session นี้ซึ่งจะหายไป — session ใหม่ต้องเขียน harness ใหม่ถ้าจะทำ E2E (J5.11 fail อยู่แล้ว
+เป็นปัญหาของสคริปต์เทส ไม่ใช่บั๊กแอป)
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
