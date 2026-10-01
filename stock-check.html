@@ -36,7 +36,7 @@
      stylesheet ที่ยังโหลดไม่เสร็จ ถ้าเน็ตเอื้อมไม่ถึง fonts.googleapis.com/cdn.jsdelivr.net ได้ (แพลตฟอร์ม
      บล็อก/เน็ตร้านหลุด) ทั้งแอปจะค้างจอเปล่าหลายวินาทีถึงหลักสิบวินาทีโดยไม่จำเป็น) -->
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/tabler-icons.min.css" media="print" onload="this.media='all'">
 <style>
   :root{
     --brand:#1A1A1A; --brand-bg:#ECECEA;
@@ -109,6 +109,15 @@
   .cover-toggle:disabled{opacity:0.35; cursor:not-allowed;}
   .prod-card.is-cover{border-color:var(--danger);}
   .cover-tag{font-size:10px; color:var(--danger); font-weight:600; margin:2px 0 0;}
+  /* ไอคอนติ๊กถูกแบบทึบ ("เช็คแล้ว" บนการ์ดสินค้าหน้าเช็คสต๊อก) — ตั้งแต่ Tabler 3.37.0 (ก.พ. 69)
+     ไอคอนทึบถูกย้ายออกจาก tabler-icons.min.css ไปเป็นฟอนต์แยก แอปเคยโหลด @latest เลยได้ปุ่มว่างเปล่ามาตลอด (พบตอนล็อก
+     เวอร์ชัน 1 ต.ค. 69) ไม่โหลด tabler-icons-filled.min.css ทั้งไฟล์เพราะไฟล์นั้นบังคับ .ti ทุกตัวเป็นฟอนต์ทึบ (!important)
+     ไอคอนเส้นอื่นทั้งแอปจะเพี้ยน — ดึงแค่ไฟล์ฟอนต์ (เวอร์ชันเดียวกับลิงก์ด้านบน) ผูกเฉพาะคลาสนี้ เบราว์เซอร์โหลดฟอนต์นี้ก็ต่อเมื่อ
+     มีติ๊กถูกโผล่บนจอจริงเท่านั้น รหัสตัวอักษรเอามาจาก tabler-icons-filled.min.css 3.48.0 (.ti-circle-check)
+     ตั้งใจไม่ผูก ti-heart-filled (ปุ่ม/ป้ายรูปปก) — ผู้ใช้ไม่เอาหัวใจแล้ว ฟีเจอร์นั้นปิดอยู่ด้วย ALLOW_SET_COVER_PHOTO */
+  @font-face{font-family:"tabler-icons-filled"; font-style:normal; font-weight:400; font-display:block;
+    src:url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/fonts/tabler-icons-filled.woff2?v3.48.0") format("woff2");}
+  .ti.ti-circle-check-filled:before{font-family:"tabler-icons-filled"; content:"\f704";}
   .add-prod-card{width:100%; min-width:0; min-height:140px; max-height:100%; border-radius:16px; border:1.5px dashed var(--border-strong); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:var(--text-tertiary); cursor:pointer; background:none;}
   .add-prod-card span{text-align:center; padding:0 6px; font-size:12px;}
   /* จำนวนสินค้าคู่ (N) → การ์ด "เพิ่มสินค้าใหม่" (ลำดับที่ N+1 คี่) จะเหลือตัวเดียวในแถวสุดท้าย ไม่มีการ์ดคู่ให้ stretch
@@ -387,6 +396,9 @@
   .analyzing-wrap p{font-size:12.5px; color:var(--text-tertiary); max-width:280px; line-height:1.5; margin:0;}
 
   .item-card{border:1px solid var(--border); border-radius:var(--radius-lg); padding:12px; margin-bottom:10px; background:#fff; scroll-margin-top:64px;}
+  /* Speed รอบ 1 (F): บิลใหญ่ 50+ รายการ เบราว์เซอร์ต้องจัดวางข้อความไทยทุกการ์ดทั้งที่มองเห็นแค่ 2-3 ใบ — ข้ามการ์ดที่อยู่นอกจอ
+     (ใช้ขนาดประมาณ 330px แทน แล้วจำขนาดจริงหลังเห็นครั้งแรก) เบราว์เซอร์ที่ไม่รู้จัก property นี้ก็แค่วาดทุกใบเหมือนเดิม */
+  .item-card{content-visibility:auto; contain-intrinsic-size:auto 330px;}
   .item-card.is-matched{border-color:rgba(8,80,65,0.22);}
   /* WCAG AA fix (27 ก.ย. 69, ACC-008): opacity เดิมบนการ์ดทั้งใบทำให้ข้อความชื่อรายการ (.item-bill-text ปกติ
      ไม่มีสี กำหนดเอง สืบทอด --text เข้มเต็มที่) คอนทราสต์ไม่พอ — คุมสีตรงๆ ที่ .item-bill-text แทน (ดูด้านล่าง) */
@@ -1305,6 +1317,15 @@ const BOOTSTRAP_CACHE_KEY = 'samurai_bootstrap_cache_v1';
 // เหมือนแพทเทิร์นเดียวกับ STOCK_STATUS_TTL
 const BOOTSTRAP_REFRESH_TTL = 45000; // ms
 let _bootstrapRefreshTs = 0;
+const BOOTSTRAP_SAFE_RERENDER_SCREENS = new Set(['home','staffName','supplierList','ownerMenu','billSupplier']);
+// หน้าพวกนี้ไม่มีช่องกรอกข้อมูลจริง มีแค่ช่องค้นหา — ถ้าผู้ใช้พิมพ์ค้นหาค้างอยู่/กำลังพิมพ์ ไม่วาดทับ (คำค้นจะหาย)
+function canSilentlyRerenderAfterBootstrap(){
+  if(!BOOTSTRAP_SAFE_RERENDER_SCREENS.has(state.screen)) return false;
+  const app = document.getElementById('app');
+  const active = document.activeElement;
+  if(active && app.contains(active) && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return false;
+  return ![...app.querySelectorAll('input[type="text"], input[type="search"]')].some(i=> i.value);
+}
 function refreshBootstrapIfStale(onUpdated){
   if(Date.now() - _bootstrapRefreshTs < BOOTSTRAP_REFRESH_TTL) return;
   _bootstrapRefreshTs = Date.now();
@@ -1314,19 +1335,45 @@ function refreshBootstrapIfStale(onUpdated){
     if(onUpdated) onUpdated(data);
   }).catch(()=>{ _bootstrapRefreshTs = 0; }); // ล้มเหลว — อนุญาตให้ลองใหม่ได้เลยครั้งหน้า ไม่ต้องรอครบ TTL
 }
-function readBootstrapCache(){
-  try{ return JSON.parse(sessionStorage.getItem(BOOTSTRAP_CACHE_KEY)); }catch(e){ return null; }
+// Speed รอบ 1 (1 ต.ค. 69 — B/C): เดิมแคช bootstrap/บิลรอตรวจเก็บใน sessionStorage ซึ่งหายทุกครั้งที่ปิดแอป
+// (PWA/แท็บใหม่) — เปิดแอปครั้งแรกของวันเลยต้องรอ Apps Script เต็มๆ ทุกครั้ง (วัดได้ ~2.3 วิ / บิล ~3 วิ) ย้ายไป
+// localStorage ให้อยู่ข้ามการปิดแอป ยังเป็น stale-while-revalidate เหมือนเดิม (โชว์ของเดิมทันที + ดึงของจริงเบื้องหลัง
+// ทุกครั้ง) เก็บเวลาไว้ด้วย — แคชเก่ากว่า PERSIST_CACHE_MAX_AGE (ไม่ได้เปิดแอปนานมาก) ไม่ใช้ กลับไปรอโหลดแบบเดิม
+// อ่าน sessionStorage คีย์เดิมเป็นทางสำรองเฉพาะแท็บที่เปิดค้างอยู่ตอนอัปเดตเวอร์ชันนี้ (ครั้งเดียว)
+const PERSIST_CACHE_MAX_AGE = 7 * 24 * 3600 * 1000; // ms
+const BOOTSTRAP_CACHE_KEY_V2 = 'samurai_bootstrap_cache_v2';
+function readPersistCache(key, legacyKey){
+  try{
+    const wrapped = JSON.parse(localStorage.getItem(key));
+    if(wrapped && wrapped.data && Date.now() - (wrapped.savedAt||0) < PERSIST_CACHE_MAX_AGE) return wrapped.data;
+  }catch(e){}
+  try{ return JSON.parse(sessionStorage.getItem(legacyKey)); }catch(e){ return null; }
 }
-function writeBootstrapCache(data){
-  try{ sessionStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(data)); }catch(e){}
+function writePersistCache(key, legacyKey, data){
+  try{ sessionStorage.removeItem(legacyKey); }catch(e){}
+  try{ localStorage.setItem(key, JSON.stringify({savedAt: Date.now(), data})); }catch(e){}
 }
+// แคช 2 ตัวนี้ใช้โควต้า localStorage ร่วมกับ draft บิล (draft ลูกจ้างมีรูปบิลอยู่ในนั้น ใหญ่ได้ถึง ~4MB ใกล้เพดาน
+// ~5MB ของ iOS Safari) — draft สำคัญกว่าแคชเสมอ ถ้าเซฟ draft ไม่ลงเพราะเต็ม saveDraft จะเรียกตัวนี้ลบแคชทิ้งแล้วลองใหม่
+// (แคชหายแค่ทำให้เปิดแอปครั้งหน้าช้าเท่าเดิม 1 ครั้ง ไม่มีข้อมูลอะไรหาย)
+function evictPersistCaches(){
+  try{ localStorage.removeItem(BOOTSTRAP_CACHE_KEY_V2); localStorage.removeItem(PENDING_BILLS_CACHE_KEY_V2); }catch(e){}
+}
+function setItemDraftFirst(key, value){
+  try{ localStorage.setItem(key, value); return; }catch(e){}
+  evictPersistCaches();
+  try{ localStorage.setItem(key, value); }catch(e){}
+}
+function readBootstrapCache(){ return readPersistCache(BOOTSTRAP_CACHE_KEY_V2, BOOTSTRAP_CACHE_KEY); }
+function writeBootstrapCache(data){ writePersistCache(BOOTSTRAP_CACHE_KEY_V2, BOOTSTRAP_CACHE_KEY, data); }
 async function bootstrap(){
   const app = document.getElementById('app');
   // ร้าน/สินค้า/พนักงาน แทบไม่เปลี่ยนบ่อย - ถ้ามี cache จากเซสชันก่อนหน้าให้ใช้ก่อนเลย
   // แล้วค่อยรีเฟรชข้อมูลใหม่เงียบๆ อยู่เบื้องหลัง แทนที่จะรอ Apps Script ทุกครั้งที่เปิดแอป
   const cached = readBootstrapCache();
-  if(cached){
+  if(cached && Array.isArray(cached.suppliers) && Array.isArray(cached.products) && Array.isArray(cached.staff)){
     SUPPLIERS = cached.suppliers; PRODUCTS = cached.products; STAFF = cached.staff;
+    const cachedJson = JSON.stringify(cached);
     history.replaceState({screen:'home', staffName:'', currentSupplierId:null, ownerTab:'stock'}, '');
     render();
     getStockStatus().catch(()=>{});
@@ -1336,7 +1383,12 @@ async function bootstrap(){
       _bootstrapRefreshTs = Date.now();
       // ข้อมูลจริงมาแล้ว (เช่น หน่วยสินค้าที่เพิ่งเพิ่มในชีต) — render จากข้อมูลเก่าไปแล้วตอนต้นฟังก์ชัน
       // ต้อง render ซ้ำอีกครั้งไม่งั้นหน้าจอจะค้างข้อมูลเก่าไปตลอด session จนกว่าจะปิดแท็บ
-      render();
+      // Speed รอบ 1: แคชอยู่ข้ามการปิดแอปแล้ว ทางนี้จะวิ่งทุกครั้งที่เปิดแอป ผู้ใช้อาจกดเข้าหน้ากรอกข้อมูลไปก่อน
+      // ข้อมูลจริงมาถึง — render() ทับหน้าเช็คสต๊อก/สั่งของ/ตรวจบิลจะล้างค่าที่พิมพ์ค้างไว้ (หน้าเช็คสต๊อกรีเซ็ต
+      // supplierCheckDirty ทำให้ไม่เซฟอัตโนมัติตอนออก) จึง render ซ้ำเฉพาะเมื่อข้อมูลเปลี่ยนจริง และเฉพาะหน้าที่ไม่มี
+      // ช่องกรอก — หน้าอื่นใช้ข้อมูลใหม่ (SUPPLIERS/PRODUCTS อัปเดตแล้วด้านบน) ตั้งแต่หน้าถัดไปที่เปิด
+      if(JSON.stringify(data) === cachedJson) return;
+      if(canSilentlyRerenderAfterBootstrap()) render();
     }).catch(()=>{});
     return;
   }
@@ -1506,7 +1558,10 @@ function renderStaffName(app){
       const { avatarUrl } = await apiPost('saveStaffAvatar', { staffId, photo });
       const s = STAFF.find(x=>x.id===staffId);
       if(s) s.avatarUrl = avatarUrl;
-      if(targetEl) targetEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
+      // ระหว่างอัปโหลดหน้านี้อาจถูกวาดใหม่ (ข้อมูลร้าน/พนักงานจากเครื่องถูกแทนด้วยของจริงเบื้องหลัง) — targetEl เดิมจะหลุด
+      // ออกจากจอไปแล้ว อัปเดตตัวที่อยู่บนจอจริงตอนนี้ด้วย
+      const shownEl = document.querySelector(`#app .avatar-pick[data-staff-id="${staffId}"]`) || targetEl;
+      if(shownEl) shownEl.innerHTML = `<img src="${avatarUrl}" alt="">`;
     }catch(err){ alert('บันทึกรูปไม่สำเร็จ: ' + friendlyErrorMessage(err)); }
   };
   // แตะที่ตัวรูปเอง = ซูมดูรูปใหญ่ (ถ้ามีรูปแล้ว) กันเผลอกดเลือกพนักงานผิดคนตอนแค่อยากดูรูปชัดๆ
@@ -1983,7 +2038,7 @@ function renderBillReview(app){
   const STAFF_DRAFT_KEY = 'samurai_staff_bill_draft_v1';
   const isStaffDraftable = state.billMode === 'staff';
   function saveDraft(){
-    if(draftKey){ try{ localStorage.setItem(draftKey, JSON.stringify(state.billItems)); }catch(e){} }
+    if(draftKey){ try{ setItemDraftFirst(draftKey, JSON.stringify(state.billItems)); }catch(e){} }
     if(isStaffDraftable){
       try{
         const payload = JSON.stringify({
@@ -1995,7 +2050,7 @@ function renderBillReview(app){
         });
         // กันเผื่อรูปเยอะ/ใหญ่จนเกือบเต็มโควต้า localStorage ของ origin (~5MB บน iOS Safari) — ข้ามเงียบๆ
         // ถ้าใหญ่เกินไป ไม่ error (เพดานเดียวกับแคชอื่นในไฟล์นี้)
-        if(payload.length < 4 * 1024 * 1024) localStorage.setItem(STAFF_DRAFT_KEY, payload);
+        if(payload.length < 4 * 1024 * 1024) setItemDraftFirst(STAFF_DRAFT_KEY, payload);
       }catch(e){}
     }
   }
@@ -2910,18 +2965,20 @@ function renderBillSuccess(app){
 // เท่านั้น) แก้ด้วย client-side cache แบบเดียวกับ bootstrap(): โชว์รายการล่าสุดที่เคยโหลดได้ทันทีจาก
 // sessionStorage ระหว่างรอของจริงมาแทนที่เงียบๆ เบื้องหลัง ผู้ใช้จะรู้สึกว่าเร็วขึ้นทันทีแม้ backend ยังช้าอยู่
 const PENDING_BILLS_CACHE_KEY = 'samurai_pending_bills_cache_v1';
+const PENDING_BILLS_CACHE_KEY_V2 = 'samurai_pending_bills_cache_v2';
 // E2E-008: draft หัวบิลที่ยังรอเซฟแบบหน่วงเวลา (saveDraftSoon ใน renderBillReview) — เซฟทันทีก่อนหน้าเว็บถูกปิด/ซ่อน
 // ผูก listener แค่ครั้งเดียวทั้งไฟล์ (ไม่ผูกซ้ำทุกครั้งที่ render หน้าตรวจ) หน้าตรวจแต่ละรอบแค่ตั้ง/ล้าง hook นี้
 let _draftFlushHook = null;
 function flushPendingDraft(){ if(_draftFlushHook) _draftFlushHook(); }
 window.addEventListener('pagehide', flushPendingDraft);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushPendingDraft(); });
+// Speed รอบ 1 (C): ย้ายไป localStorage แบบเดียวกับแคช bootstrap (ดู readPersistCache) — บิลที่เพิ่งบันทึก/ทิ้งไป
+// ยังถูกลบออกจากแคชทันทีผ่าน markPendingBillClosed เหมือนเดิม และ backend กันบันทึกซ้ำด้วย lock+เช็ค receipt แล้ว
 function readPendingBillsCache(){
-  try{ return JSON.parse(sessionStorage.getItem(PENDING_BILLS_CACHE_KEY)); }catch(e){ return null; }
+  const v = readPersistCache(PENDING_BILLS_CACHE_KEY_V2, PENDING_BILLS_CACHE_KEY);
+  return Array.isArray(v) ? v : null;
 }
-function writePendingBillsCache(batches){
-  try{ sessionStorage.setItem(PENDING_BILLS_CACHE_KEY, JSON.stringify(batches)); }catch(e){}
-}
+function writePendingBillsCache(batches){ writePersistCache(PENDING_BILLS_CACHE_KEY_V2, PENDING_BILLS_CACHE_KEY, batches); }
 // E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-001): เดิมหลังกด "บันทึกต้นทุน"/"ทิ้งบิลนี้" สำเร็จ แคชรายการ
 // ใน sessionStorage ยังมีบิลนั้นอยู่ พอกลับมาหน้า "บิลรอตรวจสอบ" ก็โชว์บิลเดิมทันทีระหว่างรอรีเฟรช (ถ้ารีเฟรชล้มเหลว
 // ค้างทั้ง session) กดเข้าไปบันทึกซ้ำได้ — finalizePurchaseReceipt ไม่ idempotent จึงเขียน PurchaseReceipts ซ้ำจริง
