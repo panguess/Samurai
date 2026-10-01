@@ -1197,6 +1197,13 @@ let orderedItemsTodayMap = {};
 // สั่งสำเร็จไปแล้ว) ปลอดภัยที่จะไม่เคลียร์เพราะค่านี้ถูกตั้งใหม่เสมอก่อนเข้าหน้านี้จริงทุกครั้งที่มาจากการกดปุ่ม
 // (มีแค่ 2 จุดในทั้งไฟล์ที่ go('orderMessage') — ทั้งคู่ตั้งค่านี้ก่อนเสมอ ไม่มีทางเก่าค้างข้ามคนละซัพพลายเออร์)
 let orderMessageSupplierId = null;
+// E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-005, ผู้ใช้เลือกทาง A): เดิมหน้าข้อความหลังกด "สั่งของเจ้านี้อีกครั้ง"
+// ดึงทุกรายการที่สั่งวันนี้จาก orderedItemsTodayMap ทำให้รายการจากรอบก่อนปนมาในข้อความรอบใหม่ (คัดลอกไปส่งแล้ว
+// ซัพพลายเออร์อาจส่งของซ้ำ) — ตอนนี้แยก 2 โหมด: 'batch' = หลังกดสั่ง โชว์เฉพาะรายการรอบนั้น (จำไว้ใน
+// lastOrderBatchBySupplier ไม่เคลียร์หลังอ่าน กด back/forward กลับมาก็ยังเห็นถูกต้อง), 'all' = ปุ่ม "ดูข้อความที่สั่ง
+// ไปอีกครั้ง" โชว์รวมทั้งวันเหมือนเดิม — ตั้งค่าทุกครั้งก่อน go('orderMessage') คู่กับ orderMessageSupplierId
+let orderMessageMode = 'all';
+const lastOrderBatchBySupplier = {}; // { [supplierId]: [{productId, qty, unit}] } — รอบสั่งล่าสุดของเครื่องนี้
 const NEUTRAL_COL = {bg:'var(--bg)', text:'var(--text-secondary)'};
 const ICON_PALETTE = [
   {bg:'#FAEEDA', fg:'#854F0B'}, {bg:'#FBEAF0', fg:'#993556'},
@@ -3749,10 +3756,14 @@ async function renderOrderPage(app){
   // ทั้งอาเรย์ซ้ำๆ ทุกเจ้า ทุกครั้งที่ renderGroups()/supplierStats() ถูกเรียก (เช่น ทุกครั้งที่พิมพ์ค้นหา) —
   // PRODUCTS ไม่เปลี่ยนระหว่างที่อยู่หน้านี้ เลย cache แค่ครั้งเดียวพอ
   const productsBySupplier = new Map();
-  PRODUCTS.forEach(p=>{
-    if(!productsBySupplier.has(p.supplierId)) productsBySupplier.set(p.supplierId, []);
-    productsBySupplier.get(p.supplierId).push(p);
-  });
+  function indexProducts(){
+    productsBySupplier.clear();
+    PRODUCTS.forEach(p=>{
+      if(!productsBySupplier.has(p.supplierId)) productsBySupplier.set(p.supplierId, []);
+      productsBySupplier.get(p.supplierId).push(p);
+    });
+  }
+  indexProducts();
   function productsOf(supplierId){ return productsBySupplier.get(supplierId) || []; }
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
@@ -4059,6 +4070,7 @@ async function renderOrderPage(app){
         viewBtn.onclick = (e)=>{
           e.stopPropagation();
           orderMessageSupplierId = s.id;
+          orderMessageMode = 'all'; // E2E-005: ปุ่มนี้ = ดูรวมทุกรายการที่สั่งวันนี้
           go('orderMessage');
         };
         btnRow.appendChild(viewBtn);
@@ -4084,7 +4096,9 @@ async function renderOrderPage(app){
           // แค่บันทึกเงียบๆ แล้วอยู่หน้าเดิม — กดแล้วปุ่มเปลี่ยนเป็น "กำลังบันทึก..." ชั่วครู่แล้ว "หายไป"
           // (การ์ดถูก re-render ใหม่) ทำให้ไม่รู้ว่าเกิดอะไรขึ้น พาไปหน้าถัดไปเลยเห็นผลชัดเจนกว่า
           supItems.forEach(it=>{ state.orderQty[it.productId] = 0; });
+          lastOrderBatchBySupplier[s.id] = supItems.map(it=> ({ productId: it.productId, qty: it.orderQty, unit: it.orderUnit }));
           orderMessageSupplierId = s.id;
+          orderMessageMode = 'batch'; // E2E-005: ข้อความหลังกดสั่ง = เฉพาะรายการรอบนี้
           go('orderMessage');
         }catch(err){
           btn.disabled = false; btn.textContent = originalLabel;
@@ -4163,6 +4177,29 @@ async function renderOrderPage(app){
   renderStats();
   renderGroups('');
   c.querySelector('#search').oninput = debounce((e)=>{ renderStats(); renderGroups(e.target.value); }, 250);
+
+  // E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-006): เดิมหน้านี้ไม่เคยรีเฟรชรายการสินค้าเลยตลอด session —
+  // สินค้าที่ Mile เพิ่มจากหน้าเช็คสต๊อก (คนละเครื่อง) ไม่โผล่ให้เจ้าของสั่งจนกว่าจะปิดแอปเปิดใหม่ ใช้
+  // refreshBootstrapIfStale() ตัวเดียวกับหน้าเช็คสต๊อก (จำกัดไม่เกินครั้งละ 45 วิ, backend มีแคช bootstrap อยู่แล้ว)
+  // วาดใหม่เฉพาะเมื่อชุดสินค้าเปลี่ยนจริง (เพิ่ม/หาย) — จำนวนที่เลือกไว้ (state.orderQty) และการ์ดที่เปิดอยู่
+  // (expandedSuppliers) คีย์ด้วย id จึงยังอยู่ครบ ถ้ากำลังพิมพ์ในช่องจำนวนอยู่ รอจนออกจากช่องก่อนค่อยวาด
+  const productIdsKey = ()=> PRODUCTS.map(p=> p.id).sort().join(',');
+  const shownIds = productIdsKey();
+  refreshBootstrapIfStale(()=>{
+    if(!isCurrent() || productIdsKey() === shownIds) return;
+    const apply = ()=>{
+      if(!isCurrent()) return;
+      indexProducts();
+      renderStats();
+      renderGroups(c.querySelector('#search').value);
+    };
+    const ae = document.activeElement;
+    if(ae && ae.tagName === 'INPUT' && groups.contains(ae)){
+      groups.addEventListener('focusout', ()=> setTimeout(apply, 0), { once: true });
+    } else {
+      apply();
+    }
+  });
 }
 
 /* ============ OWNER: Order message ============ */
@@ -4176,8 +4213,12 @@ function renderOrderMessage(app){
   // ไม่ว่าจะสั่งจากเครื่อง/รอบไหนก็ตาม และยังแสดงถูกต้องแม้กด back/forward ของเบราว์เซอร์กลับมาหน้านี้อีกครั้ง
   // (orderMessageSupplierId ไม่ถูกเคลียร์เป็น null หลังอ่าน ต่างจากเดิม)
   const supId = orderMessageSupplierId;
-  const items = PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
-    .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
+  const batch = orderMessageMode === 'batch' ? lastOrderBatchBySupplier[supId] : null;
+  const items = batch
+    ? batch.map(b=>{ const p = PRODUCTS.find(x=> x.id === b.productId); return p ? ({...p, orderUnit: b.unit || orderUnitLabel(p), qty: b.qty}) : null; })
+        .filter(it=> it && it.qty > 0)
+    : PRODUCTS.filter(p=> p.supplierId===supId && orderedItemsTodayMap[p.id] && orderedItemsTodayMap[p.id].qty>0)
+        .map(p=> ({...p, orderUnit: orderedItemsTodayMap[p.id].unit || orderUnitLabel(p), qty: orderedItemsTodayMap[p.id].qty}));
   const bySupplier = {};
   items.forEach(it=>{ (bySupplier[it.supplierId] = bySupplier[it.supplierId]||[]).push(it); });
 
@@ -4214,7 +4255,8 @@ function renderOrderMessage(app){
     card.style.borderLeft = `3px solid ${col.text}`; card.style.borderRadius='0 var(--radius-lg) var(--radius-lg) 0'; card.style.padding='14px'; card.style.marginBottom='12px';
     card.innerHTML = `
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-        <p style="margin:0; font-weight:600; font-size:14px;">${sup.name}</p>
+        <div><p style="margin:0; font-weight:600; font-size:14px;">${sup.name}</p>
+          <p style="margin:2px 0 0; font-size:11.5px; color:var(--text-secondary);">${batch ? 'เฉพาะรายการที่สั่งรอบนี้' : 'รวมทุกรายการที่สั่งวันนี้'}</p></div>
         <button class="btn copy-btn" style="font-size:12px; padding:6px 10px;"><i class="ti ti-copy" style="font-size:13px;"></i> คัดลอก</button>
       </div>
       <div style="display:grid; grid-template-columns:1fr auto auto; column-gap:8px; row-gap:4px; align-items:baseline; font-size:12px; line-height:1.5; background:var(--bg); padding:10px; border-radius:8px;">${rowsHtml}</div>
