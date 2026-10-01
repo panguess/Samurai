@@ -184,10 +184,18 @@
   .tabs{display:flex; gap:6px; margin-bottom:14px;}
   .tab{border:1px solid var(--border-strong); background:#fff; border-radius:var(--radius-md); padding:6px 13px; font-size:13px; cursor:pointer;}
   .tab.active{background:var(--brand); color:var(--cream); border-color:var(--brand);}
+  button.tab{font-family:inherit; color:var(--text);} /* E2E-012: แท็บช่วงเวลาเป็น <button> จริงแล้ว ให้หน้าตาเหมือนแท็บ <div> เดิม */
   .metric-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-bottom:14px;}
   .metric{background:var(--bg); border-radius:var(--radius-md); padding:9px;}
   .metric p:first-child{font-size:12px; color:var(--text-secondary); margin:0 0 4px;}
   .metric p:last-child{font-size:19px; font-weight:600; margin:0;}
+  /* E2E-004 (1 ต.ค. 69): Dashboard สต๊อกมี 4 ช่อง (ทั้งหมด/ยังมี/หมด/ยังไม่เช็ค) — ป้ายสั้นและไม่ตัดบรรทัดให้พอดีจอแคบ 320px */
+  .metric-grid.cols-4{grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px;}
+  .metric-grid.cols-4 .metric{padding:8px 7px; min-width:0;}
+  .metric-grid.cols-4 .metric p:first-child{font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .badge-unchecked{background:var(--bg); color:var(--text-secondary); border:1px dashed var(--border-strong);}
+  .badge-skip{background:var(--danger-bg); color:var(--danger); font-weight:600;}
+  .stock-skip-line{display:flex; gap:6px; align-items:center; background:var(--danger-bg); color:var(--danger); border-radius:var(--radius-md); padding:6px 10px; font-size:12.5px; font-weight:600; margin:-6px 0 12px;}
   .sup-header{padding:7px 10px; border-radius:0; margin:0; border-left:3px solid; font-size:13px; font-weight:600; display:flex; justify-content:space-between; align-items:center; position:sticky; top:48px; z-index:3;}
   .badge{font-size:11px; padding:2px 8px; border-radius:6px; font-weight:500; display:inline-block;}
   .empty-state{text-align:center; color:var(--text-secondary); font-size:13px; padding:30px 0;}
@@ -2333,13 +2341,15 @@ function renderBillReview(app){
       // ส่งทุกรายการ (รวมที่ข้าม) ไปด้วย — เจ้าของต้องเห็นครบทุกรายการตอนตรวจ ไม่ใช่แค่ที่ลูกจ้างเลือกเก็บ
       // ห้ามใส่ retryOnTimeout ฝั่งนี้ (auto-retry ของ apiPost เอง) — แต่ backend เช็ค idempotencyKey ให้แล้ว
       // ปลอดภัยถ้าพนักงานกดปุ่มนี้ซ้ำเองหลังเจอ error (ดูคอมเมนต์ genIdemKey ด้านบน)
-      await apiPost('submitBillForReview', {
+      const submitRes = await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName, photos: state.billPhotos, items: state.billItems,
         billHeader: state.billHeader, idempotencyKey: state.billSubmitIdemKey
       }, false, undefined, BILL_API_URL);
       clearDraft(); // ส่งสำเร็จแล้ว (ไม่ว่า backend จะสร้างแถวใหม่จริงหรือแค่คืน batchId เดิมเพราะเลขบิลซ้ำ) — เลิกต้องมี draft ค้างไว้ในเครื่อง
       clearAnalyzeCache(); // บิลเข้าคิวแล้ว — สแกนรูปเดิมซ้ำต้องได้คำเตือนบิลซ้ำใหม่จาก backend ไม่ใช่ผลเก่าที่จำไว้
-      go('billSuccess', {});
+      // E2E-010: backend ตอบ duplicateSkipped:true เมื่อเลขที่บิลตรงกับบิลที่เคยเข้าระบบแล้ว (ไม่ได้สร้างแถวใหม่) —
+      // ส่งต่อให้หน้าสำเร็จบอกพนักงานตรงๆ แทนข้อความ "บันทึกรายการนี้แล้ว" แบบปกติ
+      go('billSuccess', {billDuplicateSkipped: !!(submitRes && submitRes.duplicateSkipped)});
     }catch(err){
       submitBtn.disabled = false; submitBtn.textContent = 'บันทึกรายการนี้';
       alert('บันทึกไม่สำเร็จ: ' + friendlyErrorMessage(err));
@@ -2421,12 +2431,13 @@ async function submitAllBatch(c){
       // ห้ามใส่ retryOnTimeout ฝั่งนี้ (auto-retry ของ apiPost เอง) — แต่ backend เช็ค idempotencyKey (g.idemKey,
       // สร้างครั้งเดียวตอนกลุ่มนี้ถูกสร้างขึ้น) ให้แล้ว ปลอดภัยถ้ากด "ส่งทั้งหมด" ซ้ำ เหมือนโหมดปกติทุกประการ
       // (ดูคอมเมนต์เดิมใน renderBillReview) วนเรียกทีละบิลจริงตามลำดับ ไม่ยิงพร้อมกัน
-      await apiPost('submitBillForReview', {
+      const res = await apiPost('submitBillForReview', {
         supplierId: state.billSupplierId, staffName: state.billStaffName,
         photos: g.photoIndices.map(i=> state.billPhotos[i]), items: g.items, billHeader: g.billHeader,
         idempotencyKey: g.idemKey
       }, false, undefined, BILL_API_URL);
       g.submitted = true;
+      g.duplicateSkipped = !!(res && res.duplicateSkipped); // E2E-010: นับแยกไว้โชว์ในหน้าสำเร็จ
       clearAnalyzeCache(); // เหตุผลเดียวกับโหมดบิลเดี่ยว (คำเตือนบิลซ้ำต้องคำนวณใหม่)
     }catch(err){
       btn.disabled = false;
@@ -2789,14 +2800,17 @@ function renderBillBatchSuccess(app){
   app.appendChild(topbar('บันทึกสำเร็จ', {}));
   const c = document.createElement('div'); c.className='content';
   const n = state.billBatchSubmittedCount != null ? state.billBatchSubmittedCount : state.billBatchGroups.filter(g=>g.submitted).length;
+  // E2E-010: บิลที่ backend ข้ามเพราะเลขที่บิลซ้ำกับที่เคยเข้าระบบแล้ว ไม่ได้เข้าคิวใหม่ — บอกแยกให้ชัด
+  const skippedDup = state.billBatchGroups.filter(g=> g.submitted && g.duplicateSkipped).length;
+  const sent = Math.max(0, n - skippedDup);
   c.innerHTML = `
     <div class="success-wrap">
       <div class="success-icon" style="background:var(--amber-bg); color:var(--amber);"><i class="ti ti-clock" aria-hidden="true"></i></div>
-      <h2>ส่ง ${n} บิลแล้ว</h2>
+      <h2>${skippedDup ? `ส่ง ${sent} บิลแล้ว · ข้าม ${skippedDup} บิลที่ซ้ำ` : `ส่ง ${n} บิลแล้ว`}</h2>
       <p>${sup.name} · ถ่ายโดย ${state.billStaffName}</p>
     </div>
     <div class="recap-card" style="text-align:left;">
-      <p style="margin:0; font-size:13px; color:var(--text-secondary);">รูปบิลกับสิ่งที่จับคู่ไว้แล้วถูกเก็บไว้ให้ทุกใบ เจ้าของร้านจะเห็นในเมนู "บิลรอตรวจสอบ" แยกกัน ${n} รายการ ตรวจทานแล้วกดบันทึกต้นทุนจริงทีละใบเอง</p>
+      <p style="margin:0; font-size:13px; color:var(--text-secondary);">รูปบิลกับสิ่งที่จับคู่ไว้แล้วถูกเก็บไว้ให้ทุกใบ เจ้าของร้านจะเห็นในเมนู "บิลรอตรวจสอบ" แยกกัน ${sent} รายการ ตรวจทานแล้วกดบันทึกต้นทุนจริงทีละใบเอง${skippedDup ? ` (บิลที่ซ้ำ ${skippedDup} ใบไม่ได้สร้างใหม่ เจ้าของจะเห็นบิลเดิมที่เคยส่งไว้)` : ''}</p>
     </div>
     <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
   `;
@@ -2809,6 +2823,24 @@ function renderBillSuccess(app){
   const sup = SUPPLIERS.find(s=>s.id===state.billSupplierId);
   const products = PRODUCTS.filter(p=>p.supplierId===sup.id);
 
+  if(state.billMode !== 'owner-resume' && state.billDuplicateSkipped){
+    // E2E-010: เลขที่บิลตรงกับบิลที่เคยเข้าระบบแล้ว — backend ไม่ได้สร้างแถวใหม่ (กันบิลซ้ำ) บอกพนักงานตรงๆ ว่าไม่ต้องส่งใหม่
+    app.appendChild(topbar('บิลนี้ส่งไปแล้ว', {}));
+    const c = document.createElement('div'); c.className='content';
+    const billNo = state.billHeader && state.billHeader.billNumber;
+    c.innerHTML = `
+      <div class="success-wrap">
+        <div class="success-icon" style="background:var(--purple-bg); color:var(--purple);"><i class="ti ti-info-circle" aria-hidden="true"></i></div>
+        <h2>บิลนี้เคยส่งเข้าระบบแล้ว</h2>
+        <p>${sup.name}${billNo ? ' · เลขที่บิล ' + escapeHtml(billNo) : ''}</p>
+      </div>
+      <div class="learned-note" role="status"><i class="ti ti-info-circle" aria-hidden="true"></i> ระบบไม่ได้สร้างบิลซ้ำ เจ้าของร้านจะเห็นบิลเดิมใน "บิลรอตรวจสอบ" ใบเดียว ไม่ต้องส่งใหม่</div>
+      <button class="btn btn-primary btn-block" id="doneBtn">เสร็จสิ้น กลับหน้าแรก</button>
+    `;
+    app.appendChild(c);
+    c.querySelector('#doneBtn').onclick = ()=> go('home');
+    return;
+  }
   if(state.billMode !== 'owner-resume'){
     // ลูกจ้างส่งแล้ว — ยังไม่ใช่การบันทึกต้นทุนจริง แค่ส่งเข้าคิวให้เจ้าของตรวจ/กดบันทึกจริงอีกที
     app.appendChild(topbar('บันทึกสำเร็จ', {}));
@@ -3548,12 +3580,12 @@ async function renderOwnerStockAnalytics(app){
         stopTimer();
         if(!isCurrent()) return; // E2E-002: ผู้ใช้ออก/สลับแท็บไปแล้ว ไม่ต้องวาด (ข้อมูลยังอยู่ในแคช)
         statusList.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
-        renderStockTab(body);
+        renderStockTab(body, statusList);
       } else {
         const analytics = await getAnalyticsCached('7d');
         stopTimer();
         if(!isCurrent()) return;
-        renderAnalyticsTab(body, analytics);
+        renderAnalyticsTab(body, analytics, '7d');
       }
       break;
     }catch(err){
@@ -3563,23 +3595,50 @@ async function renderOwnerStockAnalytics(app){
   }
 }
 
-function renderStockTab(body){
+// E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-004): เดิมคำนวณจาก stockValues ล้วนๆ สินค้าที่วันนี้ยังไม่มีใครเช็ค
+// (ไม่มีค่าใน stockValues) เลยกลายเป็น 0 → นับเป็น "หมด" ตัวเลขเกินจริง และไม่ตรงกับหน้าสั่งของที่โชว์ "–" — ตอนนี้ใช้
+// statusList (ผล stockStatus ชุดเดียวกับหน้าสั่งของ: checked = มีข้อมูลเช็ควันนี้ครบทุกหน่วย) แยก 4 สถานะ:
+//   have/oos = เช็คแล้ว (oos = เหลือ 0 ทุกหน่วย) · skip = ยังไม่เช็คแต่เจ้าของตั้งงดวันนี้ไว้ · unchecked = ยังไม่เช็ค
+// สินค้าที่งดแต่มีคนเช็คมาแล้วยังโชว์ยอดจริงตามข้อมูล (ไม่ซ่อนเป็น "งดวันนี้") — ไม่มีคำขอเพิ่ม ใช้ข้อมูลที่โหลดมาแล้ว
+function renderStockTab(body, statusList){
+  const statusById = {};
+  (statusList || []).forEach(s=>{ statusById[s.productId] = s; });
   const allProducts = PRODUCTS.map(p=>{
-    const total = p.units.reduce((sum,u)=> sum + (stockValues[u.id]||0), 0);
-    return {...p, total, empty: total===0};
+    const st = statusById[p.id];
+    const checked = !!(st && st.checked);
+    let state, total = 0;
+    if(checked){
+      total = p.units.reduce((sum,u)=> sum + (Number(st.remain && st.remain[u.id]) || 0), 0);
+      state = total === 0 ? 'oos' : 'have';
+    } else {
+      state = isProductSkippedToday(p) ? 'skip' : 'unchecked';
+    }
+    return {...p, st, state};
   });
-  const total = allProducts.length;
-  const empty = allProducts.filter(p=>p.empty).length;
+  const count = k=> allProducts.filter(p=> p.state === k).length;
+  const total = allProducts.length, have = count('have'), oos = count('oos'), unchecked = count('unchecked'), skip = count('skip');
 
-  body.innerHTML = `<div class="metric-grid">
-      <div class="metric"><p>สินค้าทั้งหมด</p><p>${total}</p></div>
-      <div class="metric" style="background:var(--green-bg);"><p style="color:var(--green);">ยังมี</p><p style="color:var(--green);">${total-empty}</p></div>
-      <div class="metric" style="background:var(--amber-bg);"><p style="color:var(--amber);">หมด</p><p style="color:var(--amber);">${empty}</p></div>
+  body.innerHTML = `<div class="metric-grid cols-4">
+      <div class="metric"><p>ทั้งหมด</p><p>${total}</p></div>
+      <div class="metric" style="background:var(--green-bg);"><p style="color:var(--green);">ยังมี</p><p style="color:var(--green);">${have}</p></div>
+      <div class="metric" style="background:var(--amber-bg);"><p style="color:var(--amber);">หมด</p><p style="color:var(--amber);">${oos}</p></div>
+      <div class="metric"><p>ยังไม่เช็ค</p><p style="color:var(--text-secondary);">${unchecked}</p></div>
     </div>
+    ${skip ? `<p class="stock-skip-line"><span aria-hidden="true">🚫</span><span>งดสั่งวันนี้ ${skip} รายการ (ไม่นับเป็นหมด/ยังไม่เช็ค)</span></p>` : ''}
     <input type="text" id="search" placeholder="ค้นหาชื่อสินค้า" style="margin-bottom:10px;">
     <div id="tableWrap"></div>`;
   const tableWrap = body.querySelector('#tableWrap');
 
+  function remainCell(p){
+    if(p.state === 'skip' || p.state === 'unchecked') return '–';
+    return p.units.map(u=>`${Number(p.st.remain && p.st.remain[u.id]) || 0} ${escapeHtml(u.label)}`).join(' / ');
+  }
+  function stateCell(p){
+    if(p.state === 'oos') return '<span class="badge" style="background:var(--amber-mid); color:#412402;">หมด</span>';
+    if(p.state === 'unchecked') return '<span class="badge badge-unchecked">ยังไม่เช็ค</span>';
+    if(p.state === 'skip') return '<span class="badge badge-skip">🚫 งดวันนี้</span>';
+    return '<span style="color:var(--text-secondary); font-size:12px;">ยังมี</span>';
+  }
   function renderTable(filter){
     tableWrap.innerHTML='';
     SUPPLIERS.forEach(s=>{
@@ -3593,8 +3652,8 @@ function renderStockTab(body){
       const tbl = document.createElement('table'); tbl.style.width='100%'; tbl.style.fontSize='13px'; tbl.style.marginBottom='10px';
       tbl.innerHTML = items.map(p=>`<tr style="border-bottom:1px solid var(--border);">
           <td style="padding:7px 4px;">${escapeHtml(p.name)}</td>
-          <td style="padding:7px 4px; text-align:right;">${p.units.map(u=>`${stockValues[u.id]||0} ${escapeHtml(u.label)}`).join(' / ')}</td>
-          <td style="padding:7px 4px; text-align:right; width:55px;">${p.empty? '<span class="badge" style="background:var(--amber-mid); color:#412402;">หมด</span>' : '<span style="color:var(--text-secondary); font-size:12px;">ยังมี</span>'}</td>
+          <td style="padding:7px 4px; text-align:right;">${remainCell(p)}</td>
+          <td style="padding:7px 4px; text-align:right; white-space:nowrap;">${stateCell(p)}</td>
         </tr>`).join('');
       tableWrap.appendChild(tbl);
     });
@@ -3603,33 +3662,49 @@ function renderStockTab(body){
   body.querySelector('#search').oninput = debounce((e)=>renderTable(e.target.value), 250);
 }
 
-function renderAnalyticsTab(body, analytics){
+// E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-012): เดิมแท็บ "30 วัน"/"กำหนดเอง" เป็นแค่ <div> กดแล้วไม่มีอะไรเกิดขึ้น
+// และมีกราฟแนวโน้มที่เป็นตัวเลขสมมติ — Code.gs getAnalytics(range) รองรับ '7d'/'30d' อยู่แล้ว ต่อให้ใช้ได้จริงผ่าน
+// getAnalyticsCached() (แคชแยกตามช่วง สลับไปมาภายใน TTL ไม่ยิงคำขอซ้ำ) ซ่อน "กำหนดเอง" (backend ไม่รองรับ) และกราฟสมมติ
+let _analyticsRangeReq = 0; // กดสลับแท็บเร็วๆ หลายครั้ง — ให้ผลของคำขอล่าสุดเท่านั้นที่ได้วาด
+function renderAnalyticsTab(body, analytics, range){
+  range = range === '30d' ? '30d' : '7d';
+  const days = range === '30d' ? 30 : 7;
   const rows = (analytics?.topProducts||[]).slice(0,5);
   body.innerHTML = `
-    <div class="tabs"><div class="tab active">7 วัน</div><div class="tab">30 วัน</div><div class="tab">กำหนดเอง</div></div>
+    <div class="tabs" role="tablist" aria-label="ช่วงเวลา">
+      <button type="button" class="tab${range==='7d'?' active':''}" role="tab" aria-selected="${range==='7d'}" data-range="7d">7 วัน</button>
+      <button type="button" class="tab${range==='30d'?' active':''}" role="tab" aria-selected="${range==='30d'}" data-range="30d">30 วัน</button>
+    </div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px; margin-bottom:12px;">
-      <h2 style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (7 วันล่าสุด)</h2>
+      <h2 style="font-weight:600; font-size:13px; margin:0 0 8px;">สั่งบ่อยที่สุด (${days} วันล่าสุด)</h2>
       <table style="width:100%; font-size:13px;">
         <thead><tr><th style="text-align:left; font-weight:600;">สินค้า</th><th style="text-align:right; font-weight:600;">จำนวนที่สั่ง</th></tr></thead>
-        <tbody>
+        <tbody id="analyticsRows">
         ${rows.length ? rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td style="text-align:right;">${escapeHtml(r.total)}</td></tr>`).join('')
                       : '<tr><td colspan="2" style="color:var(--text-secondary);">ยังไม่มีข้อมูลสั่งของในช่วงนี้</td></tr>'}
         </tbody>
       </table>
     </div>
-    <div style="background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px;">
-      <h2 style="font-weight:600; font-size:13px; margin:0 0 4px;">แนวโน้มรายสินค้า</h2>
-      <p style="font-size:11px; color:var(--text-tertiary); margin:0 0 8px;">* กราฟตัวอย่าง — ยังไม่เชื่อมข้อมูลรายวันจริง (Code.gs ยังไม่มี endpoint ส่งย้อนหลังรายวัน)</p>
-      <svg viewBox="0 0 320 130" style="width:100%;">
-        <line x1="28" y1="10" x2="28" y2="105" stroke="var(--border-strong)"/>
-        <line x1="28" y1="105" x2="300" y2="105" stroke="var(--border-strong)"/>
-        <polyline points="50,75 100,55 150,65 200,35 250,45 290,25" fill="none" stroke="var(--brand)" stroke-width="2"/>
-        ${[[50,75,'6'],[100,55,'8'],[150,65,'6.5'],[200,35,'9.5'],[250,45,'8.5'],[290,25,'10']].map(([x,y,v])=>`
-          <circle cx="${x}" cy="${y}" r="3" fill="var(--brand)"/>
-          <text x="${x}" y="${y-8}" font-size="9" text-anchor="middle" fill="var(--amber)">${v}</text>`).join('')}
-      </svg>
-    </div>
   `;
+  body.querySelectorAll('[data-range]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const next = btn.dataset.range;
+      if(next === range) return;
+      const req = ++_analyticsRangeReq;
+      body.querySelectorAll('[data-range]').forEach(b=>{ const on = b===btn; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
+      const tbody = body.querySelector('#analyticsRows');
+      if(tbody) tbody.innerHTML = '<tr><td colspan="2" style="color:var(--text-secondary);">กำลังโหลด...</td></tr>';
+      try{
+        const data = await getAnalyticsCached(next);
+        if(req !== _analyticsRangeReq || !body.isConnected) return; // มีการกดแท็บอื่นต่อ หรือออกจากหน้าไปแล้ว
+        renderAnalyticsTab(body, data, next);
+      }catch(err){
+        if(req !== _analyticsRangeReq || !body.isConnected) return;
+        renderAnalyticsTab(body, analytics, range); // คืนแท็บเดิมที่มีข้อมูลอยู่แล้ว
+        alert('โหลดข้อมูล ' + (next==='30d'?'30':'7') + ' วันไม่สำเร็จ: ' + friendlyErrorMessage(err));
+      }
+    };
+  });
 }
 
 /* ============ OWNER: Order page (accordion, grouped by supplier) ============ */
