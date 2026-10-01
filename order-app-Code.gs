@@ -35,6 +35,22 @@ function getOrderSheetByYear(year) {
 }
 
 /**
+ * [E2E-002] ตาข่ายนิรภัยตอนขึ้นปีใหม่: ถ้าไม่มีทั้ง Order_<ปีนี้> และ 'Order' เดิม สร้าง Order_<ปีนี้> ให้เองโดยคัดลอกหัวคอลัมน์
+ * จากชีตออเดอร์ของปีล่าสุดที่มี (เรียกเฉพาะใน createOrder ที่ถือ lock อยู่แล้ว กันสร้างซ้ำสองรอบ) ยังควรสร้างชีตเองล่วงหน้าตามปกติ
+ */
+function createCurrentYearOrderSheet() {
+  const infos = getAllOrderSheets();
+  if (!infos.length) return null; // ไม่มีชีตต้นแบบให้ยืมหัวคอลัมน์ -> ปล่อยให้ error เดิมทำงาน
+  infos.sort((a, b) => (b.year || 0) - (a.year || 0));
+  const tpl = infos[0].sheet;
+  const headers = tpl.getRange(1, 1, 1, tpl.getLastColumn()).getValues()[0];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.insertSheet(ORDER_SHEET_PREFIX + currentBuddhistYear(), ss.getSheets().length);
+  sh.appendRow(headers);
+  return sh;
+}
+
+/**
  * คืนค่า sheet order ทั้งหมดที่มีอยู่จริงในไฟล์ (ทั้งแบบรายปีและ sheet เดิม)
  * ใช้เป็นจุดเดียวสำหรับ "รายการปีที่มีข้อมูล" — ฟังก์ชันอื่นที่ต้อง query ข้ามปี
  * (เช่น ประวัติลูกค้า, admin/owner order list, เปรียบเทียบยอดขายข้ามปี) ต้องเรียกผ่านนี้
@@ -176,13 +192,20 @@ function findOrderLocation(order_id) {
   }
   for (let s = 0; s < sheetInfos.length; s++) {
     const sheet = sheetInfos[s].sheet;
-    const rows = sheet.getDataRange().getValues();
-    if (rows.length < 2) continue;
-    const headers = rows[0];
+    // [เร็วขึ้น] เดิมอ่านทั้งชีต (ทุกแถว x ทุกคอลัมน์) ทุกครั้งที่กด เริ่มจัด/จัดเสร็จ/แก้ไข/ยกเลิก — อ่านเฉพาะคอลัมน์
+    // order_id เพื่อหาแถว แล้วค่อยอ่านแถวเดียวที่เจอ ผลลัพธ์เหมือนเดิมทุกอย่าง (ค้นจากบนลงล่าง คืนแถวแรกที่ตรง)
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
     const idCol = headers.indexOf('order_id');
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][idCol] === order_id) {
-        return { sheet: sheet, headers: headers, rowIndex: i + 1, row: rows[i] };
+    if (idCol === -1) continue;
+    const ids = sheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i][0] === order_id) {
+        const rowIndex = i + 2;
+        const row = sheet.getRange(rowIndex, 1, 1, lastCol).getValues()[0];
+        return { sheet: sheet, headers: headers, rowIndex: rowIndex, row: row };
       }
     }
   }
@@ -726,12 +749,24 @@ function createOrder(data) {
     }
 
     // ออเดอร์ใหม่เขียนลง sheet ของปีปัจจุบันเสมอ (ผ่าน getOrderSheetByYear จุดเดียว)
-    const sheet = getOrderSheetByYear();
+    let sheet = getOrderSheetByYear();
+    if (!sheet) sheet = createCurrentYearOrderSheet();
     if (!sheet) {
       return response({ error: 'createOrder: ไม่พบ sheet order ของปีปัจจุบัน (ไม่มีทั้ง Order_' + currentBuddhistYear() + ' และ ' + LEGACY_ORDER_SHEET_NAME + ')' });
     }
     const headers = sheet.getDataRange().getValues()[0];
-    const orderId = 'ORD-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss');
+    let orderId = 'ORD-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss');
+    // [E2E-003] เลขออเดอร์ละเอียดแค่วินาที — ถ้าซ้ำกับออเดอร์ล่าสุด (อยู่ใน lock จึงมีทีละคำขอ) รอให้ข้ามวินาทีก่อนแล้วสร้างใหม่
+    // รูปแบบเลขเหมือนเดิมทุกอย่าง ปกติไม่เสียเวลาเพิ่ม (เสีย ~1.1 วิเฉพาะตอนชนกันจริง)
+    try {
+      if (cache.get('last_order_id_v1') === orderId) {
+        Utilities.sleep(1100);
+        orderId = 'ORD-' + Utilities.formatDate(new Date(), 'Asia/Bangkok', 'ddMMyy-HHmmss');
+      }
+      cache.put('last_order_id_v1', orderId, 120);
+    } catch (e) {
+      console.error('createOrder: เช็คเลขออเดอร์ซ้ำล้มเหลว: ' + e);
+    }
 
     // ดึง product_group จริงของลูกค้าคนนี้จาก Sheet "Customer" ตรงๆ ไม่เชื่อ data.customer_group ที่ client อ้างมา
     // (กันคนอ้างว่าตัวเองอยู่กลุ่มราคาถูกกว่าความจริง) แล้วคำนวณ total จากราคาสินค้าจริงตามกลุ่มนั้น ไม่เชื่อ data.total
