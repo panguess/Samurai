@@ -636,7 +636,7 @@ function getTrackOrders(customer_id) {
  * (เผื่อ buffer กว้างกว่า "วันนี้" มากพอสมควร กันกรณี timezone/แก้ไขข้อมูลย้อนหลังเล็กน้อย)
  * ส่วนหน้า "ภาพรวม/แดชบอร์ด" ที่ต้องดูย้อนหลังได้ไกลกว่านี้ ให้เรียก getAdminOrdersFull() แทน
  */
-const ADMIN_ORDERS_WINDOW_DAYS = 60;
+const ADMIN_ORDERS_WINDOW_DAYS = 15;
 function filterAdminOrdersWindow(rows) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - ADMIN_ORDERS_WINDOW_DAYS);

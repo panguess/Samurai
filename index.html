@@ -511,15 +511,15 @@ var ADMIN_KEY='shop123';
 let customer=null,products=[],cart={},pendingOid='',orderIdemKey='',editingOrder=null,editQtys={},allAdminOrders=[],allAdminOrdersFull=null,adminCurrentTab='pending';
 // [เพิ่ม UX-002] เดิมแท็บ "เสร็จสมบูรณ์" ล็อกไว้แค่ของวันนี้เท่านั้น (isToday) ไม่มีทางดูออเดอร์ที่เสร็จไปแล้วของ
 // วันก่อนๆ ได้เลยสักจุดในทั้งแอป ทั้งที่ allAdminOrders ในหน่วยความจำมีข้อมูลย้อนหลังอยู่แล้ว (backend จำกัดส่งมา
-// 60 วัน) — เพิ่ม toggle ให้สลับดูได้ ไม่กระทบตัวเลขนับบนแท็บ/แถบสรุปด้านบนซึ่งยังคงหมายถึง "วันนี้" เสมอเหมือนเดิม
-let doneDateMode='today'; // 'today' | 'all' (ทั้งหมดในหน้าต่าง 60 วันที่มีอยู่ในหน่วยความจำ)
+// 15 วัน) — เพิ่ม toggle ให้สลับดูได้ ไม่กระทบตัวเลขนับบนแท็บ/แถบสรุปด้านบนซึ่งยังคงหมายถึง "วันนี้" เสมอเหมือนเดิม
+let doneDateMode='today'; // 'today' | 'all' (ทั้งหมดในหน้าต่าง 15 วันที่มีอยู่ในหน่วยความจำ)
 function setDoneDateMode(mode){ doneDateMode=mode; renderAdminOrders(); }
 function doneFilterBarHtml(){
   const chip=(mode,label)=>{
     const active=doneDateMode===mode;
     return`<button onclick="setDoneDateMode('${mode}')" style="flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;border:1px solid ${active?'#CB3E09':'#ddd'};background:${active?'#CB3E09':'#fff'};color:${active?'#fff':'#555'}">${label}</button>`;
   };
-  return`<div style="display:flex;gap:6px;padding:10px 12px 2px;flex-wrap:wrap">${chip('today','วันนี้')}${chip('all','ทั้งหมด (60 วันล่าสุด)')}</div>`;
+  return`<div style="display:flex;gap:6px;padding:10px 12px 2px;flex-wrap:wrap">${chip('today','วันนี้')}${chip('all','ทั้งหมด (15 วันล่าสุด)')}</div>`;
 }
 let lastAdminSubtitleText=''; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนตัวเลขไม่เปลี่ยนจากรอบก่อน
 let lastCartAnnounce=null; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนจำนวน/ยอดตะกร้าไม่เปลี่ยน
@@ -1369,7 +1369,7 @@ function writeAdminProductsCache(products){
 }
 
 // โหลดข้อมูลออเดอร์ "ทั้งหมดทุกปี" แบบเต็ม — ใช้เฉพาะตอนเปิดแท็บภาพรวม/แดชบอร์ดเท่านั้น
-// (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 60 วัน
+// (allAdminOrders ปกติตอนนี้ backend จำกัดส่งแค่ pending/packing + done/cancelled ย้อนหลัง 15 วัน
 // เพื่อความเร็วของแท็บหลักที่ auto-refresh ทุก 30 วิ — ภาพรวม/แดชบอร์ดต้องดูย้อนหลังได้ไกลกว่านั้น)
 /**
  * ===== ลูกค้าที่ไม่ต้องนับในภาพรวม/แดชบอร์ด (เพิ่ม 14 ก.ย. 69) =====
@@ -1524,7 +1524,7 @@ async function initAdmin(){
       writeAdminOrdersCache(text);
       if(adminCurrentTab!=='overview') renderAdminOrders();
     }
-    // แท็บภาพรวมต้องดูข้อมูลเต็มทุกปี (allAdminOrders ด้านบนถูกจำกัดแค่ 60 วันแล้ว) รีเฟรชแยกเฉพาะตอนเปิดแท็บนี้อยู่
+    // แท็บภาพรวมต้องดูข้อมูลเต็มทุกปี (allAdminOrders ด้านบนถูกจำกัดแค่ 15 วันแล้ว) รีเฟรชแยกเฉพาะตอนเปิดแท็บนี้อยู่
     if(adminCurrentTab==='overview'){
       const changed=await fetchFullAdminOrders(true);
       if(changed) renderAdminOverview();
@@ -1585,7 +1585,7 @@ async function switchAdminTab(tab){
   // ให้ CSS (ซึ่งรู้ว่าจอกว้างแค่ไหนจริง) เป็นคนตัดสินความกว้างของแท็บปกติต่อไป
   document.getElementById('adminApp').style.removeProperty('max-width');
   if(tab==='overview'){
-    // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 60 วัน
+    // ภาพรวม/แดชบอร์ดต้องใช้ข้อมูลเต็มทุกปี ต่างจาก allAdminOrders ของแท็บหลักที่ backend จำกัดแค่ 15 วัน
     // [แก้ 15 ก.ย. 69] cache-first เหมือนแท็บหลัก — ถ้ายังไม่มีในหน่วยความจำ (ยังไม่เคยเปิดแท็บนี้ใน session
     // นี้) ลองอ่านจาก sessionStorage ก่อน โชว์ตัวเลขล่าสุดที่เคยเห็นทันทีระหว่างรอของจริงมาแทนที่เงียบๆ
     if(!allAdminOrdersFull){
@@ -1719,7 +1719,7 @@ function renderAdminOrders(){
   else if(doneDateMode==='all') filtered=allAdminOrders.filter(ds_done);
   else filtered=allAdminOrders.filter(o=>ds_done(o)&&isToday(o));
   const list=document.getElementById('adminList');
-  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:doneDateMode==='all'?'ยังไม่มีรายการที่เสร็จสมบูรณ์ในช่วง 60 วันล่าสุด':'ยังไม่มีรายการที่เสร็จสมบูรณ์วันนี้'};
+  const emptyMsgs={pending:'ไม่มีรายการรอจัด 🎉',packing:'ไม่มีรายการที่กำลังจัด',done:doneDateMode==='all'?'ยังไม่มีรายการที่เสร็จสมบูรณ์ในช่วง 15 วันล่าสุด':'ยังไม่มีรายการที่เสร็จสมบูรณ์วันนี้'};
   const pendingCount2=allAdminOrders.filter(ds_pending).length;
   const packingCount2=allAdminOrders.filter(o=>ds_packing(o)||ds_stockout(o)).length;
   // ตัวเลขบนแท็บ/แถบสรุปด้านบนหมายถึง "วันนี้" เสมอ ไม่ขึ้นกับ doneDateMode ที่ใช้กรองแค่เนื้อหาในลิสต์ด้านล่าง
