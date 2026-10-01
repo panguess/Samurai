@@ -525,6 +525,15 @@ let lastAdminSubtitleText=''; // [เพิ่ม 26 ก.ย. 69 — AUD-14] ก
 let lastCartAnnounce=null; // [เพิ่ม 26 ก.ย. 69 — AUD-14] กันประกาศ aria-live ซ้ำตอนจำนวน/ยอดตะกร้าไม่เปลี่ยน
 let cartAnnounceTimer=null; // [เพิ่ม 27 ก.ย. 69 — ACC-008] ดีเลย์การประกาศให้ screen reader กันแจ้งรัวตอนกด +/- ถี่ๆ (ค่าที่โชว้บนจอยังอัปเดตทันทีเหมือนเดิม)
 var adminQtys={};
+var adminQtysSrc={}; // [E2E-001] items string ล่าสุดจากเซิร์ฟเวอร์ที่ใช้สร้าง adminQtys ของแต่ละออเดอร์
+// สร้าง/รีเซ็ต adminQtys ของออเดอร์ใหม่ก็ต่อเมื่อ "รายการจากเซิร์ฟเวอร์เปลี่ยน" (เช่นลูกค้าแก้ออเดอร์ตอนยังรอจัด)
+// ถ้ารายการเท่าเดิม ค่าที่แอดมินแก้ค้างไว้ (BUG-002) ยังอยู่ครบ ไม่ถูกแตะ
+function syncAdminQtys(o,items){
+  if(!adminQtys[o.order_id]||adminQtysSrc[o.order_id]!==o.items){
+    adminQtys[o.order_id]=Object.fromEntries(items.map(i=>[i.name,i.qty]));
+    adminQtysSrc[o.order_id]=o.items;
+  }
+}
 var reorderOrdersCache=[],reorderCurrentOrder=null,reorderSelectedIdx=new Set(),reorderBackToList=true;
 let pickedItems=new Set();
 var params=new URLSearchParams(window.location.search);
@@ -915,7 +924,7 @@ function showConfirm(){
 }
 
 function backToShop(){show('app');goSection('shop');}
-function startNewOrder(){cart={};goSection('shop');renderProducts();}
+function startNewOrder(){goSection('shop');renderProducts();} // [E2E-004] ไม่ล้างตะกร้า (ตะกร้าถูกล้างอยู่แล้วหลังสั่งสำเร็จที่ showOrderSuccessScreen)
 
 /*
  * หาออเดอร์ของลูกค้าคนนี้ที่ "รายการ+ยอดรวมตรงกันเป๊ะ" และสร้างภายใน 3 นาทีที่ผ่านมา
@@ -1148,6 +1157,9 @@ function openEditOrder(orderId,itemsEncoded,total,noteEncoded){
   // [แก้ UX-008] จัดรายการที่อยู่ในออเดอร์นี้แล้ว (qty>0) ไว้ด้านบนสุดก่อนเสมอ ใช้ stable sort (รับประกันโดย
   // สเปค ES2019+ ที่เบราว์เซอร์จริงทุกตัวรองรับ) รักษาลำดับเดิมภายในกลุ่มเดียวกันไว้ — เรียงตรงนี้ที่เดียวพอ เพราะ
   // editQtys/renderEditModal/calcEditTotal ทั้งหมดอ้างอิง idx จาก editingOrder.items แถวเดียวกันนี้อยู่แล้ว
+  // [E2E-005] สินค้าที่อยู่ในออเดอร์แต่ไม่มีในแคตตาล็อกแล้ว ต้องยังโชว์/ถูกเก็บไว้ ไม่ให้หายเงียบๆ ตอนบันทึก
+  const catalogNames=new Set(products.map(p=>p.name));
+  orderedItems.forEach(i=>{ if(!catalogNames.has(i.name)) allItems.push({name:i.name,qty:i.qty,price:0,unavailable:true}); });
   allItems.sort((a,b)=>(b.qty>0?1:0)-(a.qty>0?1:0));
   editingOrder={orderId,items:allItems,total,note};
   editQtys={};
@@ -1167,7 +1179,7 @@ function renderEditModal(items,note){
     const imgHtml=prod.image_url
       ?`<img class="edit-img" src="${prod.image_url}" alt="${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="edit-img-placeholder" style="display:none">🛍️</div>`
       :`<div class="edit-img-placeholder">🛍️</div>`;
-    return`<div class="edit-item${item.qty>0?' in-order':''}" id="ei${idx}">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">฿${fmtMoney(price)} / ชิ้น</div></div><div class="edit-qty-row"><button class="edit-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},1)">+</button></div></div>`;
+    return`<div class="edit-item${item.qty>0?' in-order':''}" id="ei${idx}">${imgHtml}<div class="edit-info"><div class="edit-name">${item.name}</div><div class="edit-price">${item.unavailable?'สินค้านี้ไม่มีในรายการแล้ว (ไม่นับในยอดรวม)':'฿'+fmtMoney(price)+' / ชิ้น'}</div></div><div class="edit-qty-row"><button class="edit-qty-btn" aria-label="ลดจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},-1)">−</button><input type="number" class="qty-num" id="eq${idx}" aria-label="จำนวน ${escapeHtml(item.name)}" value="${item.qty}" min="0" max="999" style="font-size:16px" oninput="editSet(${idx},this.value)"><button class="edit-qty-btn" aria-label="เพิ่มจำนวน ${escapeHtml(item.name)}" onclick="editChg(${idx},1)">+</button></div></div>`;
   }).join('');
   html+=`<div class="note-section"><div class="note-label">โน้ตถึงร้าน</div><textarea id="editNote" aria-label="โน้ตถึงร้าน" placeholder="หมายเหตุ...">${escapeHtml(note)}</textarea></div>`;
   html+=`<div class="edit-total">ยอดรวม: ฿<span id="editTotalDisplay">${fmtMoney(calcEditTotal())}</span></div>`;
@@ -1215,6 +1227,7 @@ async function saveEdit(){
   if(!newItems.length){
     alert('ไม่สามารถบันทึกได้: ต้องมีสินค้าอย่างน้อย 1 รายการ\nถ้าต้องการยกเลิกออเดอร์นี้ทั้งหมด กรุณาใช้ปุ่ม "ยกเลิกออร์เดอร์" แทน');
     btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+    btn.focus(); // [E2E-009] คืนโฟกัสเข้าโมดัล (ปุ่มที่ถูก disable ทำให้โฟกัสหลุดไป BODY)
     return;
   }
   const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||i.price||0),0);
@@ -1226,6 +1239,9 @@ async function saveEdit(){
     if(!result||result.success===false){
       alert('บันทึกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้ กรุณาลองใหม่'));
       btn.disabled=false;btn.textContent='บันทึกการแก้ไข';
+      // [E2E-008/009] ร้านเริ่มจัดแล้ว -> ข้อมูลในโมดัลล้าสมัย ปิดโมดัลแล้วรีเฟรชการ์ดทันที ไม่รอรอบ 10 วิ
+      if(result&&result.error&&/ร้านเริ่มจัด/.test(result.error)){ closeEditModal(); loadTrackSection(); }
+      else btn.focus();
       return;
     }
     closeEditModal();
@@ -1294,7 +1310,7 @@ function confirmEditReason(){
   const reasons={};
   editReasonDiffs.forEach((d,idx)=>{
     const val=(document.getElementById('reasonInput'+idx).value||'').trim();
-    reasons[d.name]=val||'(ไม่ระบุเหตุผล)';
+    reasons[d.name]=val||'ไม่ระบุเหตุผล';
   });
   document.getElementById('reasonModal').style.display='none';
   releaseModalFocus();
@@ -1615,7 +1631,7 @@ function buildAdminItemsHtml(o,canAdjustQty){
   const items=parseItems(o.items);
   const prodMap=getOrderProdFullMap(o);
   // เก็บ adminQtys อิงชื่อสินค้า ไม่ใช่ index ตำแหน่ง — กันเลขเพี้ยนข้ามสินค้าตอนมีรายการถูกกรองออก (ดู markDone)
-  if(!adminQtys[o.order_id])adminQtys[o.order_id]=Object.fromEntries(items.map(i=>[i.name,i.qty]));
+  syncAdminQtys(o,items);
   return items.map((item,idx)=>{
     const prod=prodMap[item.name]||{};
     const rowKey=o.order_id+'_'+idx;
@@ -1763,7 +1779,7 @@ function renderAdminOrders(){
     const items=parseItems(o.items);
     const prodMap=getOrderProdFullMap(o);
     // เก็บ adminQtys อิงชื่อสินค้า ไม่ใช่ index ตำแหน่ง — กันเลขเพี้ยนข้ามสินค้าตอนมีรายการถูกกรองออก (ดู markDone)
-    if(!adminQtys[o.order_id])adminQtys[o.order_id]=Object.fromEntries(items.map(i=>[i.name,i.qty]));
+    syncAdminQtys(o,items);
     const isPending=ds_pending(o);
     const isPacking=ds_packing(o);
     const isDone=ds_done(o);
@@ -1853,6 +1869,8 @@ function buildDoneAdminCard(o){
       <span style="flex:0.85;text-align:right;font-weight:600;color:#CB3E09">${fmtMoney(lineTotal)}</span>
     </div>`;
   }).join('');
+  const adjDiffD=Number(o.total)-items.reduce((s,item)=>s+(prodMap[item.name]?Number(prodMap[item.name].price)||0:0)*item.qty,0);
+  const adjRowD=Math.abs(adjDiffD)>0.005?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#666"><span>ปรับตามราคา ณ วันที่สั่ง</span><span>${adjDiffD>0?'+':'-'}${fmtMoney(Math.abs(adjDiffD))}</span></div>`:'';
   const tStamp=o.done_at||o.timestamp;
   const dateStr=fmtOrderDateTime(tStamp);
   return`<div class="order-card">
@@ -1877,7 +1895,7 @@ function buildDoneAdminCard(o){
           <span style="flex:0.85;text-align:right">ราคา/หน่วย</span>
           <span style="flex:0.85;text-align:right">รวม</span>
         </div>
-        ${itemsHtml}
+        ${itemsHtml}${adjRowD}
         ${note?`<div class="order-note" style="margin-top:8px">📝 ${escapeHtml(note)}</div>`:''}
         <div class="order-footer" style="justify-content:space-between">
           <div style="font-size:16px;font-weight:600;color:#CB3E09">รวม ฿${fmtMoney(o.total)}</div>
@@ -3181,20 +3199,22 @@ async function markDone(orderId,btnEl){
       // — แหนมเปิป 150 ไปโผล่ที่แหนมแท่งนิตยาแทน) เปลี่ยนมาเทียบด้วยชื่อสินค้าแทน ไม่ขึ้นกับตำแหน่งในลิสต์เลย
       const qtyChanged=items.some(item=>(adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty)!==item.qty);
       if(qtyChanged){
-        const freshProducts=await safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
+        // [เร็วขึ้น] เดิมรอโหลดสินค้าใหม่ให้เสร็จก่อนถึงจะโชว์กล่องเหตุผล (ช้าได้หลายวินาทีช่วงเน็ต/backend ไม่นิ่ง) —
+        // เริ่มโหลดทันทีแล้วไปโชว์กล่องเหตุผลให้แอดมินพิมพ์ระหว่างรอ แล้วค่อยรอผลโหลดหลังกดยืนยัน (ราคาที่ใช้คำนวณยอดสดเท่าเดิม)
+        const freshProductsPromise=safeFetchJSON(`${API}?action=getProducts&group=ALL`,products,'markDone:refreshProducts',15000,1);
+        const newItems=items.map(item=>({...item,qty:adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty})).filter(i=>i.qty>0);
+        const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
+        const newTimestamp=new Date().toISOString();
+        const itemReasons=await promptEditReason(order.items,itemsStr);
+        const freshProducts=await freshProductsPromise;
         products=freshProducts;
         if(Array.isArray(freshProducts)&&freshProducts.length){
           cacheSet('products_ALL',freshProducts,30000);
           writeAdminProductsCache(freshProducts);
         }
-        const prodMap=getOrderProdMap(order);
-
-        const newItems=items.map(item=>({...item,qty:adminQtys[orderId][item.name]!=null?adminQtys[orderId][item.name]:item.qty})).filter(i=>i.qty>0);
-        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
-        const itemsStr=newItems.map(i=>`${i.name} x${i.qty}`).join(', ');
-        const newTimestamp=new Date().toISOString();
-        const itemReasons=await promptEditReason(order.items,itemsStr);
         if(itemReasons===null) return; // แอดมินกดยกเลิกตอนถูกถามเหตุผล -> ยังไม่จัดเสร็จ ยังไม่บันทึกจำนวนใหม่
+        const prodMap=getOrderProdMap(order);
+        const newTotal=newItems.reduce((s,i)=>s+i.qty*(prodMap[i.name]||0),0);
         // [เพิ่ม 28 ก.ย. 69 — ระบบสถานะ "stockout"] เดิม (ก่อนแก้) ถ้าลดสินค้าทุกตัวเหลือ 0 พร้อมกัน (ของหมดยก
         // ออเดอร์) โค้ดจะไหลผ่าน branch ปกติด้านล่างต่อไปเรื่อยๆ จนกด "จัดเสร็จแล้ว" ซ้ำรอบสองแล้วปิดเป็นสถานะ
         // "done" ทั้งที่ไม่ได้จัดอะไรให้ลูกค้าจริงเลยสักชิ้น (ออเดอร์ ฿0.00 ที่ระบบเข้าใจผิดว่า "เสร็จสมบูรณ์") —
@@ -3299,6 +3319,10 @@ function showOrderSummary(orderId){
       <span style="flex:0.85;text-align:right;font-weight:600;color:#222;font-family:\'Consolas\',\'Courier New\',monospace;font-variant-numeric:tabular-nums">${fmt(lineTotal)}</span>
     </div>`;
   }).join('');
+  // [E2E-006] ถ้าราคาปัจจุบันในแคตตาล็อกต่างจากราคาตอนสั่ง ผลรวมรายบรรทัดจะไม่เท่ายอดรวมที่บันทึกไว้ -> เพิ่มบรรทัดส่วนต่าง
+  // ให้บิลบวกลงตัวเสมอ (ไม่มีส่วนต่าง = ไม่มีบรรทัดนี้ หน้าตาเหมือนเดิมทุกอย่าง)
+  const adjDiff=Number(order.total)-items.reduce((s,i)=>s+(prodMap[i.name]||0)*i.qty,0);
+  const adjHtml=Math.abs(adjDiff)>0.005?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 0;color:#666"><span>ปรับตามราคา ณ วันที่สั่ง</span><span style="font-family:\'Consolas\',\'Courier New\',monospace">${adjDiff>0?'+':'-'}${fmt(Math.abs(adjDiff))}</span></div>`:'';
   const dateStr=order.timestamp?fmtOrderDateTime(order.timestamp):fmtOrderDateTime(new Date().toISOString());
   const overlay=document.createElement('div');
   overlay.id='orderSummaryOverlay';
@@ -3329,7 +3353,7 @@ function showOrderSummary(orderId){
             <span style="flex:0.85;text-align:right">ราคา/หน่วย</span>
             <span style="flex:0.85;text-align:right">รวม</span>
           </div>
-          ${itemsHtml}
+          ${itemsHtml}${adjHtml}
         </div>
         <div style="border-top:1px dashed #ccc;margin:0 1.25rem"></div>
         <div style="padding:12px 1.25rem;display:flex;justify-content:space-between;align-items:baseline">
@@ -3466,7 +3490,11 @@ function cancelOrder(orderId){
     try{
       const result=await postAction({action:'cancelOrder',order_id:orderId,customer_id:customer.customer_id},'cancelOrder');
       if(!result||result.success===false){
-        alert('ยกเลิกไม่สำเร็จ: '+(result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้')+'\nกรุณาลองใหม่');
+        const cancelErr=result&&result.error?result.error:'เชื่อมต่อ backend ไม่ได้';
+        // [E2E-008] ถ้าเหตุผลคือร้านเริ่มจัดแล้ว การลองใหม่ไม่มีทางสำเร็จ -> ไม่บอกให้ลองใหม่ และรีเฟรชการ์ดทันที
+        const startedPacking=/ร้านเริ่มจัด/.test(cancelErr);
+        alert('ยกเลิกไม่สำเร็จ: '+cancelErr+(startedPacking?'':'\nกรุณาลองใหม่'));
+        if(startedPacking) loadTrackSection();
         return;
       }
       showToast('ยกเลิกออร์เดอร์แล้ว');
