@@ -39,9 +39,12 @@
     .header{background:#CB3E09;color:#fff;padding:1.25rem 1rem}
     .header-name{font-size:25px;font-weight:600}
     .header-sub{font-size:14.5px;opacity:0.8;margin-top:4px}
-    .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8}
+    /* [แก้ 1 ต.ค. 69] เดิม (ก่อน c3b8474) แท็บไม่ยอมหดจึงไม่ตัดข้อความแต่ดันหน้ากว้างเกินจอ; c3b8474 แก้ด้วยการตัดข้อความเป็น "..." ทำให้ "เสร็จสมบูรณ์" ขาด —
+       ให้แท็บขยายตามข้อความเสมอ (ไม่ตัด) และถ้าจอแคบจริงให้แถบแท็บเลื่อนแนวนอนในตัวเอง หน้าหลักไม่เลื่อนข้าง */
+    .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;overflow-x:auto;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
     .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
-    .tab{flex:1;min-width:0;padding:10px 4px;text-align:center;font-size:13px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tab{flex:1 0 auto;padding:10px 6px;text-align:center;font-size:13px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#CB3E09;border-bottom-color:#CB3E09;font-weight:500}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
     .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
@@ -3767,7 +3770,10 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     refreshing=true;
     indicator.textContent='กำลังรีเฟรช...';
     indicator.style.height='40px';
-    try{await runPullRefresh();}catch(e){/* ปล่อยผ่าน ไม่ต้อง alert ผู้ใช้ระหว่างรีเฟรชเงียบๆ */}
+    // [แก้ 1 ต.ค. 69] เดิมรอ runPullRefresh() จนจบ — แต่ loadAdminOrders()/loadTrackSection()/loadProducts() วนลองใหม่ไม่จำกัดรอบ
+    // เมื่อ backend ช้า/หลุด แถบ "กำลังรีเฟรช..." เลยค้างนานและดึงรีเฟรชซ้ำไม่ได้ (refreshing ค้าง true) — จำกัดการรอไว้ 8 วิ
+    // หลังจากนั้นซ่อนแถบ ปล่อยให้โหลดต่อเงียบๆ เบื้องหลังเหมือนเดิม (ไม่ยกเลิกอะไร ข้อมูลยังอัปเดตเองเมื่อมาถึง)
+    try{await Promise.race([runPullRefresh(),new Promise(r=>setTimeout(r,8000))]);}catch(e){/* ปล่อยผ่าน ไม่ต้อง alert ผู้ใช้ระหว่างรีเฟรชเงียบๆ */}
     indicator.style.height='0px';
     refreshing=false;
   });
@@ -3778,7 +3784,20 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     const adminVisible=getComputedStyle(document.getElementById('adminApp')).display!=='none';
     if(adminVisible){
       if(adminCurrentTab==='overview'){allAdminOrdersFull=null;await fetchFullAdminOrders();renderAdminOverview();}
-      else{await loadAdminOrders();}
+      else{
+        // ไม่ใช้ loadAdminOrders() ตรงนี้ — มันล้างรายการเป็นจุดโหลดแล้ววนลองใหม่ไม่จำกัดรอบ ทำให้รายการหายไประหว่างรอ
+        // ดึงครั้งเดียวแบบเงียบ ถ้าสำเร็จค่อยแทนที่รายการ ถ้าไม่สำเร็จคงรายการเดิมไว้ (รอบ auto-refresh 30 วิจะลองให้เอง)
+        if(!adminEditBusy){
+          const data=await safeFetchJSON(`${API}?action=getAdminOrders&key=${encodeURIComponent(ADMIN_KEY)}`,null,'pullRefresh:getAdminOrders',15000,1,true);
+          if(data!==null&&!adminEditBusy){
+            const text=JSON.stringify(data);
+            lastAdminOrdersHash=text;
+            allAdminOrders=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id);
+            writeAdminOrdersCache(text);
+            renderAdminOrders();
+          }
+        }
+      }
       await loadBusinessNotes();
       return;
     }
