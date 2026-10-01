@@ -1018,6 +1018,37 @@ Chromium binary จริง (`/opt/pw-browsers/chromium-1194` — เช็ค�
 **ไม่มีอะไรค้างจาก session นี้** — ถ้าคุยเรื่อง usability ของ `stock-check.html` ต่อในอนาคต ถือว่า 3 finding นี้
 ปิดสมบูรณ์แล้ว ไม่ต้องเริ่ม audit ใหม่เว้นแต่มีการแก้ UI ใหม่หลังจากนี้
 
+### สถานะล่าสุด (อัปเดต 1 ต.ค. 69) — Focused Security Audit (OWASP ASVS) ทำเสร็จ แต่ผู้ใช้ "ขอพักเรื่องนี้ไว้ก่อน" ยังไม่แก้อะไรเลย
+
+**ไม่มีการแก้โค้ดใดๆ** — audit อย่างเดียว ผลรวม **REQUIRES SECURITY REVIEW** พบ 12 ข้อ (High 2 / Medium 4 / Low 6)
+ทดสอบแบบไม่ทำลายเท่านั้น: อ่านโค้ด + ยิงระบบจริงแบบอ่านอย่างเดียว (`bootstrap`, `pendingBills`, action มั่ว, POST ไม่ใช่ JSON) +
+`curl -I` หน้าเว็บ — ไม่ยิง action ที่เขียนข้อมูล ไม่เดา PIN ไม่ได้รัน XSS จริงในเบราว์เซอร์
+
+- **SEC-001 High** — PIN เจ้าของกันแค่หน้าจอ backend ทั้ง 2 โปรเจกต์ไม่ตรวจสิทธิ์เลย (`createOrderBatch`, `finalizePurchaseReceipt`,
+  `discardPendingBill`, `setProductSkipDate` ฯลฯ เรียกตรงได้) — `checkPin` คืนแค่ `{valid}` ไม่มี token
+- **SEC-002 High (ยืนยันกับระบบจริง)** — `pendingBills`/`bootstrap` อ่านได้โดยไม่ยืนยันตัวตน ได้ราคาต้นทุน `unitPrice`, ชื่อพนักงาน, ลิงก์รูปบิล/รูปหน้า
+- SEC-003 Medium — สิทธิ์ "Mile" เช็คจาก `staffName` ที่ client ส่งมาเอง (`setUnitLabel` ไม่ส่ง staffName = ข้ามการเช็ค)
+- SEC-004 Medium — PIN 4 หลักส่งผ่าน GET query string ไม่มี rate limit/lockout
+- SEC-005 Medium — `billText`/`staffName` (บรรทัด ~2071-2793) และ `avatarUrl`/`imageUrl` ใน `src` แทรก innerHTML ไม่ผ่าน `escapeHtml`
+- SEC-006 Medium — รูปทุกประเภท `setSharing(ANYONE_WITH_LINK)` รวมรูปบิล/รูปหน้าพนักงาน
+- SEC-007..012 Low — อัปโหลดไม่จำกัดขนาด/ไม่ต้องยืนยันตัวตน, error หน้า Google บอก "line 142, file Code" (JSON.parse อยู่นอก try),
+  ไม่มี CSP/X-Frame-Options/nosniff/Referrer-Policy (HSTS มีแล้ว), repo GitHub เป็น public (สแกนแล้วไม่พบ API key/PIN ใน history),
+  ชื่อผู้ทำรายการปลอมได้ (audit trail เชื่อไม่ได้), draft บิลค้างใน localStorage
+
+**วิเคราะห์ผลกระทบถ้าแก้ (คุยแล้ว — ผู้ใช้บอกว่า "เรื่องใหญ่มาก ต้องวางจุดตรวจแต่ละขั้น ขอหยุดก่อน")**:
+- SEC-001/002 กระทบหนักสุด: ปิดการอ่านข้อมูลได้จริงต้องให้**พนักงานใส่รหัสร้านต่อเครื่อง** (ฝังรหัสในหน้าเว็บไม่ได้ เพราะหน้าเว็บเป็นสาธารณะ),
+  token ต้องใช้ได้ทั้ง 2 โปรเจกต์ (รหัสลับชุดเดียวกัน), **retry loop เงียบๆ 7 จุดจะวนไม่จบถ้าสิทธิ์ไม่ผ่าน — ต้องแยก auth error จาก network error**,
+  deploy หน้าเว็บก่อน backend, เครื่องที่ติดแคชแท็บปักหมุดจะพังช่วงเปลี่ยนผ่าน
+- SEC-006 แก้ตรงๆ = รูปหายทั้งแอป (เบราว์เซอร์พนักงานไม่ได้ login Google) — แนะนำคงรูปสินค้าไว้ พิจารณาแค่รูปบิล/หน้าพนักงาน
+- SEC-010 repo private กระทบแอปสั่งของด้วย (repo เดียวกัน) — ผู้ใช้ต้องตัดสินใจเอง
+- SEC-004 lockout แยกตาม IP ไม่ได้ — ล็อกนานเกินไปจะล็อกเจ้าของร้านด้วย
+- SEC-012 ไม่แนะนำให้แก้ (ขัดกับฟีเจอร์ autosave กันงานหาย)
+- กลุ่มกระทบน้อย แก้ได้ก่อน: SEC-005 (escape), SEC-007 (เพดาน ~3MB — แอปบีบอัดรูปก่อนส่งอยู่แล้วทุกจุด), SEC-008 (ย้าย JSON.parse เข้า try),
+  SEC-009 (header ปลอดภัยใส่ได้ แต่ CSP เข้มงวดจะทำให้แอปพัง — มีโค้ด inline ~120 จุด, `vercel.json` ใช้ร่วมกับแอปสั่งของ)
+
+⚠️ **ห้ามหยิบเรื่องนี้ขึ้นมาเสนอแก้เองจนกว่าผู้ใช้จะพูดถึงก่อน** — ถ้าผู้ใช้กลับมาคุย ให้เริ่มจากวางแผนเป็นขั้นตอนพร้อมจุดตรวจแต่ละขั้นตามที่ผู้ใช้ขอ
+(กลุ่มกระทบน้อยก่อน → ตัดสินใจเรื่องรหัสพนักงาน → ทำ demo SEC-001/002) ไม่ใช่ลงมือแก้รวดเดียว
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
