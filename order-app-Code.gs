@@ -238,6 +238,9 @@ function doGet(e) {
   if (action === 'getAdminOrders') return getAdminOrders(e.parameter.key);
   if (action === 'getAdminOrdersFull') return getAdminOrdersFull(e.parameter.key);
   if (action === 'getBusinessNotes') return getBusinessNotes();
+  if (action === 'getBillingCustomers') return getBillingCustomers(e.parameter.key);
+  if (action === 'getBillingData') return getBillingData(e.parameter.key, e.parameter.customer_id);
+  if (action === 'getBillMap') return getBillMap(e.parameter.key);
   if (action === 'getThaiHolidays') return getThaiHolidays(e.parameter.year);
   return response({ error: 'invalid action' });
 }
@@ -257,6 +260,8 @@ function doPost(e) {
   if (data.action === 'cancelOrder') return cancelOrder(data);
   if (data.action === 'addBusinessNote') return addBusinessNote(data);
   if (data.action === 'deleteBusinessNote') return deleteBusinessNote(data);
+  if (data.action === 'createBill') return createBill(data);
+  if (data.action === 'cancelBill') return cancelBill(data);
   return response({ error: 'invalid action' });
 }
 
@@ -332,6 +337,287 @@ function deleteBusinessNote(data) {
   } catch (e) {
     return response({ error: 'deleteBusinessNote: ' + e.message });
   }
+}
+
+/**
+ * ===== ใบวางบิลรวม (Bills) — เพิ่ม 3 ต.ค. 69 =====
+ * ใช้กับลูกค้ากลุ่ม related party (หอมเกรียม หมูกระทะ / ซูโม่ ซอสเซจ) ที่ต้องรวมออเดอร์หลายใบเป็นใบวางบิลใบเดียวตามรอบ
+ * แต่ละร้านมีรอบของตัวเอง ไม่ผูกกัน
+ *
+ * ออกแบบให้ "ไม่แตะชีต Order_<ปี> เลย" — เก็บสถานะวางบิลในชีตแยกชื่อ 'Bills' (สร้างเองอัตโนมัติตอนออกใบแรก):
+ *   bill_id, customer_id, customer_name, created_at, order_ids (คั่นด้วย ,), order_count, total, status, cancelled_at
+ * เหตุผล: ข้อมูลออเดอร์ทั้งหมดถูกบีบอัดลงแคชซึ่งมีเพดาน 100KB อยู่แล้ว (ดูหมายเหตุที่ ORDER_CACHE_KEY) การเพิ่มคอลัมน์ใน
+ * ชีต Order มีแต่เสี่ยงทำให้เกินเพดาน และไม่มีเหตุผลต้องให้ทุก request ของแท็บหลักแบกข้อมูลวางบิลไปด้วย
+ *
+ * status: 'active' = ใบที่ใช้อยู่ (ออเดอร์ในใบนี้ถือว่า "วางบิลแล้ว"), 'cancelled' = ยกเลิกใบ (ออเดอร์กลับเป็น "ยังไม่วางบิล")
+ * เลขใบ INV-0001 เรียงต่อไปเรื่อยๆ ไม่ใช้เลขซ้ำแม้ใบเก่าถูกยกเลิก
+ */
+const BILLS_SHEET_NAME = 'Bills';
+const BILLS_HEADERS = ['bill_id', 'customer_id', 'customer_name', 'created_at', 'order_ids', 'order_count', 'total', 'status', 'cancelled_at'];
+// ชื่อลูกค้าที่ใช้ระบบวางบิลรวม — เทียบแบบไม่สนช่องว่าง/ตัวพิมพ์ (เหตุผลเดียวกับ OVERVIEW_EXCLUDED_CUSTOMER_NAMES ใน index.html)
+const BILLING_CUSTOMER_NAMES = ['หอมเกรียม หมูกระทะ', 'ซูโม่ ซอสเซจ', 'ซูโม่ Sausage'];
+const BILLING_MAX_ORDERS_PER_BILL = 300;
+
+function normalizeBillingName(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+}
+
+function isDoneOrderRow(o) {
+  return String(o.delivery_status || '').toLowerCase().trim() === 'done';
+}
+
+function isCancelledOrderRow(o) {
+  return String(o.delivery_status || '').toLowerCase().trim() === 'cancelled' || o.status === 'cancelled';
+}
+
+// คืน sheet Bills — createIfMissing=true จะสร้างพร้อมหัวคอลัมน์ให้ (ใช้เฉพาะตอนออกใบ) ถ้าไม่มีและไม่ให้สร้างคืน null
+function getBillsSheet(createIfMissing) {
+  let sheet = getSheet(BILLS_SHEET_NAME);
+  if (!sheet && createIfMissing) {
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(BILLS_SHEET_NAME);
+    sheet.getRange(1, 1, 1, BILLS_HEADERS.length).setValues([BILLS_HEADERS]);
+  }
+  return sheet;
+}
+
+// อ่านใบวางบิลทั้งหมด (ชีตเล็ก — ไม่กี่แถวต่อรอบ) คืน array ของ { obj, rowIndex(1-based) }
+function readAllBills() {
+  const sheet = getBillsSheet(false);
+  if (!sheet) return { sheet: null, headers: BILLS_HEADERS, bills: [] };
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return { sheet: sheet, headers: rows[0] || BILLS_HEADERS, bills: [] };
+  const headers = rows[0];
+  const bills = [];
+  for (let i = 1; i < rows.length; i++) {
+    const obj = rowToObj(headers, rows[i]);
+    if (!obj.bill_id) continue;
+    obj.order_ids = String(obj.order_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+    bills.push({ obj: obj, rowIndex: i + 1 });
+  }
+  return { sheet: sheet, headers: headers, bills: bills };
+}
+
+// order_id -> bill_id ของใบที่ยัง active เท่านั้น
+function getActiveBilledOrderMap() {
+  const map = {};
+  try {
+    readAllBills().bills.forEach(b => {
+      if (b.obj.status === 'cancelled') return;
+      b.obj.order_ids.forEach(oid => { map[oid] = b.obj.bill_id; });
+    });
+  } catch (e) {
+    console.error('getActiveBilledOrderMap ล้มเหลว: ' + e);
+  }
+  return map;
+}
+
+// ลูกค้าที่ใช้ระบบวางบิลรวม — อ่านจากชีต Customer ตามรายชื่อด้านบน
+function findBillingCustomers() {
+  const sheet = getSheet('Customer');
+  if (!sheet) return [];
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  const wanted = BILLING_CUSTOMER_NAMES.map(normalizeBillingName);
+  const result = [];
+  for (let i = 1; i < rows.length; i++) {
+    const obj = rowToObj(headers, rows[i]);
+    if (obj.customer_id && wanted.indexOf(normalizeBillingName(obj.name)) !== -1) {
+      result.push({ customer_id: obj.customer_id, name: obj.name });
+    }
+  }
+  return result;
+}
+
+function getBillingCustomers(key) {
+  if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
+  try {
+    return response(findBillingCustomers());
+  } catch (e) {
+    return response({ error: 'getBillingCustomers: ' + e.message });
+  }
+}
+
+function billObjForClient(obj) {
+  return {
+    bill_id: obj.bill_id,
+    customer_id: obj.customer_id,
+    customer_name: obj.customer_name,
+    created_at: obj.created_at,
+    order_ids: obj.order_ids,
+    order_count: obj.order_count,
+    total: Number(obj.total) || 0,
+    status: obj.status || 'active',
+    cancelled_at: obj.cancelled_at || ''
+  };
+}
+
+// ออเดอร์ที่ "จัดเสร็จ" และไม่ถูกยกเลิก ของลูกค้า 1 ราย (ทุกปี) พร้อมระบุว่าอยู่ในใบไหน + ประวัติใบของร้านนี้
+// ไม่ผ่านตัวกรองภาพรวม/แดชบอร์ด (ฝั่ง index.html) เพราะต้องเห็นออเดอร์ของร้านเหล่านี้โดยเฉพาะ
+function getBillingData(key, customerId) {
+  if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
+  try {
+    if (!customerId || !findBillingCustomers().some(c => c.customer_id === customerId)) {
+      return response({ error: 'ลูกค้ารายนี้ไม่ได้อยู่ในรายชื่อที่วางบิลรวม' });
+    }
+    const billedMap = getActiveBilledOrderMap();
+    const orders = getAllOrderRows()
+      .filter(o => o.order_id && o.customer_id === customerId && isDoneOrderRow(o) && !isCancelledOrderRow(o))
+      .map(o => ({
+        order_id: o.order_id,
+        customer_id: o.customer_id,
+        customer_name: o.customer_name,
+        items: o.items,
+        total: Number(o.total) || 0,
+        timestamp: o.timestamp,
+        done_at: o.done_at,
+        bill_id: billedMap[o.order_id] || ''
+      }));
+    const bills = readAllBills().bills
+      .filter(b => b.obj.customer_id === customerId)
+      .map(b => billObjForClient(b.obj))
+      .reverse();
+    return response({ orders: orders, bills: bills });
+  } catch (e) {
+    return response({ error: 'getBillingData: ' + e.message });
+  }
+}
+
+// order_id -> bill_id (เฉพาะใบ active) ใช้แสดงป้าย "วางบิลแล้ว" ในแท็บเสร็จสมบูรณ์ — ก้อนเล็กมาก ไม่ปนกับข้อมูลออเดอร์
+function getBillMap(key) {
+  if (!isValidAdminKey(key)) return response({ error: 'unauthorized' });
+  try {
+    return response(getActiveBilledOrderMap());
+  } catch (e) {
+    return response({ error: 'getBillMap: ' + e.message });
+  }
+}
+
+function nextBillId(allBills) {
+  let max = 0;
+  allBills.forEach(b => {
+    const m = /^INV-(\d+)$/.exec(String(b.obj.bill_id));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return 'INV-' + ('0000' + (max + 1)).slice(-4);
+}
+
+function createBill(data) {
+  if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return response({ error: 'createBill: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
+  }
+  try {
+    const cache = CacheService.getScriptCache();
+    const idemKey = data.idempotency_key;
+    if (idemKey) {
+      const cachedBillId = cache.get('idem_bill_' + idemKey);
+      if (cachedBillId) {
+        const found = readAllBills().bills.filter(b => b.obj.bill_id === cachedBillId)[0];
+        if (found) return response({ success: true, bill: billObjForClient(found.obj) });
+      }
+    }
+    const customer = findBillingCustomers().filter(c => c.customer_id === data.customer_id)[0];
+    if (!customer) return response({ error: 'ลูกค้ารายนี้ไม่ได้อยู่ในรายชื่อที่วางบิลรวม' });
+    const orderIds = Array.isArray(data.order_ids) ? data.order_ids.map(String) : [];
+    const uniqueIds = orderIds.filter((x, i) => orderIds.indexOf(x) === i);
+    if (!uniqueIds.length) return response({ error: 'ยังไม่ได้เลือกออเดอร์' });
+    if (uniqueIds.length > BILLING_MAX_ORDERS_PER_BILL) {
+      return response({ error: 'เลือกออเดอร์เกิน ' + BILLING_MAX_ORDERS_PER_BILL + ' รายการต่อใบ กรุณาแบ่งออกเป็นหลายใบ' });
+    }
+
+    // ยอดต้องเป็นค่าปัจจุบันจริงในชีต ไม่เชื่อ client และไม่ใช้แคชที่อาจเก่า (ล้างก่อนอ่าน — ออกใบเกิดไม่บ่อย)
+    invalidateOrderCache();
+    const rowsById = {};
+    getAllOrderRows().forEach(o => { if (o.order_id) rowsById[o.order_id] = o; });
+    const all = readAllBills();
+    const billedMap = {};
+    all.bills.forEach(b => {
+      if (b.obj.status === 'cancelled') return;
+      b.obj.order_ids.forEach(oid => { billedMap[oid] = b.obj.bill_id; });
+    });
+
+    let total = 0;
+    for (let i = 0; i < uniqueIds.length; i++) {
+      const o = rowsById[uniqueIds[i]];
+      if (!o) return response({ error: 'ไม่พบออเดอร์ ' + uniqueIds[i] });
+      if (o.customer_id !== customer.customer_id) return response({ error: 'ออเดอร์ ' + o.order_id + ' ไม่ใช่ของ ' + customer.name });
+      if (!isDoneOrderRow(o) || isCancelledOrderRow(o)) return response({ error: 'ออเดอร์ ' + o.order_id + ' ยังไม่ใช่สถานะจัดเสร็จ หรือถูกยกเลิกแล้ว' });
+      if (billedMap[o.order_id]) return response({ error: 'ออเดอร์ ' + o.order_id + ' อยู่ในใบวางบิล ' + billedMap[o.order_id] + ' แล้ว กรุณารีเฟรชหน้าจอ' });
+      total += Number(o.total) || 0;
+    }
+
+    const sheet = getBillsSheet(true);
+    const headers = sheet.getDataRange().getValues()[0];
+    const billId = nextBillId(all.bills);
+    const rowObj = {
+      bill_id: billId,
+      customer_id: customer.customer_id,
+      customer_name: customer.name,
+      created_at: new Date(),
+      order_ids: uniqueIds.join(','),
+      order_count: uniqueIds.length,
+      total: total,
+      status: 'active',
+      cancelled_at: ''
+    };
+    sheet.appendRow(headers.map(h => (h in rowObj) ? rowObj[h] : ''));
+
+    if (idemKey) {
+      try {
+        cache.put('idem_bill_' + idemKey, billId, 300);
+      } catch (e) {
+        console.error('createBill: cache.put idempotency key ล้มเหลว: ' + e);
+      }
+    }
+    return response({ success: true, bill: billObjForClient({
+      bill_id: billId, customer_id: customer.customer_id, customer_name: customer.name, created_at: rowObj.created_at,
+      order_ids: uniqueIds, order_count: uniqueIds.length, total: total, status: 'active', cancelled_at: ''
+    }) });
+  } catch (e) {
+    return response({ error: 'createBill: ' + e.message });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function cancelBill(data) {
+  if (!isValidAdminKey(data.key)) return response({ error: 'unauthorized' });
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return response({ error: 'cancelBill: ระบบกำลังประมวลผลคำขออื่นอยู่ กรุณาลองใหม่อีกครั้ง' });
+  }
+  try {
+    const all = readAllBills();
+    const found = all.bills.filter(b => b.obj.bill_id === data.bill_id)[0];
+    if (!found) return response({ error: 'not found' });
+    if (found.obj.status === 'cancelled') return response({ success: true, skipped: true, reason: 'already_cancelled' });
+    const statusCol = all.headers.indexOf('status');
+    const cancelledCol = all.headers.indexOf('cancelled_at');
+    if (statusCol === -1) return response({ error: 'หัวคอลัมน์ของ sheet "Bills" ไม่ตรง ต้องมี status' });
+    all.sheet.getRange(found.rowIndex, statusCol + 1).setValue('cancelled');
+    if (cancelledCol !== -1) all.sheet.getRange(found.rowIndex, cancelledCol + 1).setValue(new Date());
+    return response({ success: true });
+  } catch (e) {
+    return response({ error: 'cancelBill: ' + e.message });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ด่านกันแก้/ยกเลิกออเดอร์ที่อยู่ในใบวางบิลที่ยังใช้อยู่ (ยอดในใบจะไม่ตรงกับออเดอร์) — เช็คเฉพาะออเดอร์สถานะ done เท่านั้น
+// (ออเดอร์ที่ยังไม่จัดเสร็จวางบิลไม่ได้อยู่แล้ว) ทำให้ flow จัดของ/แก้จำนวนระหว่างแพ็คไม่ต้องอ่านชีต Bills เลย
+// คืนข้อความ error หรือ null ถ้าไม่ติดด่าน
+function billedOrderBlockMessage(orderId, row, headers) {
+  const status = String(row[headers.indexOf('delivery_status')] || '').toLowerCase().trim();
+  if (status !== 'done') return null;
+  const billId = getActiveBilledOrderMap()[orderId];
+  return billId ? 'ออเดอร์นี้อยู่ในใบวางบิล ' + billId + ' แล้ว ต้องยกเลิกใบวางบิลก่อนจึงแก้ไข/ยกเลิกออเดอร์ได้' : null;
 }
 
 /**
@@ -936,6 +1222,8 @@ function updateOrder(data) {
     if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
       return response({ error: 'unauthorized' });
     }
+    const billedMsgU = billedOrderBlockMessage(data.order_id, row, headers);
+    if (billedMsgU) return response({ error: billedMsgU });
     // [เพิ่ม 15 ก.ย. 69] เดิมเช็คแค่ความเป็นเจ้าของออเดอร์ ไม่เคยเช็คสถานะเลย — ฝั่งเว็บซ่อนปุ่ม "แก้ไข" ไว้แล้ว
     // ตอน delivery_status เป็น packing/done (ดู canEdit ใน index.html) แต่นั่นบังคับแค่ที่ UI เท่านั้น ถ้าลูกค้า
     // เปิดหน้าค้างไว้ตั้งแต่ตอนออเดอร์ยัง pending (ปุ่มยังโชว์อยู่) แล้วแอดมินเพิ่งกด "เริ่มจัดสินค้า" พอดี ลูกค้า
@@ -1126,6 +1414,8 @@ function cancelOrder(data) {
   if (!isAdminCall && !(data.customer_id && data.customer_id === ownerCustomerId)) {
     return response({ error: 'unauthorized' });
   }
+  const billedMsgC = billedOrderBlockMessage(data.order_id, row, headers);
+  if (billedMsgC) return response({ error: billedMsgC });
   // [เพิ่ม 15 ก.ย. 69] ช่องโหว่เดียวกับ updateOrder (ดู comment ด้านบน) — ปุ่ม "ยกเลิก" ก็ซ่อนไว้แค่ที่ UI
   // ตอน packing/done (canCancel=canEdit ใน index.html) ไม่เคยเช็คที่ backend เลย ลูกค้าเปิดหน้าค้างไว้ตั้งแต่
   // ก่อนแอดมินเริ่มจัด แล้วกดยกเลิกตอนร้านเริ่มจัดไปแล้วพอดี จะยังยกเลิกได้อยู่ดี ทั้งที่ของอาจถูกจัดไปแล้ว —

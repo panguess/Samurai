@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — รวมบิลวางบิล v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f5f3f0;color:#1a1a1a;font-size:15px}
+.wrap{max-width:600px;margin:0 auto;padding-bottom:110px}
+.note{background:#fff8e1;border-bottom:1px solid #f0d98a;padding:8px 14px;font-size:12.5px;color:#7a5b00}
+.header{background:#CB3E09;color:#fff;padding:1rem}
+.header b{font-size:20px;font-weight:600}.header div{font-size:13px;opacity:.85;margin-top:2px}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;overflow-x:auto}
+.tab{flex:1 0 auto;padding:10px 8px;font-size:13px;color:#666;white-space:nowrap;text-align:center;border-bottom:2px solid transparent}
+.tab.on{color:#CB3E09;border-color:#CB3E09;font-weight:500}
+.card{background:#fff;border-radius:12px;margin:10px 12px;padding:12px}
+.lbl{font-size:12.5px;font-weight:600;color:#666;margin-bottom:8px}
+.seg{display:flex;background:#f5f3f0;border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;padding:9px 6px;border:0;border-radius:8px;background:transparent;font-family:inherit;font-size:13.5px;cursor:pointer;color:#555}
+.seg button.on{background:#fff;color:#CB3E09;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg small{display:block;font-size:11px;font-weight:400;color:#888}
+.status{display:flex;gap:8px;margin-top:10px}
+.stat{flex:1;border-radius:10px;padding:8px 10px;font-size:12px}
+.stat b{display:block;font-size:16px}
+.stat.open{background:#fdf0ea;color:#CB3E09}.stat.done{background:#e6f3dc;color:#3B6D11}
+.last{font-size:12.5px;color:#555;margin-top:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:8px 12px;border-radius:20px;border:1.5px solid #ddd;background:#fff;font-size:14px;cursor:pointer;font-family:inherit}
+.chip.on{border-color:#CB3E09;background:#fdf0ea;color:#CB3E09;font-weight:500}
+.row2{display:flex;gap:8px;margin-top:10px;align-items:center}
+.row2 input{flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit}
+.sub{font-size:12px;color:#777;margin-top:6px}
+.filt{display:flex;gap:6px;margin-bottom:6px}
+.filt .chip{padding:5px 10px;font-size:12.5px}
+.ord{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-top:1px solid #f0ece7;border-left:4px solid transparent}
+.ord:first-of-type{border-top:0}
+.ord input{width:22px;height:22px;margin-top:2px;accent-color:#CB3E09}
+.ord .mid{flex:1;min-width:0}.ord .t{font-weight:500}.ord .d{font-size:12.5px;color:#777;margin-top:2px}
+.ord .amt{font-weight:600;white-space:nowrap}
+.ord.billed{background:#f4f9ef;border-left-color:#3B6D11}
+.ord.billed .amt,.ord.billed .t{color:#6b7f5c}
+.ord.billed input{visibility:hidden}
+.lock{width:22px;text-align:center;font-size:18px;margin-top:0;display:none}
+.ord.billed .lock{display:block}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:500}
+.badge.ok{background:#3B6D11;color:#fff}.badge.no{background:#fdf0ea;color:#CB3E09}
+.sum{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+.sum.big{font-size:18px;font-weight:700;color:#CB3E09;border-top:1px dashed #ddd;margin-top:6px;padding-top:10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #e8e8e8;padding:10px 12px;display:flex;justify-content:center}
+.bar>div{max-width:600px;width:100%;display:flex;gap:8px}
+.btn{flex:1;padding:13px;border-radius:10px;border:0;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn.pri{background:#CB3E09;color:#fff}.btn.sec{background:#f5f3f0;color:#333;border:1px solid #ddd}
+.inv{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;font-size:13px}
+.inv h3{font-size:16px;text-align:center}.inv .c{text-align:center;color:#666;font-size:12px;margin-bottom:10px}
+.inv table{width:100%;border-collapse:collapse;margin-top:8px}
+.inv th{background:#f5f3f0;text-align:left;padding:5px;font-size:12px}.inv td{padding:5px;border-bottom:1px solid #eee}
+.inv .r{text-align:right}
+.inv .tot{display:flex;justify-content:space-between;font-weight:700;font-size:15px;margin-top:10px}
+.h2{font-size:13px;font-weight:700;margin:16px 14px 0;color:#CB3E09}
+.hist{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #f0ece7;font-size:13.5px}
+.hist:first-of-type{border-top:0}.hist .d{font-size:12px;color:#777}
+.hist button{border:1px solid #ddd;background:#fff;border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12.5px}
+/* การ์ดในแท็บ "เสร็จสมบูรณ์" */
+.oc{display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">ตัวอย่างหน้าตา v2 — ข้อมูลและตัวเลขเป็นของสมมติ ยังไม่ได้เชื่อมกับแอปจริง</div>
+
+  <div class="h2">① แท็บ "🧾 วางบิล" — แยกทำทีละร้าน แต่ละร้านมีรอบของตัวเอง</div>
+  <div class="header"><b>Samurai</b><div>แอดมิน</div></div>
+  <div class="tabs">
+    <div class="tab">⏳ รอจัด</div><div class="tab">🔄 กำลังจัด</div><div class="tab">✅ เสร็จสมบูรณ์</div>
+    <div class="tab on">🧾 วางบิล</div><div class="tab">📊 ภาพรวม</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">ร้าน</div>
+    <div class="seg" id="cust">
+      <button class="on" data-c="a">หอมเกรียม หมูกระทะ<small>ค้างวางบิล 2 ใบ</small></button>
+      <button data-c="b">ซูโม่ ซอสเซจ<small>ค้างวางบิล 1 ใบ</small></button>
+    </div>
+    <div class="status">
+      <div class="stat open">ยังไม่วางบิล<b id="stOpen">฿0</b></div>
+      <div class="stat done">วางบิลแล้ว<b id="stDone">฿0</b></div>
+    </div>
+    <div class="last" id="last"></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">รอบบิลของร้านนี้</div>
+    <div class="chips" id="cycle">
+      <button class="chip on" data-m="open">ทุกรายการที่ยังไม่วางบิล</button>
+      <button class="chip" data-m="range">เลือกช่วงวันที่</button>
+    </div>
+    <div class="row2" id="range" style="display:none"><input type="date" value="2026-10-01"> – <input type="date" value="2026-10-15"></div>
+    <div class="sub">ค่าเริ่มต้น = นับต่อจากรอบที่วางบิลไปล่าสุดของร้านนี้ ไม่ผูกกับร้านอื่น</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">รายการออเดอร์</div>
+    <div class="filt" id="filt">
+      <button class="chip on" data-f="open">ยังไม่วางบิล</button>
+      <button class="chip" data-f="billed">วางบิลแล้ว</button>
+      <button class="chip" data-f="all">ทั้งหมด</button>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">สรุปใบที่จะออก</div>
+    <div class="sum"><span>จำนวนออเดอร์ที่เลือก</span><b id="n">0</b></div>
+    <div class="sum big"><span>ยอดวางบิล</span><span id="tot">฿0</span></div>
+  </div>
+
+  <div class="h2">② ตัวอย่างใบวางบิล</div>
+  <div class="card">
+    <div class="inv">
+      <h3>ใบวางบิล</h3><div class="c" id="invHead"></div>
+      <div><b>ลูกค้า:</b> <span id="invCust"></span></div>
+      <table id="invT"></table>
+      <div class="tot"><span>รวมทั้งสิ้น</span><span id="invTot"></span></div>
+    </div>
+    <div class="sub">ไม่มีช่องลายเซ็น · บันทึกเป็นรูปได้เหมือนบิลเดิม</div>
+  </div>
+
+  <div class="h2">③ ประวัติใบวางบิลของร้านนี้ (กดดู/ยกเลิกบิลได้ → ออเดอร์กลับเป็น "ยังไม่วางบิล")</div>
+  <div class="card" id="hist"></div>
+
+  <div class="h2">④ สัญลักษณ์เดียวกันที่การ์ดในแท็บ "✅ เสร็จสมบูรณ์" (จะได้ไม่งงตอนดูย้อนหลัง)</div>
+  <div class="card">
+    <div class="oc"><div><b>#1001-0233</b> · หอมเกรียม หมูกระทะ<div class="sub">1 ต.ค. · น้ำจิ้ม ×20 · ฿1,260</div></div>
+      <span class="badge ok">✓ วางบิลแล้ว INV-0007</span></div>
+    <div class="oc" style="margin-top:10px;border-top:1px solid #f0ece7;padding-top:10px"><div><b>#1001-0241</b> · หอมเกรียม หมูกระทะ<div class="sub">2 ต.ค. · หมูสามชั้น ×10 · ฿1,850</div></div>
+      <span class="badge no">ยังไม่วางบิล</span></div>
+  </div>
+
+  <div class="bar"><div>
+    <button class="btn sec">ดูตัวอย่างใบวางบิล</button>
+    <button class="btn pri">ออกใบวางบิล</button>
+  </div></div>
+</div>
+
+<script>
+const fmt=n=>'฿'+n.toLocaleString('th-TH');
+// ข้อมูลสมมติ — แต่ละร้านมีรอบ/ประวัติวางบิลของตัวเอง ไม่ตรงกัน
+const D={
+ a:{name:'หอมเกรียม หมูกระทะ',last:'วางบิลล่าสุด INV-0007 · ครอบคลุมถึง 1 ต.ค. · ออกเมื่อ 3 ต.ค.',
+  orders:[
+   {id:'#1001-0233',d:'1 ต.ค.',i:'น้ำจิ้ม ×20',v:1260,inv:'INV-0007'},
+   {id:'#1001-0241',d:'2 ต.ค.',i:'หมูสามชั้น ×10, ผักรวม ×5',v:1850},
+   {id:'#1001-0247',d:'5 ต.ค.',i:'เนื้อสไลด์ ×8',v:2240}],
+  hist:[{inv:'INV-0007',d:'ออก 3 ต.ค. · 1 ออเดอร์',v:1260}]},
+ b:{name:'ซูโม่ ซอสเซจ',last:'วางบิลล่าสุด INV-0006 · ครอบคลุมถึง 28 ก.ย. · ออกเมื่อ 30 ก.ย.',
+  orders:[
+   {id:'#1002-0229',d:'26 ก.ย.',i:'ไส้กรอกรมควัน ×15',v:1480,inv:'INV-0006'},
+   {id:'#1002-0238',d:'28 ก.ย.',i:'ไส้กรอกเยอรมัน ×10',v:1320,inv:'INV-0006'},
+   {id:'#1002-0250',d:'7 ต.ค.',i:'ไส้กรอกชีส ×12',v:960}],
+  hist:[{inv:'INV-0006',d:'ออก 30 ก.ย. · 2 ออเดอร์',v:2800}]}
+};
+let cur='a',filt='open';
+function render(){
+  const c=D[cur];
+  const open=c.orders.filter(o=>!o.inv),billed=c.orders.filter(o=>o.inv);
+  document.querySelectorAll('#cust button').forEach(b=>b.classList.toggle('on',b.dataset.c===cur));
+  stOpen.textContent=fmt(open.reduce((s,o)=>s+o.v,0));
+  stDone.textContent=fmt(billed.reduce((s,o)=>s+o.v,0));
+  last.textContent=c.last;
+  const shown=c.orders.filter(o=>filt==='all'||(filt==='open')===!o.inv);
+  list.innerHTML=shown.map((o,i)=>`<label class="ord ${o.inv?'billed':''}">
+    <input type="checkbox" class="o" data-v="${o.v}" ${o.inv?'disabled':'checked'}><div class="lock">🔒</div>
+    <div class="mid"><div class="t">${o.id}</div><div class="d">${o.d} · ${o.i}</div>
+    ${o.inv?`<span class="badge ok">✓ วางบิลแล้ว ${o.inv}</span>`:`<span class="badge no">ยังไม่วางบิล</span>`}</div>
+    <div class="amt">${fmt(o.v)}</div></label>`).join('')||'<div class="sub">ไม่มีรายการ</div>';
+  document.querySelectorAll('.o').forEach(e=>e.onchange=calc);
+  hist.innerHTML=c.hist.map(h=>`<div class="hist"><div><b>${h.inv}</b><div class="d">${h.d}</div></div><div>${fmt(h.v)} <button>เปิด</button></div></div>`).join('');
+  calc();
+}
+function calc(){
+  const sel=[...document.querySelectorAll('.o')].filter(e=>e.checked&&!e.disabled);
+  const orders=D[cur].orders.filter(o=>!o.inv);
+  const tot=sel.reduce((s,e)=>s+(+e.dataset.v),0);
+  n.textContent=sel.length;tot_.textContent=fmt(tot);
+  // preview ใช้รายการที่ยังไม่วางบิลของร้านนั้น
+  invHead.textContent='เลขที่ INV-0008 · '+D[cur].name;invCust.textContent=D[cur].name;
+  invT.innerHTML='<tr><th>วันที่</th><th>ออเดอร์</th><th class="r">ยอด (฿)</th></tr>'+orders.map(o=>`<tr><td>${o.d}</td><td>${o.id}</td><td class="r">${o.v.toLocaleString('th-TH')}</td></tr>`).join('');
+  invTot.textContent=fmt(orders.reduce((s,o)=>s+o.v,0));
+}
+const tot_=document.getElementById('tot');
+document.querySelectorAll('#cust button').forEach(b=>b.onclick=()=>{cur=b.dataset.c;render();});
+document.querySelectorAll('#filt .chip').forEach(b=>b.onclick=()=>{filt=b.dataset.f;document.querySelectorAll('#filt .chip').forEach(x=>x.classList.toggle('on',x===b));render();});
+document.querySelectorAll('#cycle .chip').forEach(b=>b.onclick=()=>{document.querySelectorAll('#cycle .chip').forEach(x=>x.classList.toggle('on',x===b));range.style.display=b.dataset.m==='range'?'flex':'none';});
+render();
+</script>
+</body>
+</html>
