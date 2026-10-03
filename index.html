@@ -1399,7 +1399,10 @@ function writeAdminProductsCache(products){
  * ร่วมกัน — renderAdminOverview/ov_doneOrdersInRange/db_doneOrders/getAvailableOverviewMonths) แทนที่จะ
  * ไปกรองซ้ำทีละฟังก์ชัน ถ้ามีลูกค้าลักษณะนี้เพิ่มอีกในอนาคต เพิ่มชื่อเข้า array นี้ได้เลย
  */
-const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage'];
+const OVERVIEW_EXCLUDED_CUSTOMER_NAMES=['ซูโม่ Sausage','ซูโม่ ซอสเซจ','หอมเกรียม หมูกระทะ'];
+// เทียบชื่อแบบไม่สนช่องว่าง/ตัวพิมพ์ — ชื่อลูกค้าพิมพ์เองอาจเว้นวรรคต่างจากในรายการ (แก้ 3 ต.ค. 69: เดิมเทียบตรงตัวจนหลุด)
+const OVERVIEW_EXCLUDED_KEYS=OVERVIEW_EXCLUDED_CUSTOMER_NAMES.map(n=>String(n).replace(/\s+/g,'').toLowerCase());
+function isOverviewExcludedOrder(o){return OVERVIEW_EXCLUDED_KEYS.includes(String(o&&o.customer_name||'').replace(/\s+/g,'').toLowerCase());}
 
 async function fetchFullAdminOrders(silent){
   const data=await safeFetchJSON(`${API}?action=getAdminOrdersFull&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getAdminOrdersFull',35000,1,silent);
@@ -1408,7 +1411,7 @@ async function fetchFullAdminOrders(silent){
   writeAdminOrdersFullCache(text);
   if(text===lastAdminOrdersFullHash) return false;
   lastAdminOrdersFullHash=text;
-  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
+  allAdminOrdersFull=(Array.isArray(data)?data:[]).filter(o=>o&&o.order_id&&!isOverviewExcludedOrder(o));
   return true;
 }
 
@@ -1611,7 +1614,7 @@ async function switchAdminTab(tab){
       const cachedFull=readAdminOrdersFullCache();
       if(cachedFull&&cachedFull.length){
         lastAdminOrdersFullHash=JSON.stringify(cachedFull);
-        allAdminOrdersFull=cachedFull.filter(o=>o&&o.order_id&&!OVERVIEW_EXCLUDED_CUSTOMER_NAMES.includes(o.customer_name));
+        allAdminOrdersFull=cachedFull.filter(o=>o&&o.order_id&&!isOverviewExcludedOrder(o));
         renderAdminOverview();
       }else{
         document.getElementById('adminOverview').innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
