@@ -844,10 +844,18 @@ function getOrderedToday() {
   const cached = cacheGet(cacheKey);
   if (cached) return cached;
 
-  const orders = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
-  const result = { productIds: [...new Set(orders.map(o => String(o.ProductID).trim()))] };
+  const result = buildOrderedToday_(readTodayOrderLogs_(date));
   cacheSet(cacheKey, result, CACHE_TTL.orderedToday);
   return result;
+}
+// Speed รอบ 3-D (3 ต.ค. 69): แยกส่วน "อ่านแถววันนี้จาก OrderLogs" กับ "สรุปผล" ออกจากกัน ให้ getOrderPageData()
+// อ่านชีต OrderLogs (โตขึ้นทุกวัน — ส่วนที่ช้าที่สุดของหน้าสั่งของ) แค่รอบเดียวแล้วสรุปได้ทั้ง 2 แบบ เดิมอ่านทั้งชีต
+// 2 รอบแยกกันใน getOrderedToday + getOrderedItemsToday — โค้ดสรุปผลย้ายมาแบบคำต่อคำ ผลลัพธ์เหมือนเดิมทุกตัวอักษร
+function readTodayOrderLogs_(date) {
+  return readTable('OrderLogs').filter(o => normDate(o.Date) === date);
+}
+function buildOrderedToday_(orders) {
+  return { productIds: [...new Set(orders.map(o => String(o.ProductID).trim()))] };
 }
 
 /* ============ getOrderedItemsToday ============ */
@@ -863,16 +871,18 @@ function getOrderedItemsToday() {
   const cached = cacheGet(cacheKey);
   if (cached) return cached;
 
-  const rows = readTable('OrderLogs').filter(o => normDate(o.Date) === date);
+  const result = buildOrderedItemsToday_(readTodayOrderLogs_(date));
+  cacheSet(cacheKey, result, CACHE_TTL.orderedToday);
+  return result;
+}
+function buildOrderedItemsToday_(rows) {
   const latestByProduct = {};
   rows.forEach(r => { latestByProduct[String(r.ProductID).trim()] = r; });
-  const result = {
+  return {
     items: Object.values(latestByProduct).map(r => ({
       productId: r.ProductID, orderQty: r.OrderQty, orderUnit: r.OrderUnit
     }))
   };
-  cacheSet(cacheKey, result, CACHE_TTL.orderedToday);
-  return result;
 }
 
 /* ============ getConfirmedToday / setSupplierOrderConfirm ============ */
@@ -900,12 +910,31 @@ function getConfirmedToday() {
 // จาก 4 เหลือ 1 ลดโอกาสชนคิว — แต่ละฟังก์ชันข้างในยังมีแคชของตัวเองเหมือนเดิมทุกอย่าง (ไม่ได้เปลี่ยน logic
 // หรือ TTL ของฟังก์ชันย่อยเลย แค่ห่อรวมผลลัพธ์เป็นก้อนเดียวตอนส่งกลับ) หน้าเว็บที่เรียก action เดิม 4 ตัวแยก
 // (ถ้ามี debug/หน้าอื่นเผลอเรียกอยู่) ยังใช้งานได้ปกติ ไม่ได้ถูกลบทิ้ง
+//
+// Speed รอบ 3-D (3 ต.ค. 69): ordered/orderedItems ใช้แคช key เดิมของ getOrderedToday/getOrderedItemsToday
+// (createOrderBatch ล้างทั้งคู่เหมือนเดิม) ถ้าแคชหายตัวใดตัวหนึ่ง อ่าน OrderLogs รอบเดียวแล้วสรุปให้ทั้งคู่ —
+// เดิมสองแคชนี้มักหมดอายุพร้อมกัน (TTL เท่ากัน + ถูกล้างพร้อมกัน) จึงอ่านทั้งชีต 2 รอบต่อการเปิดหน้าสั่งของ
 function getOrderPageData() {
+  const stockStatus = getStockStatus();
+  const date = todayStr();
+  let ordered = cacheGet('orderedToday_' + date);
+  let orderedItems = cacheGet('orderedItemsToday_' + date);
+  if (!ordered || !orderedItems) {
+    const rows = readTodayOrderLogs_(date);
+    if (!ordered) {
+      ordered = buildOrderedToday_(rows);
+      cacheSet('orderedToday_' + date, ordered, CACHE_TTL.orderedToday);
+    }
+    if (!orderedItems) {
+      orderedItems = buildOrderedItemsToday_(rows);
+      cacheSet('orderedItemsToday_' + date, orderedItems, CACHE_TTL.orderedToday);
+    }
+  }
   return {
-    stockStatus: getStockStatus(),
-    ordered: getOrderedToday(),
+    stockStatus: stockStatus,
+    ordered: ordered,
     confirmed: getConfirmedToday(),
-    orderedItems: getOrderedItemsToday()
+    orderedItems: orderedItems
   };
 }
 
