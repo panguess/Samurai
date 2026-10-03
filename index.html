@@ -46,6 +46,43 @@
     .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
     .tab{flex:1 0 auto;padding:10px 6px;text-align:center;font-size:13px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#CB3E09;border-bottom-color:#CB3E09;font-weight:500}
+    /* ===== แท็บวางบิล (เพิ่ม 3 ต.ค. 69) ===== */
+    #adminBilling{padding:0 !important}
+    .bill-card{background:#fff;border-radius:12px;margin:10px 12px;padding:12px}
+    .bill-lbl{font-size:12.5px;font-weight:600;color:#666;margin-bottom:8px}
+    .bill-seg{display:flex;background:#f5f3f0;border-radius:10px;padding:3px;gap:3px}
+    .bill-seg button{flex:1;padding:9px 6px;border:0;border-radius:8px;background:transparent;font-size:13.5px;cursor:pointer;color:#555}
+    .bill-seg button.on{background:#fff;color:#CB3E09;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+    .bill-seg small{display:block;font-size:11px;font-weight:400;color:#777}
+    .bill-stats{display:flex;gap:8px;margin-top:10px}
+    .bill-stat{flex:1;border-radius:10px;padding:8px 10px;font-size:12px}
+    .bill-stat b{display:block;font-size:16px}
+    .bill-stat.open{background:#fdf0ea;color:#a8330a}.bill-stat.done{background:#e6f3dc;color:#3B6D11}
+    .bill-d{font-size:12.5px;color:#666;margin-top:2px}
+    .bill-chips{display:flex;gap:8px;flex-wrap:wrap}
+    .bill-chip{padding:8px 12px;border-radius:20px;border:1.5px solid #ddd;background:#fff;font-size:14px;cursor:pointer}
+    .bill-chip.sm{padding:5px 10px;font-size:12.5px}
+    .bill-chip.on{border-color:#CB3E09;background:#fdf0ea;color:#a8330a;font-weight:500}
+    .bill-range{display:flex;gap:8px;margin-top:10px;align-items:center}
+    .bill-range input{flex:1;min-width:0;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+    .bill-ord{display:flex;gap:10px;align-items:flex-start;padding:10px 8px;border-top:1px solid #f0ece7;border-left:4px solid transparent;cursor:pointer}
+    .bill-ord input{width:22px;height:22px;margin-top:2px;accent-color:#CB3E09;flex:0 0 auto}
+    .bill-ord.billed{background:#f4f9ef;border-left-color:#3B6D11;cursor:default}
+    .bill-lock{width:22px;text-align:center;font-size:18px;flex:0 0 auto}
+    .bill-mid{flex:1;min-width:0}
+    .bill-t{font-weight:500;word-break:break-all}
+    .bill-ord.billed .bill-t,.bill-ord.billed .bill-amt{color:#6b7f5c}
+    .bill-amt{font-weight:600;white-space:nowrap}
+    .bill-badge{display:inline-block;font-size:11.5px;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:500}
+    .bill-badge.ok{background:#3B6D11;color:#fff}.bill-badge.no{background:#fdf0ea;color:#a8330a}
+    .bill-sum{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+    .bill-sum.big{font-size:18px;font-weight:700;color:#CB3E09;border-top:1px dashed #ddd;margin-top:6px;padding-top:10px}
+    .bill-btn{flex:1;padding:13px;border-radius:10px;border:0;font-size:15px;font-weight:600;cursor:pointer}
+    .bill-btn.pri{background:#CB3E09;color:#fff}.bill-btn.sec{background:#f5f3f0;color:#333;border:1px solid #ddd}
+    .bill-btn:disabled{opacity:.45;cursor:not-allowed}
+    .bill-hist{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #f0ece7;font-size:13.5px;gap:8px}
+    .bill-hist.cancelled{opacity:.6}
+    .bill-hist button{border:1px solid #ddd;background:#fff;border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer}
     .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
     .product-card{background:#fff;border-radius:12px;overflow:hidden;border:2px solid transparent}
     .product-card.selected{border-color:#CB3E09}
@@ -434,12 +471,14 @@
     <div class="tab active" role="tab" aria-selected="true" tabindex="0" onclick="switchAdminTab('pending')" onkeydown="adminTabKey(event,'pending')" id="adminTabPending">⏳ รอจัด</div>
     <div class="tab" role="tab" aria-selected="false" tabindex="-1" onclick="switchAdminTab('packing')" onkeydown="adminTabKey(event,'packing')" id="adminTabPacking">🔄 กำลังจัด</div>
     <div class="tab" role="tab" aria-selected="false" tabindex="-1" onclick="switchAdminTab('done')" onkeydown="adminTabKey(event,'done')" id="adminTabDone">✅ เสร็จสมบูรณ์</div>
+    <div class="tab" role="tab" aria-selected="false" tabindex="-1" onclick="switchAdminTab('billing')" onkeydown="adminTabKey(event,'billing')" id="adminTabBilling">🧾 วางบิล</div>
     <div class="tab" role="tab" aria-selected="false" tabindex="-1" onclick="switchAdminTab('overview')" onkeydown="adminTabKey(event,'overview')" id="adminTabOverview">📊 ภาพรวม</div>
   </div>
   <div id="overviewFilterBar" style="display:none;background:#f7f5f2;padding:12px 18px 10px 18px"></div>
   </div>
   <div class="admin-list" id="adminList"></div>
   <div id="adminOverview" style="display:none;padding:12px"></div>
+  <div id="adminBilling" style="display:none"></div>
   <div id="ownerDashboard" style="display:none;padding:14px"></div>
 </div>
 
@@ -1573,7 +1612,7 @@ async function loadAdminOrders(){
   }
 }
 
-const ADMIN_TAB_ORDER=['pending','packing','done','overview'];
+const ADMIN_TAB_ORDER=['pending','packing','done','billing','overview'];
 function adminTabElId(tab){return 'adminTab'+tab.charAt(0).toUpperCase()+tab.slice(1);}
 // [เพิ่ม 27 ก.ย. 69] แท็บแอดมินเดิมเป็น <div onclick> ล้วนๆ กด keyboard ไม่ได้เลย — เพิ่ม role="tab"/
 // aria-selected/roving tabindex (ดู HTML ด้านบน) + ฟังก์ชันนี้จัดการลูกศรซ้าย-ขวาให้ตรงตาม ARIA tabs pattern
@@ -1595,7 +1634,8 @@ async function switchAdminTab(tab){
     el.setAttribute('aria-selected',sel?'true':'false');
     el.tabIndex=sel?0:-1;
   });
-  document.getElementById('adminList').style.display=tab==='overview'?'none':'flex';
+  document.getElementById('adminList').style.display=(tab==='overview'||tab==='billing')?'none':'flex';
+  document.getElementById('adminBilling').style.display=tab==='billing'?'block':'none';
   document.getElementById('adminOverview').style.display=tab==='overview'?'block':'none';
   document.getElementById('overviewFilterBar').style.display=tab==='overview'?'block':'none';
   document.getElementById('ownerDashboard').style.display='none';
@@ -1628,9 +1668,316 @@ async function switchAdminTab(tab){
       await fetchFullAdminOrders();
     }
     renderAdminOverview();
+  } else if(tab==='billing'){
+    await renderBillingTab();
   } else {
     renderAdminOrders();
+    if(tab==='done') loadBillMap(); // ป้าย "วางบิลแล้ว" โหลดเบื้องหลัง ไม่บล็อกแท็บ
   }
+}
+
+// ===================== แท็บ "🧾 วางบิล" — ใบวางบิลรวมของลูกค้า related party (เพิ่ม 3 ต.ค. 69) =====================
+// ทำทีละร้าน แต่ละร้านมีรอบของตัวเอง ไม่ผูกกัน สถานะวางบิลเก็บในชีต Bills ฝั่ง backend (ไม่แตะชีต Order) และโหลดแบบ lazy
+// เฉพาะตอนเปิดแท็บวางบิล / แท็บเสร็จสมบูรณ์ — ไม่เกี่ยวกับ auto-refresh 30 วิของแท็บหลัก และไม่ผ่าน allAdminOrdersFull
+// (ซึ่งกรองลูกค้า related party ออกไปแล้วเพื่อภาพรวม/แดชบอร์ด)
+let billingState={customers:null,custId:null,data:{},sel:{},filter:'open',mode:'open',from:'',to:'',busy:false,loadErr:''};
+let billMap=null,billMapLoading=false;
+let billingIdemKey='';
+
+function billingEl(){return document.getElementById('adminBilling');}
+function billingOrderTs(o){return o.done_at||o.timestamp;}
+function billingDateKey(ts){
+  if(!ts)return '';
+  const d=new Date(ts);
+  if(isNaN(d))return '';
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function billingShortDate(ts){
+  if(!ts)return '-';
+  const d=new Date(ts);
+  return isNaN(d)?'-':d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+}
+function billingCurData(){return billingState.data[billingState.custId]||{orders:[],bills:[]};}
+function billingInRange(o){
+  if(billingState.mode!=='range')return true;
+  const k=billingDateKey(billingOrderTs(o));
+  if(!k)return false;
+  if(billingState.from&&k<billingState.from)return false;
+  if(billingState.to&&k>billingState.to)return false;
+  return true;
+}
+function billingSelSet(){
+  if(!billingState.sel[billingState.custId])billingState.sel[billingState.custId]=new Set();
+  return billingState.sel[billingState.custId];
+}
+// เลือกออเดอร์ที่ยังไม่วางบิล (และอยู่ในรอบที่เลือก) ทั้งหมดเป็นค่าเริ่มต้น
+function billingResetSelection(){
+  const set=billingSelSet();
+  set.clear();
+  billingCurData().orders.forEach(o=>{if(!o.bill_id&&billingInRange(o))set.add(o.order_id);});
+  billingIdemKey='';
+}
+
+async function renderBillingTab(){
+  const el=billingEl();
+  if(!billingState.customers){
+    el.innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+    const list=await safeFetchJSON(`${API}?action=getBillingCustomers&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getBillingCustomers',15000,1,true);
+    if(adminCurrentTab!=='billing')return;
+    if(!Array.isArray(list)){
+      el.innerHTML=`<div class="empty-state">โหลดข้อมูลวางบิลไม่สำเร็จ<div style="font-size:13px;color:#888;margin-top:6px">ถ้าเพิ่งอัปเดตแอป ให้ตรวจว่าแปะ order-app-Code.gs ใหม่ใน Apps Script แล้ว</div><button class="btn-done" style="margin-top:14px;background:#CB3E09" onclick="renderBillingTab()">ลองใหม่</button></div>`;
+      return;
+    }
+    billingState.customers=list;
+    if(!list.length){
+      el.innerHTML='<div class="empty-state">ไม่พบลูกค้าที่วางบิลรวมในชีต Customer<div style="font-size:13px;color:#888;margin-top:6px">ต้องมีชื่อ "หอมเกรียม หมูกระทะ" หรือ "ซูโม่ ซอสเซจ" ในชีต Customer</div></div>';
+      return;
+    }
+    billingState.custId=list[0].customer_id;
+  }
+  await billingLoadCustomer();
+}
+
+async function billingLoadCustomer(){
+  const id=billingState.custId;
+  const hadData=!!billingState.data[id];
+  if(hadData)renderBilling(); // มีของเก่าโชว์ไปก่อนระหว่างรอของจริง
+  else billingEl().innerHTML='<div class="empty-state"><div class="loading-dots"><span></span><span></span><span></span></div></div>';
+  const d=await safeFetchJSON(`${API}?action=getBillingData&key=${encodeURIComponent(ADMIN_KEY)}&customer_id=${encodeURIComponent(id)}`,null,'getBillingData',20000,1,true);
+  if(adminCurrentTab!=='billing'||billingState.custId!==id)return;
+  if(!d||!Array.isArray(d.orders)){
+    if(!hadData)billingEl().innerHTML=`<div class="empty-state">โหลดข้อมูลไม่สำเร็จ<br><button class="btn-done" style="margin-top:14px;background:#CB3E09" onclick="billingLoadCustomer()">ลองใหม่</button></div>`;
+    else showToast('รีเฟรชข้อมูลไม่สำเร็จ ใช้ข้อมูลล่าสุดที่โหลดไว้');
+    return;
+  }
+  billingState.data[id]={orders:d.orders,bills:Array.isArray(d.bills)?d.bills:[]};
+  billingResetSelection();
+  renderBilling();
+}
+
+function billingSwitchCustomer(id){
+  if(billingState.busy||id===billingState.custId)return;
+  billingState.custId=id;
+  billingLoadCustomer();
+}
+function billingSetMode(m){billingState.mode=m;billingResetSelection();renderBilling();}
+function billingSetRange(which,v){billingState[which]=v;billingResetSelection();renderBilling();}
+function billingSetFilter(f){billingState.filter=f;renderBilling();}
+function billingToggle(oid,checked){
+  const set=billingSelSet();
+  if(checked)set.add(oid);else set.delete(oid);
+  billingIdemKey='';
+  renderBilling();
+}
+function billingSelectAll(on){
+  const set=billingSelSet();
+  billingCurData().orders.forEach(o=>{if(!o.bill_id&&billingInRange(o)){if(on)set.add(o.order_id);else set.delete(o.order_id);}});
+  billingIdemKey='';
+  renderBilling();
+}
+function billingSelectedOrders(){
+  const set=billingSelSet();
+  return billingCurData().orders.filter(o=>!o.bill_id&&set.has(o.order_id));
+}
+
+function renderBilling(){
+  const el=billingEl();
+  if(!el||adminCurrentTab!=='billing')return;
+  const cust=billingState.customers.find(c=>c.customer_id===billingState.custId)||{name:''};
+  const {orders,bills}=billingCurData();
+  const open=orders.filter(o=>!o.bill_id),billed=orders.filter(o=>o.bill_id);
+  const sumOf=a=>a.reduce((s,o)=>s+(Number(o.total)||0),0);
+  const lastBill=bills.find(b=>b.status!=='cancelled');
+  const custBtns=billingState.customers.map(c=>{
+    const n=(billingState.data[c.customer_id]||{orders:[]}).orders.filter(o=>!o.bill_id).length;
+    const sub=billingState.data[c.customer_id]?`ค้างวางบิล ${n} ใบ`:'&nbsp;';
+    return`<button class="${c.customer_id===billingState.custId?'on':''}" onclick="billingSwitchCustomer('${escJsStr(c.customer_id)}')">${escapeHtml(c.name)}<small>${sub}</small></button>`;
+  }).join('');
+  const visible=orders.filter(o=>billingInRange(o)&&(billingState.filter==='all'||(billingState.filter==='open')===!o.bill_id))
+    .sort((a,b)=>new Date(billingOrderTs(a))-new Date(billingOrderTs(b)));
+  const set=billingSelSet();
+  const rowsHtml=visible.map(o=>{
+    const items=parseItems(o.items);
+    const itemsTxt=items.map(i=>`${i.name} ×${i.qty}`).join(', ');
+    const billed=!!o.bill_id;
+    return`<label class="bill-ord ${billed?'billed':''}">
+      ${billed?'<span class="bill-lock" aria-hidden="true">🔒</span>':`<input type="checkbox" ${set.has(o.order_id)?'checked':''} onchange="billingToggle('${escJsStr(o.order_id)}',this.checked)" aria-label="เลือกออเดอร์ ${escapeHtml(o.order_id)}">`}
+      <div class="bill-mid"><div class="bill-t">${escapeHtml(o.order_id)}</div>
+        <div class="bill-d">${billingShortDate(billingOrderTs(o))} · ${escapeHtml(itemsTxt)}</div>
+        ${billed?`<span class="bill-badge ok">✓ วางบิลแล้ว ${escapeHtml(o.bill_id)}</span>`:'<span class="bill-badge no">ยังไม่วางบิล</span>'}
+      </div><div class="bill-amt">฿${fmtMoney(o.total)}</div></label>`;
+  }).join('')||'<div style="font-size:13px;color:#777;padding:10px 0">ไม่มีรายการ</div>';
+  const sel=billingSelectedOrders();
+  const histHtml=bills.map(b=>`<div class="bill-hist ${b.status==='cancelled'?'cancelled':''}"><div><b>${escapeHtml(b.bill_id)}</b>${b.status==='cancelled'?' <span class="bill-badge no">ยกเลิกแล้ว</span>':''}<div class="bill-d">ออก ${fmtOrderDateTime(b.created_at)} · ${b.order_count} ออเดอร์</div></div><div>฿${fmtMoney(b.total)} <button onclick="billingOpenBill('${escJsStr(b.bill_id)}')">เปิด</button></div></div>`).join('')||'<div style="font-size:13px;color:#777">ยังไม่เคยออกใบวางบิลของร้านนี้</div>';
+  const todayKey=billingDateKey(new Date());
+  el.innerHTML=`
+    <div class="bill-card">
+      <div class="bill-lbl">ร้าน</div>
+      <div class="bill-seg">${custBtns}</div>
+      <div class="bill-stats">
+        <div class="bill-stat open">ยังไม่วางบิล<b>฿${fmtMoney(sumOf(open))}</b></div>
+        <div class="bill-stat done">วางบิลแล้ว<b>฿${fmtMoney(sumOf(billed))}</b></div>
+      </div>
+      <div class="bill-d" style="margin-top:8px">${lastBill?`วางบิลล่าสุด ${escapeHtml(lastBill.bill_id)} · ออกเมื่อ ${billingShortDate(lastBill.created_at)}`:'ยังไม่เคยวางบิล'}</div>
+    </div>
+    <div class="bill-card">
+      <div class="bill-lbl">รอบบิลของร้านนี้</div>
+      <div class="bill-chips">
+        <button class="bill-chip ${billingState.mode==='open'?'on':''}" onclick="billingSetMode('open')">ทุกรายการที่ยังไม่วางบิล</button>
+        <button class="bill-chip ${billingState.mode==='range'?'on':''}" onclick="billingSetMode('range')">เลือกช่วงวันที่</button>
+      </div>
+      ${billingState.mode==='range'?`<div class="bill-range"><input type="date" value="${billingState.from}" max="${todayKey}" onchange="billingSetRange('from',this.value)" aria-label="ตั้งแต่วันที่"> – <input type="date" value="${billingState.to}" max="${todayKey}" onchange="billingSetRange('to',this.value)" aria-label="ถึงวันที่"></div>`:''}
+    </div>
+    <div class="bill-card">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div class="bill-lbl" style="margin:0">รายการออเดอร์</div>
+        <div style="font-size:12.5px"><a href="#" onclick="billingSelectAll(true);return false" style="color:#CB3E09">เลือกทั้งหมด</a> · <a href="#" onclick="billingSelectAll(false);return false" style="color:#666">ล้าง</a></div></div>
+      <div class="bill-chips" style="margin:8px 0 4px">
+        <button class="bill-chip sm ${billingState.filter==='open'?'on':''}" onclick="billingSetFilter('open')">ยังไม่วางบิล</button>
+        <button class="bill-chip sm ${billingState.filter==='billed'?'on':''}" onclick="billingSetFilter('billed')">วางบิลแล้ว</button>
+        <button class="bill-chip sm ${billingState.filter==='all'?'on':''}" onclick="billingSetFilter('all')">ทั้งหมด</button>
+      </div>
+      ${rowsHtml}
+    </div>
+    <div class="bill-card">
+      <div class="bill-lbl">สรุปใบที่จะออก</div>
+      <div class="bill-sum"><span>จำนวนออเดอร์ที่เลือก</span><b>${sel.length}</b></div>
+      <div class="bill-sum big"><span>ยอดวางบิล</span><span>฿${fmtMoney(sumOf(sel))}</span></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="bill-btn sec" onclick="billingPreview()" ${sel.length?'':'disabled'}>ดูตัวอย่างใบวางบิล</button>
+        <button class="bill-btn pri" onclick="billingIssue()" ${sel.length&&!billingState.busy?'':'disabled'}>${billingState.busy?'กำลังออกใบ...':'ออกใบวางบิล'}</button>
+      </div>
+    </div>
+    <div class="bill-card"><div class="bill-lbl">ประวัติใบวางบิลของร้านนี้</div>${histHtml}</div>`;
+}
+
+async function billingIssue(){
+  if(billingState.busy)return;
+  const sel=billingSelectedOrders();
+  if(!sel.length)return;
+  const cust=billingState.customers.find(c=>c.customer_id===billingState.custId);
+  const total=sel.reduce((s,o)=>s+(Number(o.total)||0),0);
+  if(!confirm(`ออกใบวางบิล ${cust.name}\n${sel.length} ออเดอร์ ยอดรวม ฿${fmtMoney(total)}\n\nยืนยันออกใบ?`))return;
+  billingState.busy=true;renderBilling();
+  // idempotency key: กดซ้ำ/auto-retry ตอนเน็ตหลุดแล้วได้ใบเดิม ไม่ออกซ้ำ (เปลี่ยนรายการที่เลือกเมื่อไรจะได้ key ใหม่)
+  if(!billingIdemKey)billingIdemKey='bill_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  const res=await postAction({action:'createBill',customer_id:billingState.custId,order_ids:sel.map(o=>o.order_id),idempotency_key:billingIdemKey},'createBill',20000,1);
+  billingState.busy=false;
+  if(!res||!res.success||!res.bill){
+    alert((res&&res.error)||'ออกใบวางบิลไม่สำเร็จ กรุณาลองใหม่');
+    if(res&&res.error)billingLoadCustomer(); // ข้อมูลอาจเปลี่ยนไปแล้ว (เช่นเครื่องอื่นเพิ่งวางบิล) โหลดใหม่ให้ตรงของจริง
+    else renderBilling();
+    return;
+  }
+  billingIdemKey='';
+  billMap=null; // ให้แท็บเสร็จสมบูรณ์โหลดป้ายใหม่ตอนเปิดครั้งถัดไป
+  showToast('ออกใบวางบิลแล้ว ✓ '+res.bill.bill_id);
+  showBillingInvoice(res.bill,sel,false);
+  billingLoadCustomer();
+}
+
+async function billingCancelBill(billId){
+  if(!confirm(`ยกเลิกใบวางบิล ${billId}?\nออเดอร์ในใบนี้จะกลับเป็น "ยังไม่วางบิล"`))return;
+  const res=await postAction({action:'cancelBill',bill_id:billId},'cancelBill',20000,1);
+  if(!res||!res.success){alert((res&&res.error)||'ยกเลิกใบไม่สำเร็จ กรุณาลองใหม่');return;}
+  billMap=null;
+  closeBillingInvoice();
+  showToast('ยกเลิกใบ '+billId+' แล้ว');
+  billingLoadCustomer();
+}
+
+function billingPreview(){
+  const sel=billingSelectedOrders();
+  if(!sel.length)return;
+  const cust=billingState.customers.find(c=>c.customer_id===billingState.custId);
+  showBillingInvoice({bill_id:'(ตัวอย่าง)',customer_name:cust.name,created_at:new Date().toISOString(),order_count:sel.length,total:sel.reduce((s,o)=>s+(Number(o.total)||0),0),status:'preview'},sel,true);
+}
+function billingOpenBill(billId){
+  const {orders,bills}=billingCurData();
+  const b=bills.find(x=>x.bill_id===billId);
+  if(!b)return;
+  const byId={};orders.forEach(o=>{byId[o.order_id]=o;});
+  const list=b.order_ids.map(id=>byId[id]||{order_id:id,total:0,missing:true});
+  showBillingInvoice(b,list,false);
+}
+
+function closeBillingInvoice(){const o=document.getElementById('billingInvoiceOverlay');if(o)o.remove();}
+function showBillingInvoice(bill,orderList,isPreview){
+  closeBillingInvoice();
+  const sorted=[...orderList].sort((a,b)=>new Date(billingOrderTs(a))-new Date(billingOrderTs(b)));
+  const rows=sorted.map(o=>`<tr><td style="padding:6px 4px;border-bottom:1px solid #f0f0f0;white-space:nowrap">${billingShortDate(billingOrderTs(o))}</td><td style="padding:6px 4px;border-bottom:1px solid #f0f0f0;word-break:break-all">${escapeHtml(o.order_id)}${o.missing?' <span style="color:#999">(ไม่พบข้อมูล)</span>':''}</td><td style="padding:6px 4px;border-bottom:1px solid #f0f0f0;text-align:right;font-variant-numeric:tabular-nums">${fmtMoney(o.total)}</td></tr>`).join('');
+  const cancelled=bill.status==='cancelled';
+  const overlay=document.createElement('div');
+  overlay.id='billingInvoiceOverlay';
+  overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','ใบวางบิล');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML=`
+    <div style="width:100%;max-width:380px;margin:auto">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button id="billingCloseBtn" aria-label="ปิด" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;width:32px;height:32px;border-radius:50%;cursor:pointer">✕</button></div>
+      <div id="billingInvoiceCapture" style="background:#fff;border-radius:0 0 14px 14px;overflow:hidden;font-family:'Sarabun',sans-serif">
+        <div style="background:#CB3E09;padding:0.9rem 1.25rem 0.7rem;text-align:center;color:#fff">
+          <h2 style="font-size:18px;font-weight:700;margin-bottom:8px">ใบวางบิล${isPreview?' (ตัวอย่าง)':''}</h2>
+          <img src="/logo-color.png" alt="ซามูไรไส้กรอก" style="width:140px;margin:0 auto 4px;display:block">
+          <div style="font-size:13.5px;opacity:0.95;margin-top:8px">ตลาดเวิลด์มาร์เก็ต ทวีวัฒนา · โทร. 096-964-2264</div>
+        </div>
+        ${cancelled?'<div style="background:#fdecea;color:#b3261e;text-align:center;padding:6px;font-size:13px;font-weight:600">ใบนี้ถูกยกเลิกแล้ว</div>':''}
+        <div style="padding:1rem 1.25rem 0.4rem;display:flex;justify-content:space-between;font-size:12.5px;color:#666"><span>เลขที่ ${escapeHtml(bill.bill_id)}</span><span>${fmtOrderDateTime(bill.created_at)}</span></div>
+        <div style="padding:0 1.25rem;font-size:14px;color:#333;margin-bottom:8px"><b>ลูกค้า:</b> ${escapeHtml(bill.customer_name)}</div>
+        <div style="padding:0 1.25rem 4px"><table style="width:100%;border-collapse:collapse;font-size:13.5px">
+          <tr style="background:#f5f3f0"><th style="text-align:left;padding:6px 4px;font-size:12px">วันที่</th><th style="text-align:left;padding:6px 4px;font-size:12px">ออเดอร์</th><th style="text-align:right;padding:6px 4px;font-size:12px">ยอด (฿)</th></tr>${rows}</table></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 1.25rem 1.1rem;font-size:17px;font-weight:700;color:#CB3E09"><span>รวมทั้งสิ้น (${bill.order_count} ออเดอร์)</span><span>฿${fmtMoney(bill.total)}</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        ${isPreview?'':'<button id="billingSaveBtn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#CB3E09;color:#fff;font-size:15px;font-weight:600;cursor:pointer"><span style="font-size:18px">⬇</span> บันทึกรูปภาพ</button>'}
+        ${(!isPreview&&!cancelled)?`<button onclick="billingCancelBill('${escJsStr(bill.bill_id)}')" style="flex:0 0 auto;padding:12px 14px;border-radius:10px;border:1px solid #fff;background:transparent;color:#fff;font-size:14px;cursor:pointer">ยกเลิกใบ</button>`:''}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#billingCloseBtn').onclick=closeBillingInvoice;
+  overlay.onclick=(e)=>{if(e.target===overlay)closeBillingInvoice();};
+  const saveBtn=overlay.querySelector('#billingSaveBtn');
+  if(saveBtn)saveBtn.onclick=()=>billingSaveImage(bill.bill_id);
+  trapModalFocus(overlay,closeBillingInvoice);
+}
+
+// บันทึกใบเป็นรูป — ใช้ตัวบันทึก/แชร์เดิมของหน้าสรุปออเดอร์ (doCaptureSummary) โหลด html2canvas แบบมี timeout เหมือนกัน
+function billingSaveImage(billId){
+  const btn=document.getElementById('billingSaveBtn');
+  const card=document.getElementById('billingInvoiceCapture');
+  if(!btn||!card)return;
+  const resetBtn=(msg)=>{btn.innerHTML='<span style="font-size:18px">⬇</span> บันทึกรูปภาพ';btn.disabled=false;if(msg)showToast(msg);};
+  btn.textContent='กำลังบันทึก...';btn.disabled=true;
+  const go=()=>{try{doCaptureSummary(card,billId,btn);}catch(e){resetBtn('บันทึกไม่สำเร็จ กรุณาลองใหม่');}};
+  if(typeof html2canvas!=='undefined'){go();return;}
+  let settled=false;
+  const timeoutId=setTimeout(()=>{if(settled)return;settled=true;resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ (หมดเวลา) กรุณาลองใหม่');},15000);
+  const script=document.createElement('script');
+  script.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  script.onload=()=>{
+    if(settled)return;
+    clearTimeout(timeoutId);settled=true;
+    if(typeof html2canvas==='undefined'){resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ (ไฟล์เสียหาย) กรุณาลองใหม่');return;}
+    go();
+  };
+  script.onerror=()=>{if(settled)return;clearTimeout(timeoutId);settled=true;resetBtn('โหลดตัวช่วยบันทึกรูปไม่สำเร็จ กรุณาลองใหม่');};
+  document.head.appendChild(script);
+}
+
+// ป้าย "วางบิลแล้ว" ในแท็บเสร็จสมบูรณ์ — โหลดแผนที่ order_id→bill_id (ก้อนเล็ก) เบื้องหลังตอนเปิดแท็บนั้น ไม่บล็อกการแสดงผล
+// ถ้าโหลดไม่ได้ (เช่นยังไม่ได้อัปเดต Apps Script) ก็แค่ไม่มีป้าย แท็บเดิมทำงานเหมือนเดิมทุกอย่าง
+async function loadBillMap(){
+  if(billMap||billMapLoading)return;
+  billMapLoading=true;
+  try{
+    const m=await safeFetchJSON(`${API}?action=getBillMap&key=${encodeURIComponent(ADMIN_KEY)}`,null,'getBillMap',15000,0,true);
+    if(m&&typeof m==='object'&&!Array.isArray(m)&&!m.error){
+      billMap=m;
+      if(adminCurrentTab==='done')renderAdminOrders();
+    }
+  }finally{billMapLoading=false;}
+}
+function billMapBadgeHtml(orderId){
+  const id=billMap&&billMap[orderId];
+  return id?`<span class="bill-badge ok" style="margin-top:6px">✓ วางบิลแล้ว ${escapeHtml(id)}</span>`:'';
 }
 
 function buildAdminItemsHtml(o,canAdjustQty){
@@ -1751,6 +2098,8 @@ function renderAdminOrders(){
   document.getElementById('adminTabPending').textContent=`⏳ รอจัด${pendingCount2>0?' ('+pendingCount2+')':''}`;
   document.getElementById('adminTabPacking').textContent=`🔄 กำลังจัด${packingCount2>0?' ('+packingCount2+')':''}`;
   document.getElementById('adminTabDone').textContent=`✅ เสร็จสมบูรณ์${doneCount2>0?' ('+doneCount2+')':''}`;
+  // แท็บวางบิลมี DOM/ข้อมูลของตัวเอง (renderBilling) — ตัวเลขบนแท็บด้านบนอัปเดตเสร็จแล้ว ไม่ต้องวาดรายการรอจัด/เสร็จทับ #adminList ที่ซ่อนอยู่
+  if(adminCurrentTab==='billing') return;
   if(!filtered.length){
     const filterBar=adminCurrentTab==='done'?doneFilterBarHtml():'';
     list.innerHTML=filterBar+`<div class="empty-state">${emptyMsgs[adminCurrentTab]}</div>`;
@@ -1886,7 +2235,7 @@ function buildDoneAdminCard(o){
         <div class="hcard-id" style="font-family:inherit;font-weight:600">${o.customer_name}</div>
       </div>
       <div class="hcard-summary-bottom">
-        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${dateStr}<br>${items.length} รายการ</div>
+        <div class="hcard-date" style="line-height:1.6">${o.order_id}<br>${dateStr}<br>${items.length} รายการ${billMapBadgeHtml(o.order_id)}</div>
         <div class="hcard-badge-wrap">
           <div class="hcard-total">฿${fmtMoney(o.total)}</div>
           <span class="badge badge-done">เสร็จสมบูรณ์ ✓</span>
@@ -3787,6 +4136,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
     const adminVisible=getComputedStyle(document.getElementById('adminApp')).display!=='none';
     if(adminVisible){
       if(adminCurrentTab==='overview'){allAdminOrdersFull=null;await fetchFullAdminOrders();renderAdminOverview();}
+      else if(adminCurrentTab==='billing'){if(!billingState.busy)await renderBillingTab();}
       else{
         // ไม่ใช้ loadAdminOrders() ตรงนี้ — มันล้างรายการเป็นจุดโหลดแล้ววนลองใหม่ไม่จำกัดรอบ ทำให้รายการหายไประหว่างรอ
         // ดึงครั้งเดียวแบบเงียบ ถ้าสำเร็จค่อยแทนที่รายการ ถ้าไม่สำเร็จคงรายการเดิมไว้ (รอบ auto-refresh 30 วิจะลองให้เอง)
