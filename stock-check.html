@@ -3980,6 +3980,13 @@ async function renderOrderPage(app){
       };
     }
 
+    // Speed รอบ 2-E (3 ต.ค. 69): การ์ดที่พับอยู่ไม่สร้าง .ord-card-body เลย — เดิมสร้างแถวสินค้าของทุกเจ้า
+    // (~300 แถว/5,500 element) ทั้งที่ซ่อนด้วย CSS ไว้ เปิดหน้านี้ช้าบนมือถือ ปลอดภัยเพราะทุกอย่างในตัวการ์ด
+    // (เลือกทั้งหมด/งดสั่ง/แก้หน่วย/ปุ่มสั่ง) ใช้ได้เฉพาะตอนกางอยู่แล้ว จำนวนสั่งเก็บใน state.orderQty ไม่พึ่ง DOM
+    // และการกาง/พับเรียก rebuildCard() สร้างการ์ดใหม่ทั้งใบอยู่แล้ว (head.onclick ด้านบน) — ทุกจุดที่อ่าน
+    // state.orderQty นอกลูปด้านล่างรองรับค่า undefined แล้ว (?? 0) สินค้าในการ์ดที่ไม่เคยกางจึงนับเป็น 0 ถูกต้อง
+    if(!open){ card.appendChild(main); return card; }
+
     const body = document.createElement('div'); body.className = 'ord-card-body';
 
     const allSelected = items.length > 0 && items.every(p=> (state.orderQty[p.id] ?? 0) > 0);
