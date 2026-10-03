@@ -1098,6 +1098,43 @@ Chromium binary จริง (`/opt/pw-browsers/chromium-1194` — เช็ค�
 r1_speed) อยู่ใน scratchpad ของ session นี้ซึ่งจะหายไป — session ใหม่ต้องเขียน harness ใหม่ถ้าจะทำ E2E (J5.11 fail อยู่แล้ว
 เป็นปัญหาของสคริปต์เทส ไม่ใช่บั๊กแอป)
 
+### สถานะล่าสุด (อัปเดต 3 ต.ค. 69) — Speed รอบ 2-E + 2-A + 3-D เสร็จครบ (push แล้ว, Code.gs ผู้ใช้ deploy แล้ว)
+
+**push แล้วทั้งหมดขึ้น `main`** (ล่าสุด `a6538e6`) — `Code.gs` (3-D) ผู้ใช้ deploy แล้ว ไม่มีอะไรค้าง deploy
+
+**1) Speed 2-E `fc5895e`** (`stock-check.html`): หน้าสั่งของ `buildSupplierCard()` — การ์ดที่พับอยู่ไม่สร้าง `.ord-card-body`
+(`if(!open){ card.appendChild(main); return card; }`) element ตอนเปิดหน้า ~5,500 → ~280, เปิดหน้าเร็วขึ้น ~40% (ข้อมูลจำลอง)
+— ปลอดภัยเพราะกาง/พับเรียก `rebuildCard()` สร้างการ์ดใหม่อยู่แล้ว และทุกจุดที่อ่าน `state.orderQty` นอกลูปใช้ `?? 0`
+(สินค้าในการ์ดที่ไม่เคยกางจะยังไม่มีค่าใน `state.orderQty` — ถ้าเพิ่มโค้ดที่อ่านค่านี้ ต้องใช้ `?? 0` เสมอ)
+
+**2) Speed 2-A `ce63b13`** (`stock-check.html`, ผู้ใช้อนุมัติหน้าตาจาก demo https://claude.ai/artifact/V1M9KhmjtAtgKTDvRtFnva):
+หน้าสั่งของ + แท็บสถานะสต๊อก — แคชเกิน `STOCK_STATUS_TTL` (45 วิ) แต่ไม่เกิน `STALE_SHOW_MAX_AGE` (5 นาที) → วาดทันทีด้วยข้อมูลที่จำไว้
+แล้วดึงของใหม่เบื้องหลัง (วัดได้ 2.2 วิ → 7-47 ms)
+- ป้าย `.refresh-note` (`setRefreshNote(el,'loading'|'fail'|'done'|null, ageMs)`): ส้ม "กำลังอัปเดต · ข้อมูลเมื่อ N นาทีก่อน" /
+  แดง "ยังเชื่อมต่อไม่ได้ กำลังลองใหม่" / เขียว "✓ อัปเดตแล้ว" หาย 2 วิ · ตัวเลขที่เปลี่ยนได้คลาส `.fresh-flash`
+- หน้าสั่งของ: `refreshingData` = true → ปุ่ม "สั่งของเจ้านี้" disabled ข้อความ "รออัปเดตข้อมูล..." จนข้อมูลใหม่มาถึง
+- วาดใหม่ผ่าน `whenNotTyping()` (รอออกจากช่องจำนวน เช็คซ้ำหลัง focusout — ใช้กับ refresh bootstrap เดิมด้วย) · แท็บสต๊อกรอ blur
+  ช่องค้นหา และ `renderStockTab(body, list, initialFilter)` คงคำค้นหา
+- `confirmEditsDuringRefresh`: กด ✓ ส่งออเดอร์ระหว่างรีเฟรช → ทับคืนหลัง fetch (ผลที่ดึงมาอาจคำนวณก่อนคำขอบันทึกถึงเซิร์ฟเวอร์)
+- แคชอยู่ในหน่วยความจำเท่านั้น (ปิดแอปเปิดใหม่ยังรอโหลด) · **ไม่แตะหน้าเช็คสต๊อกของลูกจ้าง** (ตกลงกับผู้ใช้แล้ว)
+
+**3) Speed 3-D `a6538e6`** (`Code.gs`, deploy แล้ว): `getOrderPageData()` อ่าน OrderLogs รอบเดียว (เดิม 2 รอบ) ผ่าน helper
+`readTodayOrderLogs_` / `buildOrderedToday_` / `buildOrderedItemsToday_` ใช้ cache key เดิม — เทียบเก่า/ใหม่ใน vm จำลอง
+Apps Script 8 กรณี (แคช 4 สถานะ × มี/ไม่มีออเดอร์) JSON ตรงกันทุกตัวอักษร (ระวัง: mock เซลล์วันที่ต้องเป็น `Date` ของ vm realm
+ไม่งั้น `instanceof Date` เป็น false แล้วเทียบไม่ครบ)
+
+**วิธีเทสที่ใช้ (harness อยู่ใน scratchpad จะหาย — เขียนใหม่ได้ตามนี้)**: Playwright + `page.route()` mock `script.google.com`
+(ตอบ JSON ดิบของ action ตรงๆ ไม่ห่อ), โหลด `stock-check.html` ผ่าน route ปลอม, เรียก `go('orderPage')` ผ่าน `page.evaluate`
+(ตัวแปร `let` ระดับบนสุดเข้าถึงได้), จำลองอายุแคชด้วย `_orderPageDataTs`/`_stockStatusTs = Date.now()-ms` — เทียบไฟล์เก่า
+(`git show HEAD:stock-check.html`) กับใหม่ด้วยสถานการณ์เดียวกันแล้ว diff DOM/state/คำขอ POST
+
+**งานค้าง (รอผู้ใช้สั่ง ห้ามเริ่มเอง)**
+- E2E-013 + Security audit ทั้งชุด — พักไว้ตามผู้ใช้ (ห้ามหยิบมาเสนอเองจนกว่าผู้ใช้พูดถึง)
+- ไม่มีงาน Speed ค้างจากแผนเดิมแล้ว
+
+**กติกาเพิ่มจาก session นี้**: ชื่อ session ห้ามซ้ำ (เพิ่มใน `CLAUDE.md` แล้ว) · ผู้ใช้ย้ำ "งานแค่นี้ต้องไม่มีพลาด" — งาน backend
+ต้องพิสูจน์ด้วยการเทียบผลลัพธ์เก่า/ใหม่จริง ไม่ใช่แค่อ่านโค้ด · ผู้ใช้ชอบ recap สั้นเป็นตารางก่อนตัดสินใจ
+
 ## Bill Templates by Supplier
 
 Use this reference to identify supplier from bill photos without needing to ask.
