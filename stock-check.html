@@ -556,6 +556,19 @@
   .pending-row .pr-body{flex:1; min-width:0;}
   .pending-row .pr-title{font-size:14px; font-weight:600;}
   .pending-row .pr-sub{font-size:11.5px; color:var(--text-tertiary); margin-top:2px;}
+
+  /* Speed รอบ 2-A (3 ต.ค. 69): ป้ายบอกว่ากำลังโชว์ข้อมูลที่จำไว้ระหว่างดึงของใหม่ (หน้าสั่งของ/แท็บสถานะสต๊อก)
+     — ดู setRefreshNote() ผู้ใช้อนุมัติหน้าตาจาก demo แล้ว */
+  .refresh-note{display:flex; align-items:center; gap:8px; font-size:12.5px; line-height:1.4; padding:7px 10px; border-radius:var(--radius-md); background:var(--amber-bg); color:var(--amber); margin-bottom:10px;}
+  .refresh-note[hidden]{display:none;}
+  .refresh-note.done{background:var(--green-bg); color:var(--green);}
+  .refresh-note.fail{background:var(--danger-bg); color:var(--danger);}
+  .refresh-note .spin{width:11px; height:11px; flex-shrink:0; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:rn-spin .8s linear infinite;}
+  @keyframes rn-spin{to{transform:rotate(360deg);}}
+  .fresh-flash{animation:rn-flash 1.8s ease-out;}
+  @keyframes rn-flash{0%,35%{background:var(--yellow-bg); box-shadow:0 0 0 3px var(--yellow-bg);}100%{background:transparent; box-shadow:none;}}
+  @media (prefers-reduced-motion: reduce){ .refresh-note .spin{animation:none;} .fresh-flash{animation:none;} }
+  .sup-order-btn-row .btn:disabled{opacity:0.55; cursor:default;} /* ปุ่ม "สั่งของเจ้านี้" ที่ล็อกไว้ระหว่างอัปเดต */
 </style>
 </head>
 <body>
@@ -1109,6 +1122,39 @@ async function getStockStatus(force){
   return data;
 }
 function invalidateStockStatus(){ stockStatusCache = null; _stockStatusTs = 0; }
+
+// Speed รอบ 2-A (3 ต.ค. 69, ผู้ใช้อนุมัติจาก demo): หน้าสั่งของ/แท็บสถานะสต๊อก — ถ้าแคชหมดอายุ STOCK_STATUS_TTL
+// แล้วแต่ยังไม่เกิน STALE_SHOW_MAX_AGE ให้วาดหน้าด้วยข้อมูลที่จำไว้ทันที แล้วดึงของใหม่เบื้องหลัง (เดิมรอหน้า
+// "กำลังโหลด" 1.5-3 วิทุกครั้ง) ระหว่างนั้นโชว์ป้าย .refresh-note + หน้าสั่งของล็อกปุ่ม "สั่งของเจ้านี้" จนข้อมูลใหม่
+// มาถึง (กันสั่งจากตัวเลขเก่า) — แคชอยู่ในหน่วยความจำเท่านั้น เปิดแอปใหม่ยังรอโหลดแบบเดิม · ไม่ใช้กับหน้าเช็คสต๊อก
+// ของลูกจ้าง (หน้ากรอกข้อมูลจริง เสี่ยงทับค่าที่พิมพ์)
+const STALE_SHOW_MAX_AGE = 5 * 60 * 1000; // ms
+function canShowStale(ts){ const age = Date.now() - ts; return ts > 0 && age >= STOCK_STATUS_TTL && age < STALE_SHOW_MAX_AGE; }
+// kind: 'loading' | 'fail' | 'done' | null (ลบป้าย) — ageMs = อายุของข้อมูลที่กำลังโชว์อยู่
+function setRefreshNote(el, kind, ageMs){
+  if(!el) return;
+  if(!kind){ el.hidden = true; el.innerHTML = ''; return; }
+  const mins = Math.floor((ageMs||0) / 60000);
+  const ageText = `ที่เห็นคือข้อมูลเมื่อ${mins < 1 ? 'ไม่ถึง 1 นาที' : ` ${mins} นาที`}ก่อน`;
+  el.hidden = false;
+  el.className = 'refresh-note' + (kind === 'loading' ? '' : ' ' + kind);
+  el.innerHTML = kind === 'loading' ? `<span class="spin" aria-hidden="true"></span><span>กำลังอัปเดตข้อมูลล่าสุด · ${ageText}</span>`
+    : kind === 'fail' ? `<span aria-hidden="true">⚠</span><span>ยังเชื่อมต่อไม่ได้ กำลังลองใหม่ · ${ageText}</span>`
+    : `<span aria-hidden="true">✓</span><span>อัปเดตแล้ว</span>`;
+}
+function makeRefreshNote(){
+  const el = document.createElement('div'); el.className = 'refresh-note'; el.hidden = true;
+  el.setAttribute('role','status'); el.setAttribute('aria-live','polite');
+  return el;
+}
+// ไฮไลต์ตัวเลข/สถานะที่เปลี่ยนหลังวาดด้วยข้อมูลใหม่ — เทียบตามลำดับ element (snapshot ก่อนวาด) ถ้าจำนวนไม่เท่ากัน
+// (เช่น มีสินค้าเพิ่ม/ค้นหาเปลี่ยน) ไม่ไฮไลต์เลย ดีกว่าไฮไลต์ผิดตัว
+function snapshotTexts(root, sel){ return [...root.querySelectorAll(sel)].map(e=> e.textContent.trim()); }
+function flashChangedTexts(root, sel, before){
+  const els = [...root.querySelectorAll(sel)];
+  if(els.length !== before.length) return;
+  els.forEach((el,i)=>{ if(el.textContent.trim() !== before[i]) el.classList.add('fresh-flash'); });
+}
 
 // Perf fix (27 ก.ย. 69, จาก Performance Audit): เดิม "วิเคราะห์การสั่งซื้อ" tab (renderOwnerStockAnalytics)
 // ยิง apiGet('analytics') ใหม่ทุกครั้งที่เข้าแท็บนี้ ไม่มีแคชเลย ต่างจากแท็บพี่น้อง "สถานะสต๊อก" ที่มี
@@ -3625,6 +3671,8 @@ async function renderOwnerStockAnalytics(app){
   tabs.innerHTML = `<div class="tab ${state.ownerTab==='stock'?'active':''}" data-t="stock">สถานะสต๊อก</div>
                      <div class="tab ${state.ownerTab==='analytics'?'active':''}" data-t="analytics">วิเคราะห์การสั่งซื้อ</div>`;
   c.appendChild(tabs);
+  const refreshNote = makeRefreshNote(); // Speed 2-A — อยู่นอก body เพราะ renderStockTab() เขียนทับ body ทั้งก้อน
+  c.appendChild(refreshNote);
   const body = document.createElement('div');
   const lt = loadingTimerHtml();
   body.innerHTML = `<p class="empty-state">กำลังโหลด...</p>${lt.html}`;
@@ -3637,6 +3685,43 @@ async function renderOwnerStockAnalytics(app){
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
   // bootstrap()/checkPin() แทน
   const isCurrent = renderToken();
+  // Speed รอบ 2-A: แท็บสถานะสต๊อก — แคชเกิน TTL แต่ไม่เกิน 5 นาที วาดด้วยข้อมูลที่จำไว้ทันที แล้วดึงของใหม่เบื้องหลัง
+  // (แท็บนี้ดูอย่างเดียว ไม่มีปุ่มต้องล็อก) วาดใหม่แล้วคงคำค้นหาไว้ ถ้ากำลังพิมพ์ค้นหาอยู่รอจนออกจากช่องก่อน
+  if(state.ownerTab === 'stock' && stockStatusCache && canShowStale(_stockStatusTs)){
+    stopTimer();
+    const staleTs = _stockStatusTs;
+    const paint = list=>{
+      list.forEach(s=> Object.entries(s.remain||{}).forEach(([uid,val])=>{ if(val!==null) stockValues[uid]=val; }));
+      const search = body.querySelector('#search');
+      renderStockTab(body, list, search ? search.value : '');
+    };
+    paint(stockStatusCache);
+    setRefreshNote(refreshNote, 'loading', Date.now() - staleTs);
+    let fresh;
+    for(let failed = false;;){
+      try{ fresh = await getStockStatus(true); break; }
+      catch(err){
+        if(!isCurrent()) return;
+        if(!failed){ failed = true; setRefreshNote(refreshNote, 'fail', Date.now() - staleTs); }
+        await new Promise(r=> setTimeout(r, 3000));
+      }
+      if(!isCurrent()) return;
+    }
+    if(!isCurrent()) return;
+    const apply = ()=>{
+      if(!isCurrent()) return;
+      const search = body.querySelector('#search');
+      if(search && document.activeElement === search){ search.addEventListener('blur', ()=> setTimeout(apply, 0), { once: true }); return; }
+      const flashSel = '.metric p:last-child, #tableWrap td';
+      const before = snapshotTexts(body, flashSel);
+      paint(fresh);
+      flashChangedTexts(body, flashSel, before);
+      setRefreshNote(refreshNote, 'done');
+      setTimeout(()=>{ if(isCurrent()) setRefreshNote(refreshNote, null); }, 2000);
+    };
+    apply();
+    return;
+  }
   for(;;){
     try{
       if(state.ownerTab === 'stock'){
@@ -3664,7 +3749,7 @@ async function renderOwnerStockAnalytics(app){
 // statusList (ผล stockStatus ชุดเดียวกับหน้าสั่งของ: checked = มีข้อมูลเช็ควันนี้ครบทุกหน่วย) แยก 4 สถานะ:
 //   have/oos = เช็คแล้ว (oos = เหลือ 0 ทุกหน่วย) · skip = ยังไม่เช็คแต่เจ้าของตั้งงดวันนี้ไว้ · unchecked = ยังไม่เช็ค
 // สินค้าที่งดแต่มีคนเช็คมาแล้วยังโชว์ยอดจริงตามข้อมูล (ไม่ซ่อนเป็น "งดวันนี้") — ไม่มีคำขอเพิ่ม ใช้ข้อมูลที่โหลดมาแล้ว
-function renderStockTab(body, statusList){
+function renderStockTab(body, statusList, initialFilter){
   const statusById = {};
   (statusList || []).forEach(s=>{ statusById[s.productId] = s; });
   const allProducts = PRODUCTS.map(p=>{
@@ -3722,8 +3807,11 @@ function renderStockTab(body, statusList){
       tableWrap.appendChild(tbl);
     });
   }
-  renderTable('');
-  body.querySelector('#search').oninput = debounce((e)=>renderTable(e.target.value), 250);
+  // initialFilter: Speed 2-A วาดใหม่หลังรีเฟรชเบื้องหลัง — คงคำค้นหาที่พิมพ์ไว้แล้ว
+  const searchEl = body.querySelector('#search');
+  searchEl.value = initialFilter || '';
+  renderTable(searchEl.value);
+  searchEl.oninput = debounce((e)=>renderTable(e.target.value), 250);
 }
 
 // E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-012): เดิมแท็บ "30 วัน"/"กำหนดเอง" เป็นแค่ <div> กดแล้วไม่มีอะไรเกิดขึ้น
@@ -3795,7 +3883,12 @@ async function renderOrderPage(app){
   // 15 ก.ย. 69: เดิมพังครั้งเดียวก็ตัดจบแสดง error ทันที — เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ
   // bootstrap()/checkPin() แทน
   const isCurrent = renderToken();
-  for(;;){
+  // Speed รอบ 2-A: แคชเกิน TTL แต่ไม่เกิน 5 นาที — วาดด้วยข้อมูลที่จำไว้ทันที แล้วค่อยดึงของใหม่ (บล็อก if(refreshingData)
+  // ท้ายฟังก์ชัน) ระหว่างนั้น refreshingData = true → ล็อกปุ่ม "สั่งของเจ้านี้" (ดู buildSupplierCard)
+  const staleTs = _orderPageDataTs;
+  let refreshingData = !!stockStatusCache && canShowStale(staleTs);
+  if(refreshingData) stopTimer();
+  else for(;;){
     try{
       await ensureOrderPageData();
       stopTimer();
@@ -3806,9 +3899,13 @@ async function renderOrderPage(app){
     if(!isCurrent()){ stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง (ดู renderToken)
   }
   if(!isCurrent()) return; // ข้อมูลถูกเก็บลงแคชแล้ว (ensureOrderPageData) แต่ไม่ต้องสร้างหน้าที่ไม่มีใครดู
-  const statusList = stockStatusCache;
-  const statusByEntry = {}; statusList.forEach(s=> statusByEntry[s.productId] = s);
-  const statusByProduct = {}; statusList.forEach(s=> statusByProduct[s.productId] = s.checked);
+  // let + indexStatus() เพราะ Speed 2-A วาดใหม่ด้วย stockStatusCache ชุดใหม่หลังรีเฟรชเบื้องหลังเสร็จ
+  let statusByEntry = {}, statusByProduct = {};
+  function indexStatus(){
+    statusByEntry = {}; statusByProduct = {};
+    stockStatusCache.forEach(s=>{ statusByEntry[s.productId] = s; statusByProduct[s.productId] = s.checked; });
+  }
+  indexStatus();
   // จัดกลุ่มสินค้าตาม supplierId ไว้ล่วงหน้าครั้งเดียว แทนการวน PRODUCTS.filter(p=>p.supplierId===s.id)
   // ทั้งอาเรย์ซ้ำๆ ทุกเจ้า ทุกครั้งที่ renderGroups()/supplierStats() ถูกเรียก (เช่น ทุกครั้งที่พิมพ์ค้นหา) —
   // PRODUCTS ไม่เปลี่ยนระหว่างที่อยู่หน้านี้ เลย cache แค่ครั้งเดียวพอ
@@ -3824,6 +3921,7 @@ async function renderOrderPage(app){
   function productsOf(supplierId){ return productsBySupplier.get(supplierId) || []; }
 
   c.innerHTML = `<div id="stats" class="stat-strip"></div>
+    <div id="refreshNote"></div>
     <p class="confirm-hint" role="note">แตะ <b>✓</b> เมื่อส่งออเดอร์จริงแล้ว <span class="dim">(ไม่ใช่แค่สร้างข้อความ)</span></p>
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <input type="text" id="search" placeholder="ค้นหาชื่อสินค้าหรือชื่อเจ้า" style="flex:1;">
@@ -3831,6 +3929,11 @@ async function renderOrderPage(app){
     <div id="groups"></div>`;
   const statsEl = c.querySelector('#stats');
   const groups = c.querySelector('#groups');
+  const refreshNote = makeRefreshNote();
+  c.querySelector('#refreshNote').replaceWith(refreshNote);
+  // Speed 2-A: ปุ่มยืนยันส่งออเดอร์ที่กดระหว่างรีเฟรชเบื้องหลัง — ผลที่ดึงมาอาจถูกคำนวณก่อนคำขอบันทึกถึงเซิร์ฟเวอร์
+  // จึงเก็บไว้แล้วทับกลับหลังรีเฟรชเสร็จ ไม่งั้นวงเขียว ✓ ที่เพิ่งกดจะเด้งกลับเป็นว่างทั้งที่บันทึกสำเร็จแล้ว
+  const confirmEditsDuringRefresh = new Map();
 
   const expandedSuppliers = new Set();
 
@@ -3964,6 +4067,7 @@ async function renderOrderPage(app){
         confirmBtn.textContent = checked ? '✓' : '';
         if(confirmedLabel) confirmedLabel.hidden = !checked;
         if(checked) confirmedSupplierIds.add(s.id); else confirmedSupplierIds.delete(s.id);
+        if(refreshingData) confirmEditsDuringRefresh.set(s.id, checked);
         renderStats();
         try{
           await apiPost('setSupplierOrderConfirm', { supplierId: s.id, confirmed: checked, staffName: state.staffName }, true);
@@ -3974,6 +4078,7 @@ async function renderOrderPage(app){
           confirmBtn.textContent = !checked ? '✓' : '';
           if(confirmedLabel) confirmedLabel.hidden = checked;
           if(checked) confirmedSupplierIds.delete(s.id); else confirmedSupplierIds.add(s.id);
+          confirmEditsDuringRefresh.delete(s.id);
           renderStats();
           alert('บันทึกสถานะไม่สำเร็จ: ' + friendlyErrorMessage(err));
         }
@@ -4142,6 +4247,7 @@ async function renderOrderPage(app){
       const btn = document.createElement('button');
       btn.className = 'btn btn-primary'; btn.style.fontSize='12px'; btn.style.padding='6px 10px';
       btn.textContent = isOrdered ? 'สั่งของเจ้านี้อีกครั้ง' : 'สั่งของเจ้านี้';
+      if(refreshingData){ btn.disabled = true; btn.textContent = 'รออัปเดตข้อมูล...'; } // Speed 2-A: กันสั่งจากตัวเลขเก่า
       btn.onclick = async (e)=>{
         e.stopPropagation();
         const supItems = allItems.filter(p=> (state.orderQty[p.id] ?? 0) > 0).map(p=>{
@@ -4251,19 +4357,61 @@ async function renderOrderPage(app){
   const shownIds = productIdsKey();
   refreshBootstrapIfStale(()=>{
     if(!isCurrent() || productIdsKey() === shownIds) return;
-    const apply = ()=>{
+    whenNotTyping(()=>{
       if(!isCurrent()) return;
       indexProducts();
       renderStats();
       renderGroups(c.querySelector('#search').value);
-    };
+    });
+  });
+
+  // วาดใหม่ทั้งรายการจะรื้อช่องจำนวนที่กำลังพิมพ์ทิ้ง (ค่าใน state.orderQty ไม่หาย แต่โฟกัส/คีย์บอร์ดมือถือหลุด) — รอจน
+  // ออกจากช่องก่อน และเช็คซ้ำหลัง focusout เผื่อแตะต่อไปช่องจำนวนอีกช่องทันที (Speed 2-A แยกออกมาเป็นฟังก์ชันจาก
+  // โค้ดเดิมของ refreshBootstrapIfStale ด้านบน)
+  function whenNotTyping(fn){
     const ae = document.activeElement;
     if(ae && ae.tagName === 'INPUT' && groups.contains(ae)){
-      groups.addEventListener('focusout', ()=> setTimeout(apply, 0), { once: true });
+      groups.addEventListener('focusout', ()=> setTimeout(()=> whenNotTyping(fn), 0), { once: true });
     } else {
-      apply();
+      fn();
     }
-  });
+  }
+
+  // Speed รอบ 2-A: กำลังโชว์ข้อมูลที่จำไว้ — ดึงของใหม่ วนลองเงียบๆ ไม่จำกัดรอบเหมือนตอนโหลดปกติ แล้ววาดใหม่ทั้งหน้า
+  // (การ์ดที่กางไว้ = expandedSuppliers, จำนวนที่กรอก = state.orderQty, คำค้นหา = ช่อง #search ไม่ถูกวาดใหม่ อยู่ครบ)
+  if(refreshingData){
+    setRefreshNote(refreshNote, 'loading', Date.now() - staleTs);
+    (async ()=>{
+      for(let failed = false;;){
+        try{ await ensureOrderPageData(true); break; }
+        catch(err){
+          if(!isCurrent()) return;
+          if(!failed){ failed = true; setRefreshNote(refreshNote, 'fail', Date.now() - staleTs); }
+          await new Promise(r=> setTimeout(r, 3000));
+        }
+        if(!isCurrent()) return;
+      }
+      if(!isCurrent()) return;
+      // ensureOrderPageData() เขียนทับ confirmedSupplierIds ไปแล้ว — ทับคืนทันที (ไม่รอ whenNotTyping) ให้ตัวเลข
+      // "ส่งออเดอร์แล้ว" ไม่เพี้ยนระหว่างรอผู้ใช้ออกจากช่องจำนวน แล้วทับซ้ำอีกรอบตอนวาดจริง (ซ้ำได้ ผลเหมือนเดิม)
+      const reapplyConfirmEdits = ()=> confirmEditsDuringRefresh.forEach((on, id)=>{ if(on) confirmedSupplierIds.add(id); else confirmedSupplierIds.delete(id); });
+      reapplyConfirmEdits();
+      whenNotTyping(()=>{
+        if(!isCurrent()) return;
+        reapplyConfirmEdits();
+        confirmEditsDuringRefresh.clear();
+        const flashSel = '#stats .n, .ord-card-head .status-line, .ord-card-head .status-sub, .prow .stat .v';
+        const before = snapshotTexts(c, flashSel);
+        refreshingData = false;
+        indexStatus();
+        renderStats();
+        renderGroups(c.querySelector('#search').value);
+        flashChangedTexts(c, flashSel, before);
+        setRefreshNote(refreshNote, 'done');
+        setTimeout(()=>{ if(isCurrent()) setRefreshNote(refreshNote, null); }, 2000);
+      });
+    })();
+  }
 }
 
 /* ============ OWNER: Order message ============ */
