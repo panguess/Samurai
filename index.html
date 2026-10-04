@@ -44,7 +44,7 @@
     .tabs{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;overflow-x:auto;scrollbar-width:none}
     .tabs::-webkit-scrollbar{display:none}
     .admin-sticky-wrap{position:sticky;top:0;z-index:50;background:#1a0a06}
-    .tab{flex:1 0 auto;padding:10px 6px;text-align:center;font-size:13px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap}
+    .tab{flex:1 0 auto;padding:10px 4px;text-align:center;font-size:12px;cursor:pointer;color:#666;border-bottom:2px solid transparent;white-space:nowrap}
     .tab.active{color:#CB3E09;border-bottom-color:#CB3E09;font-weight:500}
     /* ===== แท็บวางบิล (เพิ่ม 3 ต.ค. 69) ===== */
     #adminBilling{padding:0 !important}
@@ -1633,6 +1633,8 @@ async function switchAdminTab(tab){
     el.classList.toggle('active',sel);
     el.setAttribute('aria-selected',sel?'true':'false');
     el.tabIndex=sel?0:-1;
+    // [เพิ่ม 4 ต.ค. 69] แท็บ "ภาพรวม" (แท็บที่ 5) ตกขอบจอ iPhone — เลื่อนแท็บที่เลือกให้เห็นเสมอ
+    if(sel&&el.scrollIntoView)el.scrollIntoView({inline:'nearest',block:'nearest'});
   });
   document.getElementById('adminList').style.display=(tab==='overview'||tab==='billing')?'none':'flex';
   document.getElementById('adminBilling').style.display=tab==='billing'?'block':'none';
