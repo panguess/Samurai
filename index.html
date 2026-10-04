@@ -3800,10 +3800,17 @@ if (
   navigator.canShare &&
   navigator.canShare({ files: [file] })
 ) {
-  await navigator.share({
-    files: [file],
-    title: fileName
-  });
+  // [แก้ 4 ต.ค. 69] ผู้ใช้กดยกเลิกหน้าต่างแชร์ iOS = AbortError ไม่ใช่ข้อผิดพลาด — เดิมหลุดเป็น "Promise Error"
+  // และปุ่มค้างสถานะ disabled
+  try{
+    await navigator.share({
+      files: [file],
+      title: fileName
+    });
+  }catch(e){
+    if(e&&e.name==='AbortError'){resetBtn();return;}
+    throw e;
+  }
 }
 // Android / Desktop: เซฟตรงด้วย anchor download (ไม่เด้ง share sheet)
 else {
