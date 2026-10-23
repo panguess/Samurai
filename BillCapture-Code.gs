@@ -87,13 +87,44 @@ const CACHE = CacheService.getScriptCache();
 // เรื่อยๆ ตามเวลา invalidate ทันทีใน submitBillForReview()/finalizePurchaseReceipt() (ทั้งคู่แก้ไขรายการที่
 // checkDuplicateBill ใช้เทียบ) กันเห็นข้อมูลค้างเหมือนกับ pendingBills
 const CACHE_TTL = { productAlias: 600, pendingBills: 30, billFolder: 3600, dupCandidates: 600 };
+// [23 ต.ค. 69] แคชค่าที่ใหญ่เกิน 100KB ได้ด้วยการแบ่งก้อน — เจอจริง: บิลค้างตรวจสะสม 40 ใบ (19-22 ต.ค.) ทำให้ผลของ
+// pendingBills ใหญ่ 134KB เกินเพดาน 100KB ต่อค่าของ CacheService เดิม cacheSet() ข้ามการแคชไปเงียบๆ ทุกครั้ง
+// เลยต้องคำนวณใหม่หมดทุกครั้งที่เปิดหน้า (วัดได้ 7.6-10.8 วิ) ช้าจนหน้า "บิลรอตรวจสอบ" ฝั่งเจ้าของดึงไม่ทัน
+// แล้วค้างโชว์ "ไม่มีบิลค้าง" จากแคชเก่าในเครื่อง — ค่าเล็กยังเก็บแบบเดิมทุกประการ (JSON ตรงๆ ใน key เดียว)
+// ค่าใหญ่เก็บเป็นหลายก้อน + key หลักเก็บแค่ตัวชี้ (CACHE_CHUNK_MARK + id + จำนวนก้อน) id สุ่มใหม่ทุกครั้งที่เขียน
+// กันอ่านก้อนของรอบเขียนเก่ามาปนกับรอบใหม่ — cacheClear() ลบแค่ key หลักก็พอ (ก้อนที่เหลือหมดอายุไปเอง)
+// ก้อนละ 30,000 ตัวอักษร: ภาษาไทยใน UTF-8 ใช้ 3 ไบต์ต่อตัว → ไม่เกิน 90KB ต่อก้อนแน่นอน
+const CACHE_CHUNK_CHARS = 30000;
+const CACHE_MAX_CHUNKS = 30; // ~900K ตัวอักษร — ใหญ่กว่านี้ข้ามการแคชไปเลยเหมือนเดิม (ไม่พัง)
+const CACHE_CHUNK_MARK = '__chunked__:';
 function cacheGet(key) {
   const raw = CACHE.get(key);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  if (raw.indexOf(CACHE_CHUNK_MARK) !== 0) return JSON.parse(raw);
+  const meta = JSON.parse(raw.slice(CACHE_CHUNK_MARK.length));
+  const keys = [];
+  for (let i = 0; i < meta.n; i++) keys.push(key + '__' + meta.id + '_' + i);
+  const parts = CACHE.getAll(keys);
+  let json = '';
+  for (const k of keys) {
+    if (parts[k] == null) return null; // ก้อนใดก้อนหนึ่งหาย (ถูกไล่ออกจากแคชก่อนหมดอายุ) — ถือว่าไม่มีแคช
+    json += parts[k];
+  }
+  return JSON.parse(json);
 }
 function cacheSet(key, data, ttlSec) {
-  try { CACHE.put(key, JSON.stringify(data), ttlSec); } catch (e) {
-    // ข้อมูลเกิน 100KB (limit ของ CacheService) — ข้ามการแคชแทนที่จะพัง
+  try {
+    const json = JSON.stringify(data);
+    if (json.length <= CACHE_CHUNK_CHARS) { CACHE.put(key, json, ttlSec); return; }
+    const n = Math.ceil(json.length / CACHE_CHUNK_CHARS);
+    if (n > CACHE_MAX_CHUNKS) return;
+    const id = Utilities.getUuid().slice(0, 8);
+    const parts = {};
+    for (let i = 0; i < n; i++) parts[key + '__' + id + '_' + i] = json.slice(i * CACHE_CHUNK_CHARS, (i + 1) * CACHE_CHUNK_CHARS);
+    CACHE.putAll(parts, ttlSec);
+    CACHE.put(key, CACHE_CHUNK_MARK + JSON.stringify({ id: id, n: n }), ttlSec); // เขียนตัวชี้ทีหลังสุด — ก้อนต้องครบก่อนถึงจะมีคนอ่านเจอ
+  } catch (e) {
+    // แคชเขียนไม่ลง (เกินโควต้า ฯลฯ) — ข้ามการแคชแทนที่จะพัง เหมือนเดิม
   }
 }
 function cacheClear(key) {
@@ -142,7 +173,18 @@ function jsonOut(obj) {
 }
 
 /* ============ sheet helpers (คัดลอกมาจาก Code.gs หลัก — คนละโปรเจกต์เข้าถึงกันไม่ได้) ============ */
+// [23 ต.ค. 69] memo ชีตที่อ่านแล้วภายในการรันครั้งเดียว — เปิดใช้เฉพาะระหว่าง getPendingBillReceipts() (ไม่มีการเขียน
+// ชีตในฟังก์ชันนั้นเลย) เดิมเช็คบิลซ้ำทีละบิลในคิว ทำให้อ่าน PurchaseReceipts+PendingBillReceipts ทั้งชีตซ้ำ 1 รอบ
+// ต่อซัพพลายเออร์ที่แคช dupCandidates ไม่มี (คิว 40 บิล ~20 เจ้า = อ่านชีตเดิมซ้ำ ~40 รอบ) ผลลัพธ์เหมือนเดิมทุกตัวอักษร
+// เพราะข้อมูลในชีตไม่เปลี่ยนระหว่างการรันนี้ — ไม่มีใครแก้แถวที่ได้จาก readTable() (ทุกจุดแค่อ่าน/map ไปเป็น object ใหม่)
+let _readTableMemo = null;
 function readTable(name) {
+  if (_readTableMemo && _readTableMemo[name]) return _readTableMemo[name];
+  const rows = readTableFromSheet_(name);
+  if (_readTableMemo) _readTableMemo[name] = rows;
+  return rows;
+}
+function readTableFromSheet_(name) {
   const sh = SHEET.getSheetByName(name);
   const rows = sh.getDataRange().getValues();
   const headers = rows[0];
@@ -650,23 +692,28 @@ function getPendingBillReceipts() {
 
   const sh = SHEET.getSheetByName(PENDING_BILL_SHEET);
   if (!sh) return { batches: [] };
-  const result = {
-    batches: readTable(PENDING_BILL_SHEET).map(r => {
-      const items = JSON.parse(r.ItemsJSON || '[]');
-      const billHeader = buildBillHeaderFromRow(r);
-      return {
-        batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
-        photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items, billHeader,
-        // 15 ก.ย. 69 (ต่อ): เดิมคำเตือนบิลซ้ำ (checkDuplicateBill) ทำงานแค่ตอนพนักงานสแกนสดเท่านั้น —
-        // เจ้าของเปิดดูจากคิวนี้ทีหลังไม่เคยเห็นคำเตือนเลยแม้พนักงานจะกดผ่านตอนสแกนไปแล้ว (เจอเคสจริง 3 บิล
-        // ซ้ำสตาร์อัพ) เพิ่มเช็คซ้ำตรงนี้ด้วย เทียบกับบิลอื่นในคิวเดียวกัน/ที่บันทึกจริงแล้ว (excludeBatchId
-        // กันบิลจับคู่กับตัวเอง)
-        duplicateBillWarning: checkDuplicateBill(r.SupplierID, billHeader, items, r.BatchID)
-      };
-    })
-  };
-  cacheSet('pendingBills', result, CACHE_TTL.pendingBills);
-  return result;
+  _readTableMemo = {}; // อ่านแต่ละชีตครั้งเดียวตลอดฟังก์ชันนี้ (ดู readTable) — ปิดใน finally เสมอ
+  try {
+    const result = {
+      batches: readTable(PENDING_BILL_SHEET).map(r => {
+        const items = JSON.parse(r.ItemsJSON || '[]');
+        const billHeader = buildBillHeaderFromRow(r);
+        return {
+          batchId: r.BatchID, date: normDate(r.Date), supplierId: r.SupplierID, staffName: r.StaffName,
+          photoUrl: toEmbeddableDriveUrl(r.PhotoURL), items, billHeader,
+          // 15 ก.ย. 69 (ต่อ): เดิมคำเตือนบิลซ้ำ (checkDuplicateBill) ทำงานแค่ตอนพนักงานสแกนสดเท่านั้น —
+          // เจ้าของเปิดดูจากคิวนี้ทีหลังไม่เคยเห็นคำเตือนเลยแม้พนักงานจะกดผ่านตอนสแกนไปแล้ว (เจอเคสจริง 3 บิล
+          // ซ้ำสตาร์อัพ) เพิ่มเช็คซ้ำตรงนี้ด้วย เทียบกับบิลอื่นในคิวเดียวกัน/ที่บันทึกจริงแล้ว (excludeBatchId
+          // กันบิลจับคู่กับตัวเอง)
+          duplicateBillWarning: checkDuplicateBill(r.SupplierID, billHeader, items, r.BatchID)
+        };
+      })
+    };
+    cacheSet('pendingBills', result, CACHE_TTL.pendingBills);
+    return result;
+  } finally {
+    _readTableMemo = null;
+  }
 }
 
 // ============ ทิ้งบิลที่ยืนยันว่าไม่ต้องการออกจากคิว "บิลรอตรวจสอบ" (15 ก.ย. 69) ============

@@ -1135,7 +1135,9 @@ function setRefreshNote(el, kind, ageMs){
   if(!el) return;
   if(!kind){ el.hidden = true; el.innerHTML = ''; return; }
   const mins = Math.floor((ageMs||0) / 60000);
-  const ageText = `ที่เห็นคือข้อมูลเมื่อ${mins < 1 ? 'ไม่ถึง 1 นาที' : ` ${mins} นาที`}ก่อน`;
+  // ชั่วโมง/วัน (23 ต.ค. 69): หน้า "บิลรอตรวจสอบ" ใช้แคชที่อายุได้ถึง 7 วัน (PERSIST_CACHE_MAX_AGE) ต่างจาก 2-A ที่ไม่เกิน 5 นาที
+  const ageUnit = mins < 1 ? 'ไม่ถึง 1 นาที' : mins < 60 ? ` ${mins} นาที` : mins < 1440 ? ` ${Math.floor(mins/60)} ชั่วโมง` : ` ${Math.floor(mins/1440)} วัน`;
+  const ageText = `ที่เห็นคือข้อมูลเมื่อ${ageUnit}ก่อน`;
   el.hidden = false;
   el.className = 'refresh-note' + (kind === 'loading' ? '' : ' ' + kind);
   el.innerHTML = kind === 'loading' ? `<span class="spin" aria-hidden="true"></span><span>กำลังอัปเดตข้อมูลล่าสุด · ${ageText}</span>`
@@ -3024,6 +3026,15 @@ function readPendingBillsCache(){
   const v = readPersistCache(PENDING_BILLS_CACHE_KEY_V2, PENDING_BILLS_CACHE_KEY);
   return Array.isArray(v) ? v : null;
 }
+// อายุของแคชรายการ (ms) สำหรับป้าย "ที่เห็นคือข้อมูลเมื่อ N นาทีก่อน" — null ถ้าไม่รู้เวลาที่เซฟ (แคช sessionStorage
+// รุ่นเก่าไม่มีเวลาเก็บไว้) ซึ่งหน้า "บิลรอตรวจสอบ" จะไม่ใช้แคชนั้นโชว์ ไปรอโหลดของจริงแทน
+function pendingBillsCacheAge(){
+  try{
+    const w = JSON.parse(localStorage.getItem(PENDING_BILLS_CACHE_KEY_V2));
+    if(w && w.savedAt) return Date.now() - w.savedAt;
+  }catch(e){}
+  return null;
+}
 function writePendingBillsCache(batches){ writePersistCache(PENDING_BILLS_CACHE_KEY_V2, PENDING_BILLS_CACHE_KEY, batches); }
 // E2E fix (1 ต.ค. 69, จาก Final E2E Audit — E2E-001): เดิมหลังกด "บันทึกต้นทุน"/"ทิ้งบิลนี้" สำเร็จ แคชรายการ
 // ใน sessionStorage ยังมีบิลนั้นอยู่ พอกลับมาหน้า "บิลรอตรวจสอบ" ก็โชว์บิลเดิมทันทีระหว่างรอรีเฟรช (ถ้ารีเฟรชล้มเหลว
@@ -3041,14 +3052,18 @@ async function renderBillPendingList(app){
   const isCurrent = renderToken();
   app.appendChild(topbar('บิลรอตรวจสอบ', {back:()=>go('ownerMenu')}));
   const c = document.createElement('div'); c.className='content';
+  // 23 ต.ค. 69: ป้าย "กำลังอัปเดต" แบบเดียวกับ Speed 2-A — อยู่นอก listEl เพราะ drawList() เขียนทับ listEl ทั้งก้อน
+  const refreshNote = makeRefreshNote();
+  const listEl = document.createElement('div');
+  c.appendChild(refreshNote); c.appendChild(listEl);
   app.appendChild(c);
 
   function drawList(allBatches){
     // E2E-001: ซ่อนบิลที่เครื่องนี้เพิ่งบันทึกต้นทุน/ทิ้งไปสำเร็จเสมอ — กันแคชเก่า (หรือรีเฟรชเบื้องหลังที่ยังไม่
     // กลับมา/ล้มเหลว) โชว์บิลเดิมค้างให้กดเข้าไปบันทึกซ้ำจนต้นทุนถูกนับ 2 เท่า (ดู markPendingBillClosed)
     const batches = allBatches.filter(b=> !_closedPendingBatchIds.has(b.batchId));
-    if(!batches.length){ c.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
-    c.innerHTML = batches.map(b=>{
+    if(!batches.length){ listEl.innerHTML = `<p class="empty-state">ไม่มีบิลค้างตรวจสอบตอนนี้ 🎉</p>`; return; }
+    listEl.innerHTML = batches.map(b=>{
       const sup = SUPPLIERS.find(s=>s.id===b.supplierId);
       const done = b.items.filter(it=> it.skip || (it.productId && it.factor && it.confirmed)).length;
       return `<div class="pending-row" data-id="${b.batchId}" role="button" tabindex="0">
@@ -3061,7 +3076,7 @@ async function renderBillPendingList(app){
         <span class="status-pill unmatched">${done}/${b.items.length} จับคู่แล้ว</span>
       </div>`;
     }).join('');
-    c.querySelectorAll('.pending-row').forEach(el=> bindActivatable(el, ()=>{
+    listEl.querySelectorAll('.pending-row').forEach(el=> bindActivatable(el, ()=>{
       const b = batches.find(x=>x.batchId===el.dataset.id);
       go('billReview', {
         billMode:'owner-resume', billResumeBatchId:b.batchId, billSupplierId:b.supplierId,
@@ -3082,35 +3097,48 @@ async function renderBillPendingList(app){
   // backend สำเร็จเร็วทุกครั้ง <3 วิ) ก็ขึ้น "หมดเวลาเชื่อมต่อ" ทันทีโดยไม่มีแม้แต่ปุ่ม "ลองใหม่" ให้กด
   // ต้องกดย้อนกลับแล้วเข้าใหม่เอาเอง — เดิมแก้ด้วยปุ่ม "ลองใหม่" ก่อน (7 ก.ย. 69) ตอนนี้ (15 ก.ย. 69)
   // เปลี่ยนเป็นวนลองเงียบๆ ไม่จำกัดรอบแบบเดียวกับ bootstrap()/checkPin() แทนที่จะโชว์ error ค้างรอให้กดเอง
-  // (silent=true ยังคงพฤติกรรมเดิม: มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังแค่ครั้งเดียวไม่ต้อง retry ซ้ำ)
-  async function load(silent){
+  // [23 ต.ค. 69] เดิม silent=true (มีแคชโชว์อยู่แล้ว) พังแล้วเลิกเงียบๆ ไม่ลองใหม่และไม่มีอะไรบอกบนจอ — เจอจริง: บิล
+  // ค้างตรวจ 40 ใบ (19-22 ต.ค.) แต่เจ้าของเห็น "ไม่มีบิลค้าง" จากแคชเก่าในเครื่อง เพราะ backend ช้าจนดึงไม่ทัน
+  // (ข้อมูลเกินเพดานแคช 100KB ดู cacheSet ใน BillCapture-Code.gs) ตอนนี้ทั้งสองแบบวนลองจนสำเร็จเหมือนกัน
+  // (pendingBills อ่านอย่างเดียว ลองซ้ำได้ไม่จำกัด) ต่างกันแค่ silent โชว์ป้าย .refresh-note บอกว่ารายการที่เห็น
+  // เป็นของเก่าเมื่อ N นาทีก่อนจนกว่าข้อมูลใหม่จะมาถึง
+  async function load(silent, staleTs){
     let stopTimer = null;
     if(!silent){
       const lt = loadingTimerHtml();
-      c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>${lt.html}`;
+      listEl.innerHTML = `<p class="empty-state">กำลังโหลด...</p>${lt.html}`;
       stopTimer = attachLoadingTimer(document.getElementById(lt.id));
+    } else {
+      setRefreshNote(refreshNote, 'loading', Date.now() - staleTs);
     }
-    for(;;){
+    for(let failed = false;;){
       let data;
       try{
         try{ data = await apiGet('pendingBills', null, 10000, BILL_API_URL); }
         catch(firstErr){ data = await apiGet('pendingBills', null, undefined, BILL_API_URL); }
       }catch(err){
-        if(silent) return; // มี cache โชว์อยู่แล้ว รีเฟรชเบื้องหลังพังไม่ต้องรบกวนหน้าจอ ลองใหม่รอบหน้าแทน
-        await new Promise(r=> setTimeout(r, 3000));
         if(!isCurrent()){ if(stopTimer) stopTimer(); return; } // ผู้ใช้ออกจากหน้านี้ไปแล้ว — เลิกวนลอง
+        if(silent && !failed){ failed = true; setRefreshNote(refreshNote, 'fail', Date.now() - staleTs); }
+        await new Promise(r=> setTimeout(r, 3000));
+        if(!isCurrent()){ if(stopTimer) stopTimer(); return; }
         continue;
       }
       if(stopTimer) stopTimer();
       writePendingBillsCache(data.batches);
-      if(isCurrent()) drawList(data.batches);
+      if(!isCurrent()) return;
+      drawList(data.batches);
+      if(silent){
+        setRefreshNote(refreshNote, 'done');
+        setTimeout(()=>{ if(isCurrent()) setRefreshNote(refreshNote, null); }, 2000);
+      }
       return;
     }
   }
 
   const cached = readPendingBillsCache();
-  if(cached){ drawList(cached); load(true); }
-  else{ c.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`; load(false); }
+  const cacheAge = cached ? pendingBillsCacheAge() : null;
+  if(cached && cacheAge !== null && cacheAge < PERSIST_CACHE_MAX_AGE){ drawList(cached); load(true, Date.now() - cacheAge); }
+  else{ listEl.innerHTML = `<p class="empty-state">กำลังโหลด...</p>`; load(false); }
 }
 
 /* ============ STAFF: supplier list (all suppliers always shown) ============ */
